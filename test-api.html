@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Login Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 API Login Test Tool</h1>
+        <p>Test different login request formats</p>
+
+        <div class="form-group">
+            <label>API Base URL:</label>
+            <input type="text" id="apiUrl" value="http://localhost:5156" placeholder="http://localhost:5156">
+        </div>
+
+        <div class="form-group">
+            <label>Email/Username:</label>
+            <input type="text" id="email" value="admin@motoguard.com" placeholder="admin@motoguard.com">
+        </div>
+
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" id="password" value="" placeholder="Enter password">
+        </div>
+
+        <div class="form-group">
+            <label>Request Format:</label>
+            <select id="format">
+                <option value="json-email">JSON with "email" field</option>
+                <option value="json-username">JSON with "username" field</option>
+                <option value="form-data">Form Data (multipart)</option>
+                <option value="url-encoded">URL Encoded</option>
+            </select>
+        </div>
+
+        <button onclick="testLogin()">🚀 Test Login</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function testLogin() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const format = document.getElementById('format').value;
+            const resultDiv = document.getElementById('result');
+
+            resultDiv.innerHTML = '<div class="result">Testing...</div>';
+
+            try {
+                let response;
+                const endpoint = `${apiUrl}/api/v1/staff/login`;
+
+                console.log('Testing login with format:', format);
+
+                if (format === 'json-email') {
+                    response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: email,
+                            password: password
+                        })
+                    });
+                } else if (format === 'json-username') {
+                    response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            username: email,
+                            password: password
+                        })
+                    });
+                } else if (format === 'form-data') {
+                    const formData = new FormData();
+                    formData.append('email', email);
+                    formData.append('password', password);
+                    
+                    response = await fetch(endpoint, {
+                        method: 'POST',
+                        body: formData
+                    });
+                } else if (format === 'url-encoded') {
+                    const params = new URLSearchParams();
+                    params.append('email', email);
+                    params.append('password', password);
+                    
+                    response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: params
+                    });
+                }
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            ✅ SUCCESS (${response.status})
+                            
+Request Format: ${format}
+Response:
+${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            ❌ ERROR (${response.status})
+                            
+Request Format: ${format}
+Error Response:
+${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        ❌ EXCEPTION
+                        
+Error: ${error.message}
+
+Make sure:
+1. Backend is running on ${apiUrl}
+2. CORS is enabled
+3. URL is correct
+                    </div>
+                `;
+                console.error('Test error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
