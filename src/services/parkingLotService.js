@@ -14,7 +14,7 @@ const parkingLotService = {
     try {
       const response = await apiClient.get(PARKING_LOT_BASE_PATH);
       console.log("Get all parking lots response:", response.data);
-      
+
       // Handle different response formats
       // Format 1: { data: { items: [...], meta: {...} } } - Pagination format
       if (response.data?.data?.items) {
@@ -62,7 +62,7 @@ const parkingLotService = {
   getParkingLotDetail: async (id) => {
     try {
       const response = await apiClient.get(
-        `${PARKING_LOT_BASE_PATH}/${id}/detail`
+        `${PARKING_LOT_BASE_PATH}/${id}/detail`,
       );
       return response.data?.data || response.data;
     } catch (error) {
@@ -79,7 +79,7 @@ const parkingLotService = {
   getParkingLotStatistics: async (id) => {
     try {
       const response = await apiClient.get(
-        `${PARKING_LOT_BASE_PATH}/${id}/statistics`
+        `${PARKING_LOT_BASE_PATH}/${id}/statistics`,
       );
       return response.data?.data || response.data;
     } catch (error) {
@@ -95,13 +95,16 @@ const parkingLotService = {
    */
   createParkingLot: async (parkingLotData) => {
     try {
+      console.log("Creating parking lot with data:", parkingLotData);
       const response = await apiClient.post(
         PARKING_LOT_BASE_PATH,
-        parkingLotData
+        parkingLotData,
       );
+      console.log("Create parking lot response:", response.data);
       return response.data?.data || response.data;
     } catch (error) {
       console.error("Error creating parking lot:", error);
+      console.error("Error response:", error.response?.data);
       throw error;
     }
   },
@@ -116,7 +119,7 @@ const parkingLotService = {
     try {
       const response = await apiClient.put(
         `${PARKING_LOT_BASE_PATH}/${id}`,
-        parkingLotData
+        parkingLotData,
       );
       return response.data?.data || response.data;
     } catch (error) {
