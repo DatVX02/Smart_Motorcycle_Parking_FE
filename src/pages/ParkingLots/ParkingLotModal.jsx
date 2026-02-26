@@ -1,75 +1,308 @@
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import toast from "react-hot-toast";
+import parkingLotService from "../../services/parkingLotService";
 
+const GATE_TYPE_OPTIONS = [
+  { value: "ENTRY", label: "Cổng vào" },
+  { value: "EXIT", label: "Cổng ra" },
+  { value: "BOTH", label: "Cả hai" },
+];
+
+const DEVICE_TYPE_OPTIONS = [
+  { value: "LPR_CAMERA", label: "Camera LPR (Đọc biển số)" },
+  { value: "BARRIER", label: "Barie (Thanh chắn)" },
+];
+
+const DEVICE_TYPE_LABEL = {
+  LPR_CAMERA: "Camera LPR",
+  BARRIER: "Barie",
+};
+
+const newDevice = () => ({
+  _id: crypto.randomUUID(),
+  deviceCode: "",
+  deviceName: "",
+  deviceType: "LPR_CAMERA",
+  model: "",
+  ipAddress: "",
+  macAddress: "",
+  firmwareVersion: "",
+});
+
+const newGate = () => ({
+  _id: crypto.randomUUID(),
+  gateName: "",
+  gateType: "ENTRY",
+  devices: [newDevice()],
+});
+
+const getDefaultFormData = () => ({
+  lotName: "",
+  fullAddress: "",
+  totalCapacity: "",
+  hourlyRate: "",
+  monthlyRate: "",
+  openingTime: "08:00",
+  closingTime: "22:00",
+  is24h: false,
+  scheduledActivationDate: "",
+  gates: [newGate()],
+  licensePlateThreshold: 85,
+  faceRecognitionThreshold: 90,
+});
 function ParkingLotModal({ lot, onClose, onSave }) {
-  const [formData, setFormData] = useState({
-    lotName: lot?.name || "",
-    fullAddress: lot?.location || "",
-    totalCapacity: lot?.totalSpots || 50,
-    openingTime: "06:00",
-    closingTime: "22:00",
-    is24h: false,
-    // Gate info
-    gateName: "Cổng chính",
-    gateType: "Both",
-    // Camera info (only Camera type allowed)
-    deviceCode: "CAM001",
-    deviceName: "Camera cổng chính",
-    deviceType: "Camera", // Fixed as Camera
-    model: "HIKVISION DS-2CD2345",
-    ipAddress: "192.168.1.100",
-    // AI Config
-    licensePlateThreshold: 85,
-    faceRecognitionThreshold: 90,
-  });
+  const [loading, setLoading] = useState(!!lot);
+  const [formData, setFormData] = useState(getDefaultFormData);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [collapsed, setCollapsed] = useState({}); // gate _id → bool
 
-  // Validate form
+  useEffect(() => {
+    const fetchLotDetail = async () => {
+      if (!lot?.id) {
+        setFormData(getDefaultFormData());
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        const detail = await parkingLotService.getParkingLotDetail(lot.id);
+        const rawGates = detail.gates || [];
+        const rawDev = detail.devices || [];
+        const aiConfig = detail.aiConfig || {};
+        const lotInfo = detail.lotInfo || detail;
+
+        const mergedGates =
+          rawGates.length > 0
+            ? rawGates.map((gate) => {
+                const gateDevices = rawDev
+                  .filter((d) => d.gateName === gate.gateName)
+                  .map((d) => ({
+                    _id: d.id || crypto.randomUUID(),
+                    deviceCode: d.deviceCode || "",
+                    deviceName: d.deviceName || "",
+                    deviceType: d.deviceType || "LPR_CAMERA",
+                    model: d.model || "",
+                    ipAddress: d.ipAddress || "",
+                    macAddress: d.macAddress || "",
+                    firmwareVersion: d.firmwareVersion || "",
+                  }));
+                return {
+                  _id: gate.id || crypto.randomUUID(),
+                  gateName: gate.gateName || "",
+                  gateType: gate.gateType || "ENTRY",
+                  devices: gateDevices.length > 0 ? gateDevices : [newDevice()],
+                };
+              })
+            : [newGate()];
+
+        // Stringify date to YYYY-MM-DD for <input type="date">
+        const toDateValue = (v) => {
+          if (!v) return "";
+          const d = new Date(v);
+          return isNaN(d) ? "" : d.toISOString().substring(0, 10);
+        };
+
+        setFormData({
+          lotName: lotInfo.lotName || lot.name || "",
+          fullAddress: lotInfo.fullAddress || lot.location || "",
+          totalCapacity: lotInfo.totalCapacity || lot.totalSpots || "",
+          hourlyRate: lotInfo.hourlyRate ?? "",
+          monthlyRate: lotInfo.monthlyRate ?? "",
+          openingTime: lotInfo.openingTime?.substring(0, 5) || "08:00",
+          closingTime: lotInfo.closingTime?.substring(0, 5) || "22:00",
+          is24h: lotInfo.is24h || false,
+          scheduledActivationDate: toDateValue(lotInfo.scheduledActivationDate),
+          gates: mergedGates,
+          licensePlateThreshold: aiConfig.licensePlateConfidenceThreshold ?? 85,
+          faceRecognitionThreshold:
+            aiConfig.faceRecognitionConfidenceThreshold ?? 90,
+        });
+      } catch (err) {
+        console.error("Error fetching parking lot detail:", err);
+        toast.error("Không thể tải thông tin chi tiết bãi đỗ xe");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLotDetail();
+  }, [lot?.id]);
+
+  const setField = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field])
+      setErrors((prev) => {
+        const n = { ...prev };
+        delete n[field];
+        return n;
+      });
+  };
+
+  const addGate = () =>
+    setFormData((prev) => ({ ...prev, gates: [...prev.gates, newGate()] }));
+
+  const removeGate = (gId) =>
+    setFormData((prev) => ({
+      ...prev,
+      gates: prev.gates.filter((g) => g._id !== gId),
+    }));
+
+  const updateGate = (gId, field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      gates: prev.gates.map((g) =>
+        g._id === gId ? { ...g, [field]: value } : g,
+      ),
+    }));
+    const key = `gate_${gId}_${field}`;
+    if (errors[key])
+      setErrors((prev) => {
+        const n = { ...prev };
+        delete n[key];
+        return n;
+      });
+  };
+
+  const toggleCollapse = (gId) =>
+    setCollapsed((prev) => ({ ...prev, [gId]: !prev[gId] }));
+
+  const addDevice = (gId) =>
+    setFormData((prev) => ({
+      ...prev,
+      gates: prev.gates.map((g) =>
+        g._id === gId ? { ...g, devices: [...g.devices, newDevice()] } : g,
+      ),
+    }));
+
+  const removeDevice = (gId, dId) =>
+    setFormData((prev) => ({
+      ...prev,
+      gates: prev.gates.map((g) =>
+        g._id === gId
+          ? { ...g, devices: g.devices.filter((d) => d._id !== dId) }
+          : g,
+      ),
+    }));
+
+  const updateDevice = (gId, dId, field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      gates: prev.gates.map((g) =>
+        g._id === gId
+          ? {
+              ...g,
+              devices: g.devices.map((d) =>
+                d._id === dId ? { ...d, [field]: value } : d,
+              ),
+            }
+          : g,
+      ),
+    }));
+    const key = `dev_${dId}_${field}`;
+    if (errors[key])
+      setErrors((prev) => {
+        const n = { ...prev };
+        delete n[key];
+        return n;
+      });
+  };
+
   const validateForm = () => {
     const newErrors = {};
-
-    // Validate lot name
-    if (!formData.lotName || formData.lotName.trim().length < 3) {
-      newErrors.lotName = "Tên bãi đỗ phải có ít nhất 3 ký tự";
-    }
-
-    // Validate address
-    if (!formData.fullAddress || formData.fullAddress.trim().length < 10) {
-      newErrors.fullAddress = "Địa chỉ phải có ít nhất 10 ký tự";
-    }
-
-    // Validate capacity
-    if (!formData.totalCapacity || formData.totalCapacity < 1) {
-      newErrors.totalCapacity = "Số chỗ đỗ phải lớn hơn 0";
-    }
-
-    // Validate time if not 24h
-    if (!formData.is24h) {
-      const opening = formData.openingTime;
-      const closing = formData.closingTime;
-      
-      if (!opening || !closing) {
-        newErrors.time = "Vui lòng chọn giờ mở cửa và đóng cửa";
-      } else if (opening >= closing) {
-        newErrors.time = "Giờ mở cửa phải trước giờ đóng cửa";
-      }
-    }
-
-    // Validate IP Address
     const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-    if (!ipRegex.test(formData.ipAddress)) {
-      newErrors.ipAddress = "IP Address không hợp lệ (VD: 192.168.1.100)";
+    const macRegex = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+
+    if (!formData.lotName || formData.lotName.trim().length < 3)
+      newErrors.lotName = "Tên bãi đỗ phải có ít nhất 3 ký tự";
+
+    if (!formData.fullAddress || formData.fullAddress.trim().length < 10)
+      newErrors.fullAddress = "Địa chỉ phải có ít nhất 10 ký tự";
+
+    if (!formData.totalCapacity || Number(formData.totalCapacity) < 1)
+      newErrors.totalCapacity = "Số chỗ đỗ phải lớn hơn 0";
+
+    if (formData.hourlyRate !== "" && Number(formData.hourlyRate) < 0)
+      newErrors.hourlyRate = "Giá không hợp lệ";
+
+    if (formData.monthlyRate !== "" && Number(formData.monthlyRate) < 0)
+      newErrors.monthlyRate = "Giá không hợp lệ";
+
+    if (!formData.is24h) {
+      const { openingTime: o, closingTime: c } = formData;
+      if (!o || !c) newErrors.time = "Vui lòng chọn giờ mở cửa và đóng cửa";
+      else if (o >= c) newErrors.time = "Giờ mở cửa phải trước giờ đóng cửa";
     }
 
-    // Validate AI thresholds
-    if (formData.licensePlateThreshold < 0 || formData.licensePlateThreshold > 100) {
+    // Uniqueness maps across ALL devices of ALL gates
+    const seenIps = new Map();
+    const seenCodes = new Map();
+    const seenMacs = new Map();
+
+    formData.gates.forEach((g) => {
+      if (!g.gateName.trim())
+        newErrors[`gate_${g._id}_gateName`] = "Vui lòng nhập tên cổng";
+
+      g.devices.forEach((d) => {
+        const ip = (d.ipAddress || "").trim();
+        const code = (d.deviceCode || "").trim();
+        const mac = (d.macAddress || "").trim().toUpperCase();
+
+        if (ip) {
+          if (!ipRegex.test(ip)) {
+            newErrors[`dev_${d._id}_ipAddress`] =
+              "IP không hợp lệ (VD: 192.168.1.100)";
+          } else if (seenIps.has(ip)) {
+            newErrors[`dev_${seenIps.get(ip)}_ipAddress`] =
+              "IP bị trùng với thiết bị khác";
+            newErrors[`dev_${d._id}_ipAddress`] =
+              "IP bị trùng với thiết bị khác";
+          } else {
+            seenIps.set(ip, d._id);
+          }
+        }
+
+        if (code) {
+          if (seenCodes.has(code)) {
+            newErrors[`dev_${seenCodes.get(code)}_deviceCode`] =
+              "Mã thiết bị bị trùng";
+            newErrors[`dev_${d._id}_deviceCode`] = "Mã thiết bị bị trùng";
+          } else {
+            seenCodes.set(code, d._id);
+          }
+        }
+
+        if (mac) {
+          if (!macRegex.test(mac)) {
+            newErrors[`dev_${d._id}_macAddress`] =
+              "MAC không hợp lệ (VD: AA:BB:CC:DD:EE:FF)";
+          } else if (seenMacs.has(mac)) {
+            newErrors[`dev_${seenMacs.get(mac)}_macAddress`] =
+              "MAC bị trùng với thiết bị khác";
+            newErrors[`dev_${d._id}_macAddress`] =
+              "MAC bị trùng với thiết bị khác";
+          } else {
+            seenMacs.set(mac, d._id);
+          }
+        }
+
+        const hasInfo =
+          code || d.deviceName.trim() || d.model.trim() || ip || mac;
+        if (hasInfo) {
+          if (!d.model.trim())
+            newErrors[`dev_${d._id}_model`] = "Vui lòng nhập model";
+          if (!ip)
+            newErrors[`dev_${d._id}_ipAddress`] = "Vui lòng nhập IP Address";
+        }
+      });
+    });
+
+    const lp = Number(formData.licensePlateThreshold);
+    const fr = Number(formData.faceRecognitionThreshold);
+    if (isNaN(lp) || lp < 0 || lp > 100)
       newErrors.licensePlateThreshold = "Ngưỡng phải từ 0-100";
-    }
-    if (formData.faceRecognitionThreshold < 0 || formData.faceRecognitionThreshold > 100) {
+    if (isNaN(fr) || fr < 0 || fr > 100)
       newErrors.faceRecognitionThreshold = "Ngưỡng phải từ 0-100";
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -77,8 +310,6 @@ function ParkingLotModal({ lot, onClose, onSave }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate form
     if (!validateForm()) {
       toast.error("Vui lòng kiểm tra lại thông tin");
       return;
@@ -86,62 +317,81 @@ function ParkingLotModal({ lot, onClose, onSave }) {
 
     setSubmitting(true);
     try {
-      // Convert time from HH:mm to HH:mm:ss format
-      const formatTime = (time) => {
-        if (!time) return "00:00:00";
-        return time.length === 5 ? `${time}:00` : time;
+      const lotInfo = {
+        lotName: formData.lotName.trim(),
+        fullAddress: formData.fullAddress.trim(),
+        totalCapacity: parseInt(formData.totalCapacity),
+        openingTime: formData.is24h ? "00:00" : formData.openingTime || "00:00",
+        closingTime: formData.is24h ? "23:59" : formData.closingTime || "23:59",
+        is24h: formData.is24h,
       };
+      if (formData.hourlyRate !== "")
+        lotInfo.hourlyRate = parseFloat(formData.hourlyRate);
+      if (formData.monthlyRate !== "")
+        lotInfo.monthlyRate = parseFloat(formData.monthlyRate);
+      if (formData.scheduledActivationDate)
+        lotInfo.scheduledActivationDate = new Date(
+          formData.scheduledActivationDate,
+        ).toISOString();
 
-      // Transform to backend format
+      const allDevices = formData.gates.flatMap((g) =>
+        g.devices
+          .filter(
+            (d) => d.deviceCode.trim() || d.model.trim() || d.ipAddress.trim(),
+          )
+          .map((d) => {
+            const dev = {
+              deviceCode: d.deviceCode.trim(),
+              deviceName: d.deviceName.trim(),
+              deviceType: d.deviceType,
+              gateName: g.gateName.trim(),
+              model: d.model.trim(),
+              ipAddress: d.ipAddress.trim(),
+              connectionStatus: "READY",
+            };
+            if (d.macAddress.trim())
+              dev.macAddress = d.macAddress.trim().toUpperCase();
+            if (d.firmwareVersion.trim())
+              dev.firmwareVersion = d.firmwareVersion.trim();
+            return dev;
+          }),
+      );
+
       const backendData = {
-        lotInfo: {
-          lotName: formData.lotName.trim(),
-          fullAddress: formData.fullAddress.trim(),
-          totalCapacity: parseInt(formData.totalCapacity),
-          openingTime: formData.is24h ? "00:00:00" : formatTime(formData.openingTime),
-          closingTime: formData.is24h ? "23:59:00" : formatTime(formData.closingTime),
-          is24h: formData.is24h,
-        },
+        lotInfo,
         cameraSetup: {
-          gates: [
-            {
-              gateName: formData.gateName,
-              gateType: formData.gateType,
-              isActive: true,
-            },
-          ],
-          devices: [
-            {
-              deviceCode: formData.deviceCode,
-              deviceName: formData.deviceName,
-              deviceType: "Camera",
-              gateName: formData.gateName,
-              model: formData.model,
-              ipAddress: formData.ipAddress,
-              macAddress: "00:00:00:00:00:00",
-              connectionStatus: "Online",
-              firmwareVersion: "1.0.0",
-            },
-          ],
+          gates: formData.gates.map((g) => ({
+            gateName: g.gateName.trim(),
+            gateType: g.gateType,
+            isActive: true,
+          })),
+          devices: allDevices,
           aiConfig: {
-            licensePlateConfidenceThreshold: parseInt(formData.licensePlateThreshold) || 85,
-            faceRecognitionConfidenceThreshold: parseInt(formData.faceRecognitionThreshold) || 90,
+            licensePlateConfidenceThreshold:
+              parseInt(formData.licensePlateThreshold) || 85,
+            faceRecognitionConfidenceThreshold:
+              parseInt(formData.faceRecognitionThreshold) || 90,
           },
         },
       };
 
-      console.log("Sending data to backend:", backendData);
+      console.log("Payload →", JSON.stringify(backendData, null, 2));
       await onSave(backendData);
-    } catch (error) {
-      console.error("Error saving:", error);
+    } catch (err) {
+      console.error("Error saving:", err);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const errClass = (key) => (errors[key] ? "border-red-500" : "");
+  const ErrMsg = ({ k }) =>
+    errors[k] ? <p className="text-red-500 text-xs mt-1">{errors[k]}</p> : null;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl">
+        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">
             {lot ? "Chỉnh sửa bãi đỗ" : "Thêm bãi đỗ mới"}
@@ -154,339 +404,613 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* Lot Information */}
-          <div className="border-b pb-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">
-              Thông tin bãi đỗ xe
-            </h3>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tên bãi đỗ <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.lotName}
-                  onChange={(e) => {
-                    setFormData({ ...formData, lotName: e.target.value });
-                    if (errors.lotName) setErrors({ ...errors, lotName: null });
-                  }}
-                  className={`input ${errors.lotName ? 'border-red-500' : ''}`}
-                  placeholder="Bãi Đỗ Xe Trung Tâm"
-                  required
-                />
-                {errors.lotName && (
-                  <p className="text-red-500 text-xs mt-1">{errors.lotName}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Địa chỉ đầy đủ <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.fullAddress}
-                  onChange={(e) => {
-                    setFormData({ ...formData, fullAddress: e.target.value });
-                    if (errors.fullAddress) setErrors({ ...errors, fullAddress: null });
-                  }}
-                  className={`input ${errors.fullAddress ? 'border-red-500' : ''}`}
-                  placeholder="123 Nguyễn Văn A, Quận 1, TP.HCM"
-                  required
-                />
-                {errors.fullAddress && (
-                  <p className="text-red-500 text-xs mt-1">{errors.fullAddress}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tổng số chỗ đỗ <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={formData.totalCapacity}
-                  onChange={(e) => {
-                    setFormData({ ...formData, totalCapacity: e.target.value });
-                    if (errors.totalCapacity) setErrors({ ...errors, totalCapacity: null });
-                  }}
-                  className={`input ${errors.totalCapacity ? 'border-red-500' : ''}`}
-                  min="1"
-                  required
-                />
-                {errors.totalCapacity && (
-                  <p className="text-red-500 text-xs mt-1">{errors.totalCapacity}</p>
-                )}
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <input
-                  id="is24h"
-                  type="checkbox"
-                  checked={formData.is24h}
-                  onChange={(e) =>
-                    setFormData({ ...formData, is24h: e.target.checked })
-                  }
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                />
-                <label htmlFor="is24h" className="text-sm font-medium text-gray-700">
-                  Hoạt động 24/7
-                </label>
-              </div>
-
-              {!formData.is24h && (
-                <div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Giờ mở cửa <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="time"
-                        value={formData.openingTime}
-                        onChange={(e) => {
-                          setFormData({ ...formData, openingTime: e.target.value });
-                          if (errors.time) setErrors({ ...errors, time: null });
-                        }}
-                        className={`input ${errors.time ? 'border-red-500' : ''}`}
-                        required={!formData.is24h}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Giờ đóng cửa <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="time"
-                        value={formData.closingTime}
-                        onChange={(e) => {
-                          setFormData({ ...formData, closingTime: e.target.value });
-                          if (errors.time) setErrors({ ...errors, time: null });
-                        }}
-                        className={`input ${errors.time ? 'border-red-500' : ''}`}
-                        required={!formData.is24h}
-                      />
-                    </div>
-                  </div>
-                  {errors.time && (
-                    <p className="text-red-500 text-xs mt-1">{errors.time}</p>
-                  )}
-                </div>
-              )}
-            </div>
+        {loading ? (
+          <div className="p-12 flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4" />
+            <p className="text-gray-600">Đang tải thông tin...</p>
           </div>
-
-          {/* Gate & Camera Setup */}
-          <div className="border-b pb-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Cấu hình cổng & Camera
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            className="p-6 space-y-6 max-h-[80vh] overflow-y-auto"
+          >
+            {/* ══ SECTION 1: Lot info ══════════════════════════════════════ */}
+            <section className="border-b pb-5">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">
+                Thông tin bãi đỗ xe
               </h3>
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                Loại thiết bị: Camera
-              </span>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3">
+                {/* Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tên cổng
+                    Tên bãi đỗ <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    value={formData.gateName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, gateName: e.target.value })
-                    }
-                    className="input"
-                    placeholder="Cổng chính"
-                    required
+                    value={formData.lotName}
+                    onChange={(e) => setField("lotName", e.target.value)}
+                    className={`input ${errClass("lotName")}`}
+                    placeholder="VD: Bãi xe Tòa nhà Bitexco"
                   />
+                  <ErrMsg k="lotName" />
                 </div>
+
+                {/* Address */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Loại cổng
+                    Địa chỉ đầy đủ <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={formData.gateType}
-                    onChange={(e) =>
-                      setFormData({ ...formData, gateType: e.target.value })
-                    }
-                    className="input"
-                    required
+                  <input
+                    type="text"
+                    value={formData.fullAddress}
+                    onChange={(e) => setField("fullAddress", e.target.value)}
+                    className={`input ${errClass("fullAddress")}`}
+                    placeholder="VD: 2 Hải Triều, Bến Nghé, Quận 1, TP.HCM"
+                  />
+                  <ErrMsg k="fullAddress" />
+                </div>
+
+                {/* Capacity */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tổng số chỗ đỗ <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.totalCapacity}
+                    onChange={(e) => setField("totalCapacity", e.target.value)}
+                    className={`input ${errClass("totalCapacity")}`}
+                    min="1"
+                    placeholder="VD: 850"
+                  />
+                  <ErrMsg k="totalCapacity" />
+                </div>
+
+                {/* Rates */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Giá theo giờ (VNĐ)
+                      <span className="ml-1 text-gray-400 text-xs font-normal">
+                        (tùy chọn)
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.hourlyRate}
+                      onChange={(e) => setField("hourlyRate", e.target.value)}
+                      className={`input ${errClass("hourlyRate")}`}
+                      min="0"
+                      placeholder="VD: 20000"
+                    />
+                    <ErrMsg k="hourlyRate" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Giá theo tháng (VNĐ)
+                      <span className="ml-1 text-gray-400 text-xs font-normal">
+                        (tùy chọn)
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.monthlyRate}
+                      onChange={(e) => setField("monthlyRate", e.target.value)}
+                      className={`input ${errClass("monthlyRate")}`}
+                      min="0"
+                      placeholder="VD: 2500000"
+                    />
+                    <ErrMsg k="monthlyRate" />
+                  </div>
+                </div>
+
+                {/* 24h toggle */}
+                <div className="flex items-center space-x-3">
+                  <input
+                    id="is24h"
+                    type="checkbox"
+                    checked={formData.is24h}
+                    onChange={(e) => setField("is24h", e.target.checked)}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  />
+                  <label
+                    htmlFor="is24h"
+                    className="text-sm font-medium text-gray-700"
                   >
-                    <option value="Entry">Cổng vào</option>
-                    <option value="Exit">Cổng ra</option>
-                    <option value="Both">Cả hai</option>
-                  </select>
+                    Hoạt động 24/7
+                  </label>
+                </div>
+
+                {/* Opening / Closing time */}
+                {!formData.is24h && (
+                  <div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Giờ mở cửa <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          value={formData.openingTime}
+                          onChange={(e) => {
+                            setField("openingTime", e.target.value);
+                            if (errors.time)
+                              setErrors((p) => {
+                                const n = { ...p };
+                                delete n.time;
+                                return n;
+                              });
+                          }}
+                          className={`input ${errClass("time")}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Giờ đóng cửa <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          value={formData.closingTime}
+                          onChange={(e) => {
+                            setField("closingTime", e.target.value);
+                            if (errors.time)
+                              setErrors((p) => {
+                                const n = { ...p };
+                                delete n.time;
+                                return n;
+                              });
+                          }}
+                          className={`input ${errClass("time")}`}
+                        />
+                      </div>
+                    </div>
+                    <ErrMsg k="time" />
+                  </div>
+                )}
+
+                {/* Activation date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ngày kích hoạt dự kiến
+                    <span className="ml-1 text-gray-400 text-xs font-normal">
+                      (tùy chọn)
+                    </span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.scheduledActivationDate}
+                    onChange={(e) =>
+                      setField("scheduledActivationDate", e.target.value)
+                    }
+                    className="input"
+                  />
                 </div>
               </div>
+            </section>
 
+            {/* ══ SECTION 2: Gates & Devices ═══════════════════════════════ */}
+            <section className="border-b pb-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Cấu hình cổng & Thiết bị
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Mỗi cổng có thể gắn nhiều thiết bị (Camera LPR, Barie...)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addGate}
+                  className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 font-medium border border-primary-300 hover:border-primary-500 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Thêm cổng
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {formData.gates.map((gate, gIdx) => {
+                  const isCollapsed = !!collapsed[gate._id];
+                  const gateHasErr = Object.keys(errors).some(
+                    (k) =>
+                      k.startsWith(`gate_${gate._id}`) ||
+                      gate.devices.some((d) => k.startsWith(`dev_${d._id}`)),
+                  );
+
+                  return (
+                    <div
+                      key={gate._id}
+                      className={`border rounded-lg bg-gray-50 overflow-hidden ${gateHasErr ? "border-red-300" : "border-gray-200"}`}
+                    >
+                      {/* Gate header */}
+                      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
+                        <button
+                          type="button"
+                          onClick={() => toggleCollapse(gate._id)}
+                          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                        >
+                          {isCollapsed ? (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                          )}
+                          <span>
+                            Cổng #{gIdx + 1}
+                            {gate.gateName && (
+                              <span className="ml-1.5 font-normal text-gray-400">
+                                — {gate.gateName}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                            {GATE_TYPE_OPTIONS.find(
+                              (o) => o.value === gate.gateType,
+                            )?.label || gate.gateType}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {gate.devices.length} thiết bị
+                          </span>
+                        </button>
+                        {formData.gates.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeGate(gate._id)}
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Xóa cổng"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {!isCollapsed && (
+                        <div className="p-4 space-y-4">
+                          {/* Gate name + type */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Tên cổng <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={gate.gateName}
+                                onChange={(e) =>
+                                  updateGate(
+                                    gate._id,
+                                    "gateName",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="VD: Cổng Vào Tầng Hầm B1"
+                                className={`input text-sm ${errClass(`gate_${gate._id}_gateName`)}`}
+                              />
+                              <ErrMsg k={`gate_${gate._id}_gateName`} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Loại cổng
+                              </label>
+                              <select
+                                value={gate.gateType}
+                                onChange={(e) =>
+                                  updateGate(
+                                    gate._id,
+                                    "gateType",
+                                    e.target.value,
+                                  )
+                                }
+                                className="input text-sm"
+                              >
+                                {GATE_TYPE_OPTIONS.map((o) => (
+                                  <option key={o.value} value={o.value}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Devices */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                Thiết bị
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => addDevice(gate._id)}
+                                className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                Thêm thiết bị
+                              </button>
+                            </div>
+
+                            <div className="space-y-3">
+                              {gate.devices.map((dev, dIdx) => (
+                                <div
+                                  key={dev._id}
+                                  className="border border-gray-200 rounded-lg p-3 bg-white"
+                                >
+                                  {/* Device row header */}
+                                  <div className="flex items-center justify-between mb-3">
+                                    <span className="text-xs font-medium text-gray-500">
+                                      Thiết bị #{dIdx + 1}
+                                      {dev.deviceName && (
+                                        <span className="ml-1.5 text-gray-400 font-normal">
+                                          — {dev.deviceName}
+                                        </span>
+                                      )}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">
+                                        {DEVICE_TYPE_LABEL[dev.deviceType] ||
+                                          dev.deviceType}
+                                      </span>
+                                      {gate.devices.length > 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            removeDevice(gate._id, dev._id)
+                                          }
+                                          className="p-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                          title="Xóa thiết bị"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Device fields — row 1 */}
+                                  <div className="grid grid-cols-3 gap-2 mb-2">
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Loại thiết bị
+                                      </label>
+                                      <select
+                                        value={dev.deviceType}
+                                        onChange={(e) =>
+                                          updateDevice(
+                                            gate._id,
+                                            dev._id,
+                                            "deviceType",
+                                            e.target.value,
+                                          )
+                                        }
+                                        className="input text-xs"
+                                      >
+                                        {DEVICE_TYPE_OPTIONS.map((o) => (
+                                          <option key={o.value} value={o.value}>
+                                            {o.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Mã thiết bị
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={dev.deviceCode}
+                                        onChange={(e) =>
+                                          updateDevice(
+                                            gate._id,
+                                            dev._id,
+                                            "deviceCode",
+                                            e.target.value,
+                                          )
+                                        }
+                                        placeholder="VD: CAM-IN-B1"
+                                        className={`input text-xs ${errClass(`dev_${dev._id}_deviceCode`)}`}
+                                      />
+                                      <ErrMsg k={`dev_${dev._id}_deviceCode`} />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Tên thiết bị
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={dev.deviceName}
+                                        onChange={(e) =>
+                                          updateDevice(
+                                            gate._id,
+                                            dev._id,
+                                            "deviceName",
+                                            e.target.value,
+                                          )
+                                        }
+                                        placeholder="VD: Camera LPR Cổng Vào"
+                                        className="input text-xs"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Device fields — row 2 */}
+                                  <div className="grid grid-cols-2 gap-2 mb-2">
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Model{" "}
+                                        <span className="text-red-500">*</span>
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={dev.model}
+                                        onChange={(e) =>
+                                          updateDevice(
+                                            gate._id,
+                                            dev._id,
+                                            "model",
+                                            e.target.value,
+                                          )
+                                        }
+                                        placeholder="VD: Hikvision DS-2CD4A26"
+                                        className={`input text-xs ${errClass(`dev_${dev._id}_model`)}`}
+                                      />
+                                      <ErrMsg k={`dev_${dev._id}_model`} />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        IP Address{" "}
+                                        <span className="text-red-500">*</span>
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={dev.ipAddress}
+                                        onChange={(e) =>
+                                          updateDevice(
+                                            gate._id,
+                                            dev._id,
+                                            "ipAddress",
+                                            e.target.value,
+                                          )
+                                        }
+                                        placeholder="VD: 192.168.10.50"
+                                        className={`input text-xs ${errClass(`dev_${dev._id}_ipAddress`)}`}
+                                      />
+                                      <ErrMsg k={`dev_${dev._id}_ipAddress`} />
+                                    </div>
+                                  </div>
+
+                                  {/* Device fields — row 3 */}
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        MAC Address
+                                        <span className="ml-1 text-gray-400 font-normal">
+                                          (tùy chọn)
+                                        </span>
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={dev.macAddress}
+                                        onChange={(e) =>
+                                          updateDevice(
+                                            gate._id,
+                                            dev._id,
+                                            "macAddress",
+                                            e.target.value,
+                                          )
+                                        }
+                                        placeholder="VD: A1:B2:C3:D4:E5:F6"
+                                        className={`input text-xs ${errClass(`dev_${dev._id}_macAddress`)}`}
+                                      />
+                                      <ErrMsg k={`dev_${dev._id}_macAddress`} />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Phiên bản firmware
+                                        <span className="ml-1 text-gray-400 font-normal">
+                                          (tùy chọn)
+                                        </span>
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={dev.firmwareVersion}
+                                        onChange={(e) =>
+                                          updateDevice(
+                                            gate._id,
+                                            dev._id,
+                                            "firmwareVersion",
+                                            e.target.value,
+                                          )
+                                        }
+                                        placeholder="VD: V5.5.82"
+                                        className="input text-xs"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* ══ SECTION 3: AI config ═════════════════════════════════════ */}
+            <section>
+              <h3 className="text-base font-semibold text-gray-900 mb-4">
+                Cấu hình AI
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mã thiết bị
+                    Ngưỡng nhận diện biển số (%)
+                    <span className="text-red-500"> *</span>
                   </label>
                   <input
-                    type="text"
-                    value={formData.deviceCode}
+                    type="number"
+                    value={formData.licensePlateThreshold}
                     onChange={(e) =>
-                      setFormData({ ...formData, deviceCode: e.target.value })
+                      setField("licensePlateThreshold", e.target.value)
                     }
-                    className="input"
-                    placeholder="CAM001"
-                    required
+                    className={`input ${errClass("licensePlateThreshold")}`}
+                    min="0"
+                    max="100"
                   />
+                  <ErrMsg k="licensePlateThreshold" />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Khuyến nghị: 80–95%
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tên thiết bị
+                    Ngưỡng nhận diện khuôn mặt (%)
+                    <span className="text-red-500"> *</span>
                   </label>
                   <input
-                    type="text"
-                    value={formData.deviceName}
+                    type="number"
+                    value={formData.faceRecognitionThreshold}
                     onChange={(e) =>
-                      setFormData({ ...formData, deviceName: e.target.value })
+                      setField("faceRecognitionThreshold", e.target.value)
                     }
-                    className="input"
-                    placeholder="Camera cổng chính"
-                    required
+                    className={`input ${errClass("faceRecognitionThreshold")}`}
+                    min="0"
+                    max="100"
                   />
+                  <ErrMsg k="faceRecognitionThreshold" />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Khuyến nghị: 85–98%
+                  </p>
                 </div>
               </div>
+            </section>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Model <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.model}
-                    onChange={(e) =>
-                      setFormData({ ...formData, model: e.target.value })
-                    }
-                    className="input"
-                    placeholder="HIKVISION DS-2CD2345"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    IP Address <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.ipAddress}
-                    onChange={(e) => {
-                      setFormData({ ...formData, ipAddress: e.target.value });
-                      if (errors.ipAddress) setErrors({ ...errors, ipAddress: null });
-                    }}
-                    className={`input ${errors.ipAddress ? 'border-red-500' : ''}`}
-                    placeholder="192.168.1.100"
-                    required
-                  />
-                  {errors.ipAddress && (
-                    <p className="text-red-500 text-xs mt-1">{errors.ipAddress}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* AI Configuration */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">
-              Cấu hình AI
-            </h3>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ngưỡng nhận diện biển số (%) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={formData.licensePlateThreshold}
-                  onChange={(e) => {
-                    setFormData({
-                      ...formData,
-                      licensePlateThreshold: e.target.value,
-                    });
-                    if (errors.licensePlateThreshold) 
-                      setErrors({ ...errors, licensePlateThreshold: null });
-                  }}
-                  className={`input ${errors.licensePlateThreshold ? 'border-red-500' : ''}`}
-                  min="0"
-                  max="100"
-                  required
-                />
-                {errors.licensePlateThreshold && (
-                  <p className="text-red-500 text-xs mt-1">{errors.licensePlateThreshold}</p>
+            {/* ══ Actions ══════════════════════════════════════════════════ */}
+            <div className="flex items-center justify-end space-x-3 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn btn-secondary"
+                disabled={submitting}
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <span className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>{lot ? "Đang cập nhật..." : "Đang thêm..."}</span>
+                  </span>
+                ) : (
+                  <span>{lot ? "Cập nhật" : "Thêm mới"}</span>
                 )}
-                <p className="text-xs text-gray-500 mt-1">
-                  Khuyến nghị: 80-95% cho độ chính xác tốt
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ngưỡng nhận diện khuôn mặt (%) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={formData.faceRecognitionThreshold}
-                  onChange={(e) => {
-                    setFormData({
-                      ...formData,
-                      faceRecognitionThreshold: e.target.value,
-                    });
-                    if (errors.faceRecognitionThreshold) 
-                      setErrors({ ...errors, faceRecognitionThreshold: null });
-                  }}
-                  className={`input ${errors.faceRecognitionThreshold ? 'border-red-500' : ''}`}
-                  min="0"
-                  max="100"
-                  required
-                />
-                {errors.faceRecognitionThreshold && (
-                  <p className="text-red-500 text-xs mt-1">{errors.faceRecognitionThreshold}</p>
-                )}
-                <p className="text-xs text-gray-500 mt-1">
-                  Khuyến nghị: 85-98% cho độ chính xác tốt
-                </p>
-              </div>
+              </button>
             </div>
-          </div>
-
-          <div className="flex items-center justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-secondary"
-              disabled={submitting}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={submitting}
-            >
-              {submitting ? (
-                <span className="flex items-center space-x-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>{lot ? "Đang cập nhật..." : "Đang thêm..."}</span>
-                </span>
-              ) : (
-                <span>{lot ? "Cập nhật" : "Thêm mới"}</span>
-              )}
-            </button>
-          </div>
-        </form>
+          </form>
+        )}
       </div>
     </div>
   );

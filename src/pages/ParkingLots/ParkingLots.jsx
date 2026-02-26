@@ -12,6 +12,7 @@ import toast from "react-hot-toast";
 import ParkingLotModal from "./ParkingLotModal";
 import ParkingLotDetailModal from "./ParkingLotDetailModal";
 import parkingLotService from "../../services/parkingLotService";
+import { API_BASE_URL } from "../../config/api";
 
 function ParkingLots() {
   const [showModal, setShowModal] = useState(false);
@@ -26,37 +27,46 @@ function ParkingLots() {
     fetchParkingLots();
   }, [refreshKey]);
 
-  // Transform backend data to UI format
+  // Transform response từ GET /api/v1/parking-lots sang format UI
   const transformParkingLot = (lot) => ({
-    id: lot.lotId || lot.id,
-    name: lot.lotName || lot.name,
-    location: lot.fullAddress || lot.location,
-    totalSpots: lot.totalCapacity || lot.totalSpots || 0,
-    occupiedSpots: lot.currentOccupancy || lot.occupiedSpots || 0,
-    gates: lot.gates || 1,
-    status: lot.status?.toLowerCase() || "active",
-    cameras: lot.cameras || 1,
+    id: lot.lotId ?? lot.id,
+    name: lot.lotName ?? lot.name ?? "",
+    location: lot.fullAddress ?? lot.address ?? lot.location ?? "",
+    totalSpots: parseInt(lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0, 10) || 0,
+    occupiedSpots: parseInt(lot.currentOccupancy ?? lot.occupiedSpots ?? 0, 10) || 0,
+    gates: parseInt(lot.gates ?? lot.totalGates ?? 1, 10) || 1,
+    status: String(lot.status ?? "active").toLowerCase(),
+    cameras: parseInt(lot.cameras ?? lot.totalCameras ?? 1, 10) || 1,
   });
 
   const fetchParkingLots = async (showToast = false) => {
     try {
       setLoading(true);
       const data = await parkingLotService.getAllParkingLots();
-
-      // Ensure data is an array and transform it
       const parkingLotsArray = Array.isArray(data) ? data : [];
       const transformedData = parkingLotsArray.map(transformParkingLot);
-
-      console.log("Transformed parking lots:", transformedData);
       setParkingLots(transformedData);
 
       if (showToast) {
-        toast.success("Đã tải danh sách bãi đỗ xe");
+        toast.success(`Đã tải ${transformedData.length} bãi đỗ xe`);
       }
     } catch (error) {
-      toast.error("Không thể tải danh sách bãi đỗ xe");
-      console.error("Error fetching parking lots:", error);
-      setParkingLots([]); // Set empty array on error
+      const isNetworkError =
+        error?.code === "ERR_NETWORK" ||
+        error?.message === "Network Error" ||
+        error?.message?.includes("ERR_EMPTY_RESPONSE");
+      if (isNetworkError) {
+        toast.error(
+          `Không kết nối được máy chủ. Kiểm tra backend đã chạy tại ${API_BASE_URL} chưa.`,
+          { duration: 6000 }
+        );
+      } else {
+        toast.error(
+          error?.response?.data?.message || "Không thể tải danh sách bãi đỗ xe"
+        );
+      }
+      console.error("Error fetching parking lots:", error?.response?.data ?? error?.message);
+      setParkingLots([]);
     } finally {
       setLoading(false);
     }
@@ -90,22 +100,48 @@ function ParkingLots() {
   const handleSave = async (formData) => {
     try {
       if (selectedLot) {
-        // Update existing parking lot
         await parkingLotService.updateParkingLot(selectedLot.id, formData);
         toast.success("Đã cập nhật bãi đỗ xe thành công");
       } else {
-        // Create new parking lot
         await parkingLotService.createParkingLot(formData);
         toast.success("Đã thêm bãi đỗ xe mới thành công");
       }
       setShowModal(false);
-      setRefreshKey((prev) => prev + 1); // Trigger re-fetch
+      setSelectedLot(null);
+      await fetchParkingLots(false);
+      
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.message ||
-        `Không thể ${selectedLot ? "cập nhật" : "tạo"} bãi đỗ xe`;
-      toast.error(errorMessage);
+      const data = error.response?.data;
+      const statusCode = error.response?.status;
+
+      let errorMessage = `Không thể ${selectedLot ? "cập nhật" : "tạo"} bãi đỗ xe`;
+
+      if (data?.message && data.message !== "Đã có lỗi xảy ra, vui lòng thử lại sau") {
+        errorMessage = data.message;
+      } else if (data?.title) {
+        errorMessage = data.title;
+      } else if (data?.reason) {
+        errorMessage = data.reason;
+      } else if (statusCode === 500) {
+        errorMessage = "Lỗi máy chủ (500) — Có thể IP hoặc mã thiết bị đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.";
+      } else if (statusCode === 409) {
+        errorMessage = "Dữ liệu bị trùng — IP Address hoặc mã thiết bị đã tồn tại";
+      }
+
+      // Hiển thị chi tiết lỗi validation từ API (vd: .NET 400)
+      if (data?.errors && typeof data.errors === "object") {
+        const parts = [];
+        for (const [key, messages] of Object.entries(data.errors)) {
+          const list = Array.isArray(messages) ? messages : [messages];
+          parts.push(`${key}: ${list.join(", ")}`);
+        }
+        if (parts.length) errorMessage = parts.join(" • ");
+      }
+
+      toast.error(errorMessage, { duration: 5000 });
       console.error("Error saving parking lot:", error);
+      console.error("Backend response body:", JSON.stringify(data, null, 2));
+      throw error; // Re-throw để modal biết có lỗi
     }
   };
 
@@ -247,20 +283,39 @@ function ParkingLots() {
                 className="card hover:shadow-lg transition-shadow"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <div className="w-12 h-12 flex-shrink-0 bg-primary-100 rounded-lg flex items-center justify-center">
                       <ParkingCircle className="w-6 h-6 text-primary-600" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-semibold text-gray-900 leading-tight">
                         {lot.name}
                       </h3>
-                      <div className="flex items-center text-sm text-gray-500 mt-1">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        {lot.location}
+                      <div className="flex items-center text-sm text-gray-500 mt-0.5">
+                        <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
+                        <span className="truncate">{lot.location}</span>
                       </div>
                     </div>
                   </div>
+                  <span
+                    className={`flex-shrink-0 ml-2 mt-0.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      lot.status === "active"
+                        ? "bg-green-100 text-green-700"
+                        : lot.status === "inactive"
+                          ? "bg-red-100 text-red-700"
+                          : lot.status === "maintenance"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {lot.status === "active"
+                      ? "Hoạt động"
+                      : lot.status === "inactive"
+                        ? "Không hoạt động"
+                        : lot.status === "maintenance"
+                          ? "Bảo trì"
+                          : lot.status ?? "—"}
+                  </span>
                 </div>
 
                 {/* Occupancy Bar */}
