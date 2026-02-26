@@ -1,8 +1,8 @@
 import axios from "axios";
 
-// Base API URL
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5156";
+// Base API URL (cấu hình trong .env: VITE_API_BASE_URL)
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://localhost:5156";
 
 // Create axios instance
 const apiClient = axios.create({
@@ -24,7 +24,7 @@ apiClient.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor - Handle errors globally
@@ -45,7 +45,7 @@ apiClient.interceptors.response.use(
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default apiClient;

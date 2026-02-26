@@ -9,8 +9,8 @@ function ParkingLotDetailModal({ lot, onClose }) {
   const [statistics, setStatistics] = useState(null);
 
   useEffect(() => {
-    fetchDetailData();
-  }, [lot.id]);
+    if (lot?.id) fetchDetailData();
+  }, [lot?.id]);
 
   const fetchDetailData = async () => {
     try {
@@ -145,14 +145,14 @@ function ParkingLotDetailModal({ lot, onClose }) {
               </div>
             </div>
 
-            {/* Statistics (if available) */}
-            {statistics && (
+            {/* Statistics - GET /api/v1/parking-lots/{id}/statistics */}
+            {statistics && Object.keys(statistics).length > 0 && (
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Thống kê hôm nay
+                  Thống kê
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {statistics.todayVehicles !== undefined && (
+                  {(statistics.todayVehicles ?? statistics.totalVehicles ?? statistics.vehicleCount) != null && (
                     <div className="card bg-indigo-50">
                       <div className="flex items-center justify-between">
                         <div>
@@ -160,14 +160,14 @@ function ParkingLotDetailModal({ lot, onClose }) {
                             Số lượt xe
                           </p>
                           <p className="text-2xl font-bold text-gray-900">
-                            {statistics.todayVehicles}
+                            {statistics.todayVehicles ?? statistics.totalVehicles ?? statistics.vehicleCount}
                           </p>
                         </div>
                         <TrendingUp className="w-8 h-8 text-indigo-600" />
                       </div>
                     </div>
                   )}
-                  {statistics.todayRevenue !== undefined && (
+                  {(statistics.todayRevenue ?? statistics.revenue ?? statistics.totalRevenue) != null && (
                     <div className="card bg-green-50">
                       <div className="flex items-center justify-between">
                         <div>
@@ -178,7 +178,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                             {new Intl.NumberFormat("vi-VN", {
                               style: "currency",
                               currency: "VND",
-                            }).format(statistics.todayRevenue)}
+                            }).format(statistics.todayRevenue ?? statistics.revenue ?? statistics.totalRevenue ?? 0)}
                           </p>
                         </div>
                         <TrendingUp className="w-8 h-8 text-green-600" />
