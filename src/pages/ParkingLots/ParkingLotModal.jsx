@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import toast from "react-hot-toast";
 import parkingLotService from "../../services/parkingLotService";
+import gateService from "../../services/gateService";
+import aiConfigService from "../../services/aiConfigService";
 
 const GATE_TYPE_OPTIONS = [
   { value: "ENTRY", label: "Cổng vào" },
@@ -43,20 +45,25 @@ const getDefaultFormData = () => ({
   totalCapacity: "",
   hourlyRate: "",
   monthlyRate: "",
-  openingTime: "08:00",
-  closingTime: "22:00",
+  openingTime: "",
+  closingTime: "",
   is24h: false,
   scheduledActivationDate: "",
   gates: [newGate()],
-  licensePlateThreshold: 85,
-  faceRecognitionThreshold: 90,
+  licensePlateThreshold: "",
+  faceRecognitionThreshold: "",
 });
+// Backend lưu 0.0–1.0, UI hiển thị 0–100%
+const toPercent = (v) => (v == null ? null : v <= 1 ? Math.round(v * 100) : Math.round(v));
+const toDecimal = (v) => (v == null ? null : v > 1 ? parseFloat((v / 100).toFixed(4)) : parseFloat(v));
+
 function ParkingLotModal({ lot, onClose, onSave }) {
   const [loading, setLoading] = useState(!!lot);
   const [formData, setFormData] = useState(getDefaultFormData);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [collapsed, setCollapsed] = useState({}); // gate _id → bool
+  const aiConfigIdRef = useRef(null); // lưu configId để update sau
 
   useEffect(() => {
     const fetchLotDetail = async () => {
@@ -67,35 +74,84 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       }
       try {
         setLoading(true);
-        const detail = await parkingLotService.getParkingLotDetail(lot.id);
-        const rawGates = detail.gates || [];
-        const rawDev = detail.devices || [];
-        const aiConfig = detail.aiConfig || {};
+        const lotId = lot.id;
+
+        // Fetch detail + gates + aiConfig by lot in parallel
+        const [detail, apiGates, aiConfigData] = await Promise.all([
+          parkingLotService.getParkingLotDetail(lotId),
+          gateService.getByLot(lotId).catch(() => []),
+          aiConfigService.getByLot(lotId).catch(() => null),
+        ]);
+
+        const aiConfig =
+          aiConfigData ||
+          detail.cameraSetup?.aiConfig ||
+          detail.aiConfig ||
+          {};
+
+        // Lưu configId để dùng khi update
+        aiConfigIdRef.current =
+          aiConfigData?.configId ??
+          aiConfigData?.id ??
+          aiConfigData?.aiConfigId ??
+          null;
         const lotInfo = detail.lotInfo || detail;
 
+        // Build gateId → { gateName, gateType } from the gates endpoint
+        const gateNameMap = new Map();
+        apiGates.forEach((g) => {
+          const id = g.gateId ?? g.id;
+          if (id) {
+            gateNameMap.set(id, {
+              gateName: g.gateName || g.name || "",
+              gateType: g.gateType || g.type || "ENTRY",
+            });
+          }
+        });
+
+        // Group devices by gateId → one gate entry per unique gateId
+        const gateMap = new Map();
+        const rawDev = detail.devices || [];
+
+        rawDev.forEach((d) => {
+          const gId = d.gateId || "no-gate";
+          const gateInfo = gateNameMap.get(gId);
+
+          if (!gateMap.has(gId)) {
+            gateMap.set(gId, {
+              _id: gId,
+              gateName: gateInfo?.gateName ?? "",
+              gateType: gateInfo?.gateType ?? "ENTRY",
+              devices: [],
+            });
+          }
+          gateMap.get(gId).devices.push({
+            _id: d.deviceId ?? d.id ?? crypto.randomUUID(),
+            deviceCode: d.deviceCode || "",
+            deviceName: d.deviceName || "",
+            deviceType: d.deviceType || "LPR_CAMERA",
+            model: d.model || "",
+            ipAddress: d.ipAddress || "",
+            macAddress: d.macAddress || "",
+            firmwareVersion: d.firmwareVersion || "",
+          });
+        });
+
+        // Also add gates that exist but have no devices yet
+        apiGates.forEach((g) => {
+          const gId = g.gateId ?? g.id;
+          if (gId && !gateMap.has(gId)) {
+            gateMap.set(gId, {
+              _id: gId,
+              gateName: g.gateName || g.name || "",
+              gateType: g.gateType || g.type || "ENTRY",
+              devices: [newDevice()],
+            });
+          }
+        });
+
         const mergedGates =
-          rawGates.length > 0
-            ? rawGates.map((gate) => {
-                const gateDevices = rawDev
-                  .filter((d) => d.gateName === gate.gateName)
-                  .map((d) => ({
-                    _id: d.id || crypto.randomUUID(),
-                    deviceCode: d.deviceCode || "",
-                    deviceName: d.deviceName || "",
-                    deviceType: d.deviceType || "LPR_CAMERA",
-                    model: d.model || "",
-                    ipAddress: d.ipAddress || "",
-                    macAddress: d.macAddress || "",
-                    firmwareVersion: d.firmwareVersion || "",
-                  }));
-                return {
-                  _id: gate.id || crypto.randomUUID(),
-                  gateName: gate.gateName || "",
-                  gateType: gate.gateType || "ENTRY",
-                  devices: gateDevices.length > 0 ? gateDevices : [newDevice()],
-                };
-              })
-            : [newGate()];
+          gateMap.size > 0 ? [...gateMap.values()] : [newGate()];
 
         // Stringify date to YYYY-MM-DD for <input type="date">
         const toDateValue = (v) => {
@@ -115,9 +171,14 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           is24h: lotInfo.is24h || false,
           scheduledActivationDate: toDateValue(lotInfo.scheduledActivationDate),
           gates: mergedGates,
-          licensePlateThreshold: aiConfig.licensePlateConfidenceThreshold ?? 85,
-          faceRecognitionThreshold:
-            aiConfig.faceRecognitionConfidenceThreshold ?? 90,
+          licensePlateThreshold: toPercent(
+            aiConfig.licensePlateConfidenceThreshold ??
+            aiConfig.licensePlateThreshold
+          ) ?? 85,
+          faceRecognitionThreshold: toPercent(
+            aiConfig.faceRecognitionConfidenceThreshold ??
+            aiConfig.faceRecognitionThreshold
+          ) ?? 90,
         });
       } catch (err) {
         console.error("Error fetching parking lot detail:", err);
@@ -368,14 +429,29 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           devices: allDevices,
           aiConfig: {
             licensePlateConfidenceThreshold:
-              parseInt(formData.licensePlateThreshold) || 85,
+              toDecimal(parseInt(formData.licensePlateThreshold) || 85),
             faceRecognitionConfidenceThreshold:
-              parseInt(formData.faceRecognitionThreshold) || 90,
+              toDecimal(parseInt(formData.faceRecognitionThreshold) || 90),
           },
         },
       };
 
       console.log("Payload →", JSON.stringify(backendData, null, 2));
+
+      // Nếu đang edit và có configId → cập nhật AI config riêng
+      if (lot && aiConfigIdRef.current) {
+        const aiPayload = {
+          licensePlateConfidenceThreshold:
+            toDecimal(parseInt(formData.licensePlateThreshold) || 85),
+          faceRecognitionConfidenceThreshold:
+            toDecimal(parseInt(formData.faceRecognitionThreshold) || 90),
+        };
+        console.log("AI Config update →", aiPayload);
+        await aiConfigService.update(aiConfigIdRef.current, aiPayload).catch((err) => {
+          console.warn("Không thể cập nhật AI config:", err);
+        });
+      }
+
       await onSave(backendData);
     } catch (err) {
       console.error("Error saving:", err);
