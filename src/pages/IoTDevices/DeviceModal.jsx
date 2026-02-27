@@ -1,24 +1,93 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 
-function DeviceModal({ device, onClose, onSave }) {
-  const [formData, setFormData] = useState({
-    name: device?.name || "",
-    type: device?.type || "camera",
-    location: device?.location || "",
-    ip: device?.ip || "",
-    model: device?.model || "",
-    status: device?.status || "online",
-  });
+const DEVICE_TYPE_OPTIONS = [
+  { value: "LPR_CAMERA", label: "Camera LPR (Đọc biển số)" },
+  { value: "BARRIER",    label: "Barie (Thanh chắn)"       },
+];
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(formData);
+const getDefault = (device) => ({
+  deviceCode:      device?.deviceCode      || device?.code            || "",
+  deviceName:      device?.deviceName      || device?.name            || "",
+  deviceType:      device?.deviceType      || "LPR_CAMERA",
+  gateName:        device?.gateName        || "",
+  model:           device?.model           || "",
+  ipAddress:       device?.ipAddress       || device?.ip              || "",
+  macAddress:      device?.macAddress      || "",
+  firmwareVersion: device?.firmwareVersion || "",
+});
+
+function DeviceModal({ device, onClose, onSave }) {
+  const [formData,   setFormData]   = useState(() => getDefault(device));
+  const [errors,     setErrors]     = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  const set = (field, value) => {
+    setFormData((p) => ({ ...p, [field]: value }));
+    if (errors[field]) setErrors((p) => { const n = { ...p }; delete n[field]; return n; });
   };
 
+  const validate = () => {
+    const e = {};
+    const ipRx  = /^(\d{1,3}\.){3}\d{1,3}$/;
+    const macRx = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+
+    if (!formData.deviceName.trim())
+      e.deviceName = "Vui lòng nhập tên thiết bị";
+
+    if (!formData.model.trim())
+      e.model = "Vui lòng nhập model";
+
+    const ip = formData.ipAddress.trim();
+    if (!ip)
+      e.ipAddress = "Vui lòng nhập IP Address";
+    else if (!ipRx.test(ip))
+      e.ipAddress = "IP không hợp lệ (VD: 192.168.1.100)";
+
+    const mac = formData.macAddress.trim();
+    if (mac && !macRx.test(mac))
+      e.macAddress = "MAC không hợp lệ (VD: AA:BB:CC:DD:EE:FF)";
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        deviceCode:   formData.deviceCode.trim()      || undefined,
+        deviceName:   formData.deviceName.trim(),
+        deviceType:   formData.deviceType,
+        gateName:     formData.gateName.trim()         || undefined,
+        model:        formData.model.trim(),
+        ipAddress:    formData.ipAddress.trim(),
+        macAddress:   formData.macAddress.trim().toUpperCase() || undefined,
+        firmwareVersion: formData.firmwareVersion.trim() || undefined,
+        connectionStatus: "READY",
+      };
+      // Remove undefined keys
+      Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
+
+      await onSave(payload, device?.id ?? device?.deviceId);
+    } catch {
+      // Error already handled in parent
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const errClass = (k) => (errors[k] ? "border-red-500" : "");
+  const ErrMsg   = ({ k }) =>
+    errors[k] ? <p className="text-red-500 text-xs mt-1">{errors[k]}</p> : null;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">
             {device ? "Chỉnh sửa thiết bị" : "Thêm thiết bị mới"}
@@ -31,114 +100,148 @@ function DeviceModal({ device, onClose, onSave }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Device type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tên thiết bị
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-              className="input"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Loại thiết bị
+              Loại thiết bị <span className="text-red-500">*</span>
             </label>
             <select
-              value={formData.type}
-              onChange={(e) =>
-                setFormData({ ...formData, type: e.target.value })
-              }
+              value={formData.deviceType}
+              onChange={(e) => set("deviceType", e.target.value)}
               className="input"
-              required
             >
-              <option value="camera">Camera</option>
-              <option value="barrier">Barrier Controller</option>
-              <option value="edge-ai">Edge AI Server</option>
+              {DEVICE_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
           </div>
 
+          {/* Code + Name */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mã thiết bị
+                <span className="ml-1 text-gray-400 text-xs font-normal">(tùy chọn)</span>
+              </label>
+              <input
+                type="text"
+                value={formData.deviceCode}
+                onChange={(e) => set("deviceCode", e.target.value)}
+                className="input"
+                placeholder="VD: CAM-IN-01"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tên thiết bị <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.deviceName}
+                onChange={(e) => set("deviceName", e.target.value)}
+                className={`input ${errClass("deviceName")}`}
+                placeholder="VD: Camera LPR Cổng Vào"
+              />
+              <ErrMsg k="deviceName" />
+            </div>
+          </div>
+
+          {/* Gate name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Vị trí
+              Tên cổng gán
+              <span className="ml-1 text-gray-400 text-xs font-normal">(tùy chọn)</span>
             </label>
             <input
               type="text"
-              value={formData.location}
-              onChange={(e) =>
-                setFormData({ ...formData, location: e.target.value })
-              }
+              value={formData.gateName}
+              onChange={(e) => set("gateName", e.target.value)}
               className="input"
-              placeholder="Ví dụ: Bãi đỗ Tòa A - Cổng A1"
-              required
+              placeholder="VD: Cổng Vào Tầng Hầm B1"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Địa chỉ IP
-            </label>
-            <input
-              type="text"
-              value={formData.ip}
-              onChange={(e) => setFormData({ ...formData, ip: e.target.value })}
-              className="input"
-              placeholder="192.168.1.100"
-              pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
-              required
-            />
+          {/* Model + IP */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Model <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.model}
+                onChange={(e) => set("model", e.target.value)}
+                className={`input ${errClass("model")}`}
+                placeholder="VD: Hikvision DS-2CD4A26"
+              />
+              <ErrMsg k="model" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                IP Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.ipAddress}
+                onChange={(e) => set("ipAddress", e.target.value)}
+                className={`input ${errClass("ipAddress")}`}
+                placeholder="VD: 192.168.1.110"
+              />
+              <ErrMsg k="ipAddress" />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Model
-            </label>
-            <input
-              type="text"
-              value={formData.model}
-              onChange={(e) =>
-                setFormData({ ...formData, model: e.target.value })
-              }
-              className="input"
-              placeholder="Ví dụ: Hikvision DS-2CD2043G2"
-              required
-            />
+          {/* MAC + Firmware */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                MAC Address
+                <span className="ml-1 text-gray-400 text-xs font-normal">(tùy chọn)</span>
+              </label>
+              <input
+                type="text"
+                value={formData.macAddress}
+                onChange={(e) => set("macAddress", e.target.value)}
+                className={`input ${errClass("macAddress")}`}
+                placeholder="VD: AA:BB:CC:DD:EE:FF"
+              />
+              <ErrMsg k="macAddress" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Firmware Version
+                <span className="ml-1 text-gray-400 text-xs font-normal">(tùy chọn)</span>
+              </label>
+              <input
+                type="text"
+                value={formData.firmwareVersion}
+                onChange={(e) => set("firmwareVersion", e.target.value)}
+                className="input"
+                placeholder="VD: V5.5.82"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Trạng thái
-            </label>
-            <select
-              value={formData.status}
-              onChange={(e) =>
-                setFormData({ ...formData, status: e.target.value })
-              }
-              className="input"
-            >
-              <option value="online">Trực tuyến</option>
-              <option value="offline">Ngoại tuyến</option>
-              <option value="warning">Cảnh báo</option>
-            </select>
-          </div>
-
-          <div className="flex items-center justify-end space-x-3 pt-4">
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
               className="btn btn-secondary"
+              disabled={submitting}
             >
               Hủy
             </button>
-            <button type="submit" className="btn btn-primary">
-              {device ? "Cập nhật" : "Thêm mới"}
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  {device ? "Đang cập nhật..." : "Đang thêm..."}
+                </span>
+              ) : (
+                device ? "Cập nhật" : "Thêm mới"
+              )}
             </button>
           </div>
         </form>
