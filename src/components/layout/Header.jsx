@@ -9,15 +9,34 @@ function Header() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  // Lấy thông tin user thật từ localStorage
+  const currentUser = authService.getCurrentUser();
+  const displayName =
+    currentUser?.fullName ??
+    currentUser?.name ??
+    currentUser?.email?.split("@")[0] ??
+    "Admin";
+  const displayEmail =
+    currentUser?.email ?? "admin@motoguard.com";
+  const displayRole =
+    currentUser?.role ?? "ADMIN";
+  const initials = displayName
+    .split(" ")
+    .slice(-2)
+    .map((n) => n[0] ?? "")
+    .join("")
+    .toUpperCase() || "A";
+
   const handleLogout = async () => {
+    setShowUserMenu(false);
     try {
       await authService.logout();
-      toast.success("Đăng xuất thành công!");
-      navigate("/login");
-    } catch (error) {
-      // Even if API fails, still logout locally
-      toast.success("Đã đăng xuất");
-      navigate("/login");
+    } catch {
+      // bỏ qua lỗi API logout
+    } finally {
+      authService.clearAuth();
+      toast.success("Đã đăng xuất thành công");
+      navigate("/login", { replace: true });
     }
   };
 
@@ -102,29 +121,44 @@ function Header() {
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-white" />
+              <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-cyan-500 rounded-full flex items-center justify-center shadow-sm">
+                <span className="text-white text-sm font-bold">{initials}</span>
               </div>
               <div className="text-left hidden md:block">
-                <p className="text-sm font-medium text-gray-900">Admin</p>
-                <p className="text-xs text-gray-500">admin@motoguard.com</p>
+                <p className="text-sm font-semibold text-gray-900 leading-tight">{displayName}</p>
+                <p className="text-xs text-gray-400 leading-tight">{displayEmail}</p>
               </div>
             </button>
 
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                <button className="w-full flex items-center space-x-2 px-4 py-3 hover:bg-gray-50 transition-colors">
-                  <Settings className="w-4 h-4 text-gray-600" />
-                  <span className="text-sm text-gray-700">Cài đặt</span>
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center space-x-2 px-4 py-3 hover:bg-gray-50 transition-colors border-t border-gray-100"
-                >
-                  <LogOut className="w-4 h-4 text-gray-600" />
-                  <span className="text-sm text-gray-700">Đăng xuất</span>
-                </button>
-              </div>
+              <>
+                {/* Backdrop */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowUserMenu(false)}
+                />
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
+                  {/* User info header */}
+                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{displayName}</p>
+                    <p className="text-xs text-gray-400 truncate">{displayEmail}</p>
+                    <span className="inline-block mt-1 text-xs font-medium px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full">
+                      {displayRole}
+                    </span>
+                  </div>
+                  <button className="w-full flex items-center space-x-2 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left">
+                    <Settings className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm text-gray-700">Cài đặt</span>
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center space-x-2 px-4 py-2.5 hover:bg-red-50 transition-colors border-t border-gray-100 text-left"
+                  >
+                    <LogOut className="w-4 h-4 text-red-500" />
+                    <span className="text-sm text-red-600 font-medium">Đăng xuất</span>
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
