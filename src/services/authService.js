@@ -149,6 +149,26 @@ const authService = {
   setToken: (token) => {
     localStorage.setItem("access_token", token);
   },
+
+  /**
+   * Lấy thông tin user đang đăng nhập
+   */
+  getCurrentUser: () => {
+    try {
+      const info = localStorage.getItem("user_info");
+      return info ? JSON.parse(info) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Xóa toàn bộ dữ liệu auth khỏi localStorage
+   */
+  clearAuth: () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user_info");
+  },
 };
 
 export default authService;

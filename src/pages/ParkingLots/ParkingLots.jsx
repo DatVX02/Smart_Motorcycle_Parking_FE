@@ -188,7 +188,7 @@ function ParkingLots() {
 
       if (
         data?.message &&
-        data.message !== "Đã có lỗi xảy ra, vui lòng thử lại sau"
+        data.message !== "Bạn cần gỡ các thiết bị IoT trước"
       ) {
         errorMessage = data.message;
       } else if (data?.title) {

@@ -1,16 +1,13 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import authService from "../services/authService";
 
-/**
- * Protected Route Component
- * Redirects to login if user is not authenticated
- */
 function ProtectedRoute({ children }) {
+  const location = useLocation();
   const isAuthenticated = authService.isAuthenticated();
 
   if (!isAuthenticated) {
-    // Redirect to login page if not authenticated
-    return <Navigate to="/login" replace />;
+    // Lưu lại trang đang muốn vào, sau login sẽ redirect về đây
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return children;
