@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import toast from "react-hot-toast";
 import authService from "@/services/authService";
@@ -15,6 +15,9 @@ import {
 
 function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Trang muốn vào trước khi bị redirect về login
+  const from = location.state?.from?.pathname ?? "/dashboard";
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -41,17 +44,20 @@ function Login() {
       if (token) {
         authService.setToken(token);
 
+        // Lưu thông tin user để hiển thị trong Header
         const userInfo =
           response.data?.staff ||
+          response.data?.user ||
           response.user ||
-          response.data?.user;
+          null;
 
         if (userInfo) {
           localStorage.setItem("user_info", JSON.stringify(userInfo));
         }
 
         toast.success(response.message || "Đăng nhập thành công!");
-        navigate("/dashboard");
+        // Redirect về trang gốc (hoặc dashboard nếu vào thẳng /login)
+        navigate(from, { replace: true });
       } else {
         toast.error("Không nhận được token từ server");
       }
