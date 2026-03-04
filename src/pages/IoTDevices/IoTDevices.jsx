@@ -18,6 +18,7 @@ import DeviceModal from "./DeviceModal";
 import DeviceDetailModal from "./DeviceDetailModal";
 import iotDeviceService from "../../services/iotDeviceService";
 import parkingLotService from "../../services/parkingLotService";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const CONN_STATUS = {
   ONLINE: {
@@ -82,6 +83,11 @@ function IoTDevices() {
   const [selected, setSelected] = useState(null);
   const [filterType, setFilterType] = useState("all");
   const [filterLot, setFilterLot] = useState("all");
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    type: null,
+    device: null,
+  });
 
   const fetchDevices = useCallback(async (showToast = false) => {
     try {
@@ -129,33 +135,37 @@ function IoTDevices() {
     }
   };
 
-  const handleDelete = async (device) => {
-    const name = device.deviceName || device.name || "thiết bị";
-    if (!confirm(`Bạn có chắc muốn xóa "${name}"?`)) return;
+  const handleDelete = (device) => {
+    setConfirmDialog({ open: true, type: "delete", device });
+  };
+
+  const handleUnassign = (device) => {
+    setConfirmDialog({ open: true, type: "unassign", device });
+  };
+
+  const handleConfirmAction = async () => {
+    const { type, device } = confirmDialog;
+    const name = device?.deviceName || device?.name || "thiết bị";
     try {
-      await iotDeviceService.delete(device.id ?? device.deviceId);
-      toast.success(`Đã xóa "${name}"`);
+      if (type === "delete") {
+        await iotDeviceService.delete(device.id ?? device.deviceId);
+        toast.success(`Đã xóa "${name}"`);
+      } else if (type === "unassign") {
+        await iotDeviceService.unassign(device.id ?? device.deviceId);
+        toast.success(`Đã ngắt gán "${name}"`);
+      }
       await fetchDevices();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Không thể xóa thiết bị");
+      toast.error(
+        err?.response?.data?.message ||
+          (type === "delete" ? "Không thể xóa thiết bị" : "Không thể ngắt gán"),
+      );
     }
   };
 
   const handleViewDetail = (device) => {
     setSelected(device);
     setShowDetailModal(true);
-  };
-
-  const handleUnassign = async (device) => {
-    const name = device.deviceName || "thiết bị";
-    if (!confirm(`Ngắt gán "${name}" khỏi cổng hiện tại?`)) return;
-    try {
-      await iotDeviceService.unassign(device.id ?? device.deviceId);
-      toast.success(`Đã ngắt gán "${name}"`);
-      await fetchDevices();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || "Không thể ngắt gán");
-    }
   };
 
   const filtered = devices.filter((d) => {
@@ -466,6 +476,23 @@ function IoTDevices() {
           }}
         />
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, type: null, device: null })}
+        onConfirm={handleConfirmAction}
+        title={
+          confirmDialog.type === "delete" ? "Xóa thiết bị" : "Ngắt gán thiết bị"
+        }
+        description={
+          confirmDialog.type === "delete"
+            ? `Bạn có chắc muốn xóa "${confirmDialog.device?.deviceName || confirmDialog.device?.name}"? Hành động này không thể hoàn tác.`
+            : `Ngắt gán "${confirmDialog.device?.deviceName || confirmDialog.device?.name}" khỏi cổng hiện tại?`
+        }
+        confirmLabel={confirmDialog.type === "delete" ? "Xóa" : "Ngắt gán"}
+        variant={confirmDialog.type === "delete" ? "destructive" : "warning"}
+      />
     </div>
   );
 }

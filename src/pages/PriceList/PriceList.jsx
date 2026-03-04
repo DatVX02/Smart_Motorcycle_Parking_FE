@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { DollarSign, Plus, Edit, Trash2, Clock, Calendar } from "lucide-react";
 import PriceModal from "./PriceModal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 function PriceList() {
   const [showModal, setShowModal] = useState(false);
   const [selectedPrice, setSelectedPrice] = useState(null);
+  const [confirm, setConfirm] = useState({ open: false, price: null });
 
   const prices = [
     {
@@ -105,9 +107,11 @@ function PriceList() {
   };
 
   const handleDelete = (price) => {
-    if (confirm(`Bạn có chắc muốn xóa "${price.name}"?`)) {
-      console.log("Deleting price:", price.id);
-    }
+    setConfirm({ open: true, price });
+  };
+
+  const handleConfirmDelete = () => {
+    console.log("Deleting price:", confirm.price?.id);
   };
 
   const handleAddNew = () => {
@@ -352,6 +356,16 @@ function PriceList() {
           }}
         />
       )}
+
+      {/* Confirm Delete */}
+      <ConfirmDialog
+        open={confirm.open}
+        onClose={() => setConfirm({ open: false, price: null })}
+        onConfirm={handleConfirmDelete}
+        title="Xóa bảng giá"
+        description={`Bạn có chắc muốn xóa "${confirm.price?.name}"? Hành động này không thể hoàn tác.`}
+        confirmLabel="Xóa"
+      />
     </div>
   );
 }

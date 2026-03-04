@@ -9,12 +9,14 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import AccountModal from "./AccountModal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 function Accounts() {
   const [selectedRole, setSelectedRole] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
+  const [confirm, setConfirm] = useState({ open: false, account: null });
 
   // Mock data
   const accounts = [
@@ -95,9 +97,11 @@ function Accounts() {
   };
 
   const handleDelete = (account) => {
-    if (confirm(`Bạn có chắc muốn xóa tài khoản "${account.name}"?`)) {
-      console.log("Deleting account:", account.id);
-    }
+    setConfirm({ open: true, account });
+  };
+
+  const handleConfirmDelete = () => {
+    console.log("Deleting account:", confirm.account?.id);
   };
 
   const handleAddNew = () => {
@@ -299,6 +303,16 @@ function Accounts() {
           }}
         />
       )}
+
+      {/* Confirm Delete */}
+      <ConfirmDialog
+        open={confirm.open}
+        onClose={() => setConfirm({ open: false, account: null })}
+        onConfirm={handleConfirmDelete}
+        title="Xóa tài khoản"
+        description={`Bạn có chắc muốn xóa tài khoản "${confirm.account?.name}"? Hành động này không thể hoàn tác.`}
+        confirmLabel="Xóa"
+      />
     </div>
   );
 }
