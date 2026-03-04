@@ -8,7 +8,6 @@ import aiConfigService from "../../services/aiConfigService";
 const GATE_TYPE_OPTIONS = [
   { value: "ENTRY", label: "Cổng vào" },
   { value: "EXIT", label: "Cổng ra" },
-  { value: "BOTH", label: "Cả hai" },
 ];
 
 const DEVICE_TYPE_OPTIONS = [
@@ -35,7 +34,7 @@ const newDevice = () => ({
 const newGate = () => ({
   _id: crypto.randomUUID(),
   gateName: "",
-  gateType: "ENTRY",
+  gateType: "",
   devices: [newDevice()],
 });
 
@@ -104,7 +103,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           if (id) {
             gateNameMap.set(id, {
               gateName: g.gateName || g.name || "",
-              gateType: g.gateType || g.type || "ENTRY",
+              gateType: g.gateType || g.type || "",
             });
           }
         });
@@ -122,7 +121,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
               _id: gId,
               _persisted: true,
               gateName: gateInfo?.gateName ?? "",
-              gateType: gateInfo?.gateType ?? "ENTRY",
+              gateType: gateInfo?.gateType ?? "",
               devices: [],
             });
           }
@@ -146,7 +145,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
               _id: gId,
               _persisted: true,
               gateName: g.gateName || g.name || "",
-              gateType: g.gateType || g.type || "ENTRY",
+              gateType: g.gateType || g.type || "",
               devices: [newDevice()],
             });
           }
@@ -792,6 +791,9 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                 }
                                 className="input text-sm"
                               >
+                                <option value="" disabled hidden>
+                                  Chọn loại cổng
+                                </option>
                                 {GATE_TYPE_OPTIONS.map((o) => (
                                   <option key={o.value} value={o.value}>
                                     {o.label}
@@ -1050,9 +1052,6 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                     max="100"
                   />
                   <ErrMsg k="licensePlateThreshold" />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Khuyến nghị: 80–95%
-                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1070,9 +1069,6 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                     max="100"
                   />
                   <ErrMsg k="faceRecognitionThreshold" />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Khuyến nghị: 85–98%
-                  </p>
                 </div>
               </div>
             </section>
