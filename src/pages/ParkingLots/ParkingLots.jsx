@@ -16,6 +16,7 @@ import ParkingLotDetailModal from "./ParkingLotDetailModal";
 import parkingLotService from "../../services/parkingLotService";
 import gateService from "../../services/gateService";
 import { API_BASE_URL } from "../../config/api";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Card,
   CardContent,
@@ -32,6 +33,7 @@ function ParkingLots() {
   const [parkingLots, setParkingLots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [confirm, setConfirm] = useState({ open: false, lot: null });
 
   // Fetch parking lots on component mount
   useEffect(() => {
@@ -54,22 +56,17 @@ function ParkingLots() {
       0,
     occupiedSpots:
       parseInt(lot.currentOccupancy ?? lot.occupiedSpots ?? 0, 10) || 0,
-    // _gates / _cameras được enriched từ /detail, fallback sang field list nếu có
-    gates:
-      lot._gates ??
-      parseCount(
-        lot.totalGates ?? lot.gateCount ?? lot.numberOfGates ?? lot.gates,
-      ),
-    cameras:
-      lot._cameras ??
-      parseCount(
-        lot.totalDevices ??
-          lot.deviceCount ??
-          lot.totalCameras ??
-          lot.cameraCount ??
-          lot.cameras ??
-          lot.devices,
-      ),
+    gates: parseCount(
+      lot.totalGates ?? lot.gateCount ?? lot.numberOfGates ?? lot.gates,
+    ),
+    cameras: parseCount(
+      lot.totalDevices ??
+        lot.deviceCount ??
+        lot.totalCameras ??
+        lot.cameraCount ??
+        lot.cameras ??
+        lot.devices,
+    ),
     status: String(lot.status ?? "active").toLowerCase(),
   });
 
@@ -79,38 +76,8 @@ function ParkingLots() {
       const data = await parkingLotService.getAllParkingLots();
       const parkingLotsArray = Array.isArray(data) ? data : [];
 
-      // Fetch detail + gates for each lot in parallel
-      const [details, gatesResults] = await Promise.all([
-        Promise.allSettled(
-          parkingLotsArray.map((lot) => {
-            const id = lot.lotId ?? lot.id;
-            return id
-              ? parkingLotService.getParkingLotDetail(id)
-              : Promise.resolve(null);
-          }),
-        ),
-        Promise.allSettled(
-          parkingLotsArray.map((lot) => {
-            const id = lot.lotId ?? lot.id;
-            return id ? gateService.getByLot(id) : Promise.resolve([]);
-          }),
-        ),
-      ]);
-
-      // Merge list + detail + gates
-      const enriched = parkingLotsArray.map((lot, i) => {
-        const detail =
-          details[i].status === "fulfilled" ? details[i].value : null;
-        const gates =
-          gatesResults[i].status === "fulfilled" ? gatesResults[i].value : [];
-        return {
-          ...lot,
-          _gates: Array.isArray(gates) ? gates.length : 0,
-          _cameras: Array.isArray(detail?.devices) ? detail.devices.length : 0,
-        };
-      });
-
-      const transformedData = enriched.map(transformParkingLot);
+      // Dùng trực tiếp dữ liệu từ list API, không fetch thêm per-lot
+      const transformedData = parkingLotsArray.map(transformParkingLot);
       setParkingLots(transformedData);
 
       if (showToast) {
@@ -146,18 +113,41 @@ function ParkingLots() {
     setShowModal(true);
   };
 
-  const handleDelete = async (lot) => {
-    if (confirm(`Bạn có chắc muốn xóa bãi đỗ "${lot.name}"?`)) {
-      try {
-        await parkingLotService.deleteParkingLot(lot.id);
-        toast.success(`Đã xóa bãi đỗ "${lot.name}" thành công`);
-        setRefreshKey((prev) => prev + 1); // Trigger re-fetch
-      } catch (error) {
-        const errorMessage =
-          error.response?.data?.message || "Không thể xóa bãi đỗ xe";
-        toast.error(errorMessage);
-        console.error("Error deleting parking lot:", error);
+  const handleDelete = (lot) => {
+    setConfirm({ open: true, lot });
+  };
+
+  const handleConfirmDelete = async () => {
+    const lot = confirm.lot;
+    try {
+      // Kiểm tra trước xem còn cổng nào không — backend sẽ 500 nếu còn cổng
+      const gates = await gateService.getByLot(lot.id).catch(() => []);
+      if (gates.length > 0) {
+        const gateNames = gates
+          .map((g) => g.gateName || g.name || `Cổng ${g.gateId ?? g.id}`)
+          .join(", ");
+        toast.error(
+          `Không thể xóa bãi đỗ vì còn ${gates.length} cổng chưa được xóa: ${gateNames}. Vui lòng xóa tất cả cổng trước.`,
+          { duration: 6000 },
+        );
+        return;
       }
+
+      await parkingLotService.deleteParkingLot(lot.id);
+      toast.success(`Đã xóa bãi đỗ "${lot.name}" thành công`);
+      setRefreshKey((prev) => prev + 1);
+    } catch (error) {
+      const data = error.response?.data;
+      const errorMessage =
+        data?.message ||
+        data?.title ||
+        data?.detail ||
+        (error.response?.status === 500
+          ? "Lỗi máy chủ — Bãi đỗ có thể vẫn còn cổng hoặc dữ liệu liên quan. Vui lòng kiểm tra lại."
+          : "Không thể xóa bãi đỗ xe");
+      toast.error(errorMessage, { duration: 6000 });
+      console.error("Error deleting parking lot:", error);
+      console.error("Backend response:", JSON.stringify(data, null, 2));
     }
   };
 
@@ -518,6 +508,16 @@ function ParkingLots() {
           onClose={() => setShowDetailModal(false)}
         />
       )}
+
+      {/* Confirm Delete */}
+      <ConfirmDialog
+        open={confirm.open}
+        onClose={() => setConfirm({ open: false, lot: null })}
+        onConfirm={handleConfirmDelete}
+        title="Xóa bãi đỗ xe"
+        description={`Bạn có chắc muốn xóa bãi đỗ "${confirm.lot?.name}"? Hành động này không thể hoàn tác.`}
+        confirmLabel="Xóa"
+      />
     </div>
   );
 }
