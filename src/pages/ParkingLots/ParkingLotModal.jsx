@@ -25,7 +25,7 @@ const newDevice = () => ({
   _id: crypto.randomUUID(),
   deviceCode: "",
   deviceName: "",
-  deviceType: "LPR_CAMERA",
+  deviceType: "",
   model: "",
   ipAddress: "",
   macAddress: "",
@@ -54,8 +54,10 @@ const getDefaultFormData = () => ({
   faceRecognitionThreshold: "",
 });
 // Backend lưu 0.0–1.0, UI hiển thị 0–100%
-const toPercent = (v) => (v == null ? null : v <= 1 ? Math.round(v * 100) : Math.round(v));
-const toDecimal = (v) => (v == null ? null : v > 1 ? parseFloat((v / 100).toFixed(4)) : parseFloat(v));
+const toPercent = (v) =>
+  v == null ? null : v <= 1 ? Math.round(v * 100) : Math.round(v);
+const toDecimal = (v) =>
+  v == null ? null : v > 1 ? parseFloat((v / 100).toFixed(4)) : parseFloat(v);
 
 function ParkingLotModal({ lot, onClose, onSave }) {
   const [loading, setLoading] = useState(!!lot);
@@ -63,6 +65,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [collapsed, setCollapsed] = useState({}); // gate _id → bool
+  const [deletingGate, setDeletingGate] = useState(null); // gate _id đang xóa
   const aiConfigIdRef = useRef(null); // lưu configId để update sau
 
   useEffect(() => {
@@ -84,10 +87,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         ]);
 
         const aiConfig =
-          aiConfigData ||
-          detail.cameraSetup?.aiConfig ||
-          detail.aiConfig ||
-          {};
+          aiConfigData || detail.cameraSetup?.aiConfig || detail.aiConfig || {};
 
         // Lưu configId để dùng khi update
         aiConfigIdRef.current =
@@ -120,6 +120,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           if (!gateMap.has(gId)) {
             gateMap.set(gId, {
               _id: gId,
+              _persisted: true,
               gateName: gateInfo?.gateName ?? "",
               gateType: gateInfo?.gateType ?? "ENTRY",
               devices: [],
@@ -129,7 +130,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
             _id: d.deviceId ?? d.id ?? crypto.randomUUID(),
             deviceCode: d.deviceCode || "",
             deviceName: d.deviceName || "",
-            deviceType: d.deviceType || "LPR_CAMERA",
+            deviceType: d.deviceType || "",
             model: d.model || "",
             ipAddress: d.ipAddress || "",
             macAddress: d.macAddress || "",
@@ -143,6 +144,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           if (gId && !gateMap.has(gId)) {
             gateMap.set(gId, {
               _id: gId,
+              _persisted: true,
               gateName: g.gateName || g.name || "",
               gateType: g.gateType || g.type || "ENTRY",
               devices: [newDevice()],
@@ -171,14 +173,16 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           is24h: lotInfo.is24h || false,
           scheduledActivationDate: toDateValue(lotInfo.scheduledActivationDate),
           gates: mergedGates,
-          licensePlateThreshold: toPercent(
-            aiConfig.licensePlateConfidenceThreshold ??
-            aiConfig.licensePlateThreshold
-          ) ?? 85,
-          faceRecognitionThreshold: toPercent(
-            aiConfig.faceRecognitionConfidenceThreshold ??
-            aiConfig.faceRecognitionThreshold
-          ) ?? 90,
+          licensePlateThreshold:
+            toPercent(
+              aiConfig.licensePlateConfidenceThreshold ??
+                aiConfig.licensePlateThreshold,
+            ) ?? 85,
+          faceRecognitionThreshold:
+            toPercent(
+              aiConfig.faceRecognitionConfidenceThreshold ??
+                aiConfig.faceRecognitionThreshold,
+            ) ?? 90,
         });
       } catch (err) {
         console.error("Error fetching parking lot detail:", err);
@@ -203,11 +207,30 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   const addGate = () =>
     setFormData((prev) => ({ ...prev, gates: [...prev.gates, newGate()] }));
 
-  const removeGate = (gId) =>
+  const removeGate = async (gId) => {
+    const gate = formData.gates.find((g) => g._id === gId);
+    if (gate?._persisted) {
+      setDeletingGate(gId);
+      try {
+        await gateService.delete(gId);
+        toast.success(`Đã xóa cổng "${gate.gateName || gId}" thành công`);
+      } catch (err) {
+        const msg =
+          err.response?.data?.message ||
+          err.response?.data?.title ||
+          "Không thể xóa cổng. Vui lòng thử lại.";
+        toast.error(msg, { duration: 5000 });
+        setDeletingGate(null);
+        return;
+      } finally {
+        setDeletingGate(null);
+      }
+    }
     setFormData((prev) => ({
       ...prev,
       gates: prev.gates.filter((g) => g._id !== gId),
     }));
+  };
 
   const updateGate = (gId, field, value) => {
     setFormData((prev) => ({
@@ -428,10 +451,12 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           })),
           devices: allDevices,
           aiConfig: {
-            licensePlateConfidenceThreshold:
-              toDecimal(parseInt(formData.licensePlateThreshold) || 85),
-            faceRecognitionConfidenceThreshold:
-              toDecimal(parseInt(formData.faceRecognitionThreshold) || 90),
+            licensePlateConfidenceThreshold: toDecimal(
+              parseInt(formData.licensePlateThreshold) || 85,
+            ),
+            faceRecognitionConfidenceThreshold: toDecimal(
+              parseInt(formData.faceRecognitionThreshold) || 90,
+            ),
           },
         },
       };
@@ -441,15 +466,19 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       // Nếu đang edit và có configId → cập nhật AI config riêng
       if (lot && aiConfigIdRef.current) {
         const aiPayload = {
-          licensePlateConfidenceThreshold:
-            toDecimal(parseInt(formData.licensePlateThreshold) || 85),
-          faceRecognitionConfidenceThreshold:
-            toDecimal(parseInt(formData.faceRecognitionThreshold) || 90),
+          licensePlateConfidenceThreshold: toDecimal(
+            parseInt(formData.licensePlateThreshold) || 85,
+          ),
+          faceRecognitionConfidenceThreshold: toDecimal(
+            parseInt(formData.faceRecognitionThreshold) || 90,
+          ),
         };
         console.log("AI Config update →", aiPayload);
-        await aiConfigService.update(aiConfigIdRef.current, aiPayload).catch((err) => {
-          console.warn("Không thể cập nhật AI config:", err);
-        });
+        await aiConfigService
+          .update(aiConfigIdRef.current, aiPayload)
+          .catch((err) => {
+            console.warn("Không thể cập nhật AI config:", err);
+          });
       }
 
       await onSave(backendData);
@@ -546,10 +575,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Giá theo giờ (VNĐ)
-                      <span className="ml-1 text-gray-400 text-xs font-normal">
-                        (tùy chọn)
-                      </span>
+                      Giá theo giờ <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
@@ -560,23 +586,6 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                       placeholder="VD: 20000"
                     />
                     <ErrMsg k="hourlyRate" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Giá theo tháng (VNĐ)
-                      <span className="ml-1 text-gray-400 text-xs font-normal">
-                        (tùy chọn)
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.monthlyRate}
-                      onChange={(e) => setField("monthlyRate", e.target.value)}
-                      className={`input ${errClass("monthlyRate")}`}
-                      min="0"
-                      placeholder="VD: 2500000"
-                    />
-                    <ErrMsg k="monthlyRate" />
                   </div>
                 </div>
 
@@ -715,7 +724,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                             Cổng #{gIdx + 1}
                             {gate.gateName && (
                               <span className="ml-1.5 font-normal text-gray-400">
-                                — {gate.gateName}
+                                - {gate.gateName}
                               </span>
                             )}
                           </span>
@@ -728,14 +737,19 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                             {gate.devices.length} thiết bị
                           </span>
                         </button>
-                        {formData.gates.length > 1 && (
+                        {(formData.gates.length > 1 || gate._persisted) && (
                           <button
                             type="button"
                             onClick={() => removeGate(gate._id)}
-                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            disabled={deletingGate === gate._id}
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Xóa cổng"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {deletingGate === gate._id ? (
+                              <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         )}
                       </div>
@@ -815,7 +829,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                       Thiết bị #{dIdx + 1}
                                       {dev.deviceName && (
                                         <span className="ml-1.5 text-gray-400 font-normal">
-                                          — {dev.deviceName}
+                                          - {dev.deviceName}
                                         </span>
                                       )}
                                     </span>
@@ -857,6 +871,9 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                         }
                                         className="input text-xs"
                                       >
+                                        <option value="" disabled hidden>
+                                          Chọn loại thiết bị
+                                        </option>
                                         {DEVICE_TYPE_OPTIONS.map((o) => (
                                           <option key={o.value} value={o.value}>
                                             {o.label}
@@ -1011,7 +1028,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
               </div>
             </section>
 
-            {/* ══ SECTION 3: AI config ═════════════════════════════════════ */}
+            {/* ══ SECTION 3: AI config ══ */}
             <section>
               <h3 className="text-base font-semibold text-gray-900 mb-4">
                 Cấu hình AI
@@ -1060,7 +1077,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
               </div>
             </section>
 
-            {/* ══ Actions ══════════════════════════════════════════════════ */}
+            {/* ══ Actions ══ */}
             <div className="flex items-center justify-end space-x-3 pt-2 border-t border-gray-100">
               <button
                 type="button"

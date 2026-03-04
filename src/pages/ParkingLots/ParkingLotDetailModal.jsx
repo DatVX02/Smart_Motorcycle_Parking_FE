@@ -36,7 +36,9 @@ const fmtVND = (v) =>
     ? new Intl.NumberFormat("vi-VN", {
         style: "currency",
         currency: "VND",
-      }).format(v)
+      })
+        .format(v)
+        .replace("₫", "VNĐ")
     : "—";
 
 const fmtTime = (v) => (v ? v.substring(0, 5) : "—");
@@ -300,11 +302,6 @@ function ParkingLotDetailModal({ lot, onClose }) {
                     icon={CircleDollarSign}
                     label="Giá theo giờ"
                     value={d.hourlyRate ? fmtVND(d.hourlyRate) : null}
-                  />
-                  <InfoRow
-                    icon={CircleDollarSign}
-                    label="Giá theo tháng"
-                    value={d.monthlyRate ? fmtVND(d.monthlyRate) : null}
                   />
                   <InfoRow
                     icon={CalendarDays}
