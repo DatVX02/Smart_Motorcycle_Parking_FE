@@ -3,44 +3,47 @@ import { X } from "lucide-react";
 
 const DEVICE_TYPE_OPTIONS = [
   { value: "LPR_CAMERA", label: "Camera LPR (Đọc biển số)" },
-  { value: "BARRIER",    label: "Barie (Thanh chắn)"       },
+  { value: "BARRIER", label: "Barie (Thanh chắn)" },
 ];
 
 const getDefault = (device) => ({
-  deviceCode:      device?.deviceCode      || device?.code            || "",
-  deviceName:      device?.deviceName      || device?.name            || "",
-  deviceType:      device?.deviceType      || "LPR_CAMERA",
-  gateName:        device?.gateName        || "",
-  model:           device?.model           || "",
-  ipAddress:       device?.ipAddress       || device?.ip              || "",
-  macAddress:      device?.macAddress      || "",
+  deviceCode: device?.deviceCode || device?.code || "",
+  deviceName: device?.deviceName || device?.name || "",
+  deviceType: device?.deviceType || "LPR_CAMERA",
+  gateName: device?.gateName || "",
+  model: device?.model || "",
+  ipAddress: device?.ipAddress || device?.ip || "",
+  macAddress: device?.macAddress || "",
   firmwareVersion: device?.firmwareVersion || "",
 });
 
 function DeviceModal({ device, onClose, onSave }) {
-  const [formData,   setFormData]   = useState(() => getDefault(device));
-  const [errors,     setErrors]     = useState({});
+  const [formData, setFormData] = useState(() => getDefault(device));
+  const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
   const set = (field, value) => {
     setFormData((p) => ({ ...p, [field]: value }));
-    if (errors[field]) setErrors((p) => { const n = { ...p }; delete n[field]; return n; });
+    if (errors[field])
+      setErrors((p) => {
+        const n = { ...p };
+        delete n[field];
+        return n;
+      });
   };
 
   const validate = () => {
     const e = {};
-    const ipRx  = /^(\d{1,3}\.){3}\d{1,3}$/;
+    const ipRx = /^(\d{1,3}\.){3}\d{1,3}$/;
     const macRx = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
     if (!formData.deviceName.trim())
       e.deviceName = "Vui lòng nhập tên thiết bị";
 
-    if (!formData.model.trim())
-      e.model = "Vui lòng nhập model";
+    if (!formData.model.trim()) e.model = "Vui lòng nhập model";
 
     const ip = formData.ipAddress.trim();
-    if (!ip)
-      e.ipAddress = "Vui lòng nhập IP Address";
+    if (!ip) e.ipAddress = "Vui lòng nhập IP Address";
     else if (!ipRx.test(ip))
       e.ipAddress = "IP không hợp lệ (VD: 192.168.1.100)";
 
@@ -59,18 +62,20 @@ function DeviceModal({ device, onClose, onSave }) {
     setSubmitting(true);
     try {
       const payload = {
-        deviceCode:   formData.deviceCode.trim()      || undefined,
-        deviceName:   formData.deviceName.trim(),
-        deviceType:   formData.deviceType,
-        gateName:     formData.gateName.trim()         || undefined,
-        model:        formData.model.trim(),
-        ipAddress:    formData.ipAddress.trim(),
-        macAddress:   formData.macAddress.trim().toUpperCase() || undefined,
+        deviceCode: formData.deviceCode.trim() || undefined,
+        deviceName: formData.deviceName.trim(),
+        deviceType: formData.deviceType,
+        gateName: formData.gateName.trim() || undefined,
+        model: formData.model.trim(),
+        ipAddress: formData.ipAddress.trim(),
+        macAddress: formData.macAddress.trim().toUpperCase() || undefined,
         firmwareVersion: formData.firmwareVersion.trim() || undefined,
-        connectionStatus: "READY",
+        connectionStatus: "ONLINE",
       };
       // Remove undefined keys
-      Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
+      Object.keys(payload).forEach(
+        (k) => payload[k] === undefined && delete payload[k],
+      );
 
       await onSave(payload, device?.id ?? device?.deviceId);
     } catch {
@@ -81,7 +86,7 @@ function DeviceModal({ device, onClose, onSave }) {
   };
 
   const errClass = (k) => (errors[k] ? "border-red-500" : "");
-  const ErrMsg   = ({ k }) =>
+  const ErrMsg = ({ k }) =>
     errors[k] ? <p className="text-red-500 text-xs mt-1">{errors[k]}</p> : null;
 
   return (
@@ -100,7 +105,10 @@ function DeviceModal({ device, onClose, onSave }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 space-y-4 max-h-[70vh] overflow-y-auto"
+        >
           {/* Device type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -112,7 +120,9 @@ function DeviceModal({ device, onClose, onSave }) {
               className="input"
             >
               {DEVICE_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -122,7 +132,9 @@ function DeviceModal({ device, onClose, onSave }) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Mã thiết bị
-                <span className="ml-1 text-gray-400 text-xs font-normal">(tùy chọn)</span>
+                <span className="ml-1 text-gray-400 text-xs font-normal">
+                  (tùy chọn)
+                </span>
               </label>
               <input
                 type="text"
@@ -151,7 +163,9 @@ function DeviceModal({ device, onClose, onSave }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tên cổng gán
-              <span className="ml-1 text-gray-400 text-xs font-normal">(tùy chọn)</span>
+              <span className="ml-1 text-gray-400 text-xs font-normal">
+                (tùy chọn)
+              </span>
             </label>
             <input
               type="text"
@@ -197,7 +211,9 @@ function DeviceModal({ device, onClose, onSave }) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 MAC Address
-                <span className="ml-1 text-gray-400 text-xs font-normal">(tùy chọn)</span>
+                <span className="ml-1 text-gray-400 text-xs font-normal">
+                  (tùy chọn)
+                </span>
               </label>
               <input
                 type="text"
@@ -211,7 +227,9 @@ function DeviceModal({ device, onClose, onSave }) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Firmware Version
-                <span className="ml-1 text-gray-400 text-xs font-normal">(tùy chọn)</span>
+                <span className="ml-1 text-gray-400 text-xs font-normal">
+                  (tùy chọn)
+                </span>
               </label>
               <input
                 type="text"
@@ -233,14 +251,20 @@ function DeviceModal({ device, onClose, onSave }) {
             >
               Hủy
             </button>
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={submitting}
+            >
               {submitting ? (
                 <span className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   {device ? "Đang cập nhật..." : "Đang thêm..."}
                 </span>
+              ) : device ? (
+                "Cập nhật"
               ) : (
-                device ? "Cập nhật" : "Thêm mới"
+                "Thêm mới"
               )}
             </button>
           </div>
