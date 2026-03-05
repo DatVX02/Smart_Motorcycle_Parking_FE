@@ -64,7 +64,10 @@ const getStatusVariant = (raw) =>
 const getStatusLabel = (raw) =>
   STATUS_LABEL[String(raw ?? "").toLowerCase()] ?? (raw || "—");
 
-const GATE_TYPE = { ENTRY: "Cổng vào", EXIT: "Cổng ra", BOTH: "Cả hai" };
+const GATE_TYPE = {
+  entry: "Cổng vào", exit: "Cổng ra", two_way: "Cả hai",
+  ENTRY: "Cổng vào", EXIT: "Cổng ra", BOTH: "Cả hai",
+};
 
 const DEVICE_TYPE_MAP = {
   LPR_CAMERA: { label: "Camera LPR", variant: "default", Icon: Camera },
