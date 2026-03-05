@@ -15,6 +15,7 @@ import ParkingLotModal from "./ParkingLotModal";
 import ParkingLotDetailModal from "./ParkingLotDetailModal";
 import parkingLotService from "../../services/parkingLotService";
 import gateService from "../../services/gateService";
+import iotDeviceService from "../../services/iotDeviceService";
 import { API_BASE_URL } from "../../config/api";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -76,8 +77,30 @@ function ParkingLots() {
       const data = await parkingLotService.getAllParkingLots();
       const parkingLotsArray = Array.isArray(data) ? data : [];
 
-      // Dùng trực tiếp dữ liệu từ list API, không fetch thêm per-lot
-      const transformedData = parkingLotsArray.map(transformParkingLot);
+      // 2 request tổng: parking-lots + iot-devices
+      const allDevices = await iotDeviceService.getAll().catch(() => []);
+
+      // Group thiết bị & đếm cổng duy nhất theo lotId client-side
+      const deviceCountByLot = {};
+      const gateSetByLot = {};
+      allDevices.forEach((d) => {
+        const lid = d.lotId ?? d.parkingLotId;
+        if (!lid) return;
+        deviceCountByLot[lid] = (deviceCountByLot[lid] ?? 0) + 1;
+        if (d.gateId) {
+          if (!gateSetByLot[lid]) gateSetByLot[lid] = new Set();
+          gateSetByLot[lid].add(d.gateId);
+        }
+      });
+
+      const transformedData = parkingLotsArray.map((lot) => {
+        const lotId = lot.lotId ?? lot.id;
+        return {
+          ...transformParkingLot(lot),
+          gates: gateSetByLot[lotId]?.size ?? 0,
+          cameras: deviceCountByLot[lotId] ?? 0,
+        };
+      });
       setParkingLots(transformedData);
 
       if (showToast) {

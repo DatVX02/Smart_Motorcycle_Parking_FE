@@ -3,11 +3,13 @@ import { X, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import toast from "react-hot-toast";
 import parkingLotService from "../../services/parkingLotService";
 import gateService from "../../services/gateService";
+import iotDeviceService from "../../services/iotDeviceService";
 import aiConfigService from "../../services/aiConfigService";
 
 const GATE_TYPE_OPTIONS = [
-  { value: "ENTRY", label: "Cổng vào" },
-  { value: "EXIT", label: "Cổng ra" },
+  { value: "entry", label: "Cổng vào" },
+  { value: "exit", label: "Cổng ra" },
+  { value: "two_way", label: "Cả hai" },
 ];
 
 const DEVICE_TYPE_OPTIONS = [
@@ -97,13 +99,15 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         const lotInfo = detail.lotInfo || detail;
 
         // Build gateId → { gateName, gateType } from the gates endpoint
+        const normalizeGateType = (v) =>
+          (v || "").toLowerCase().replace("both", "two_way") || "";
         const gateNameMap = new Map();
         apiGates.forEach((g) => {
           const id = g.gateId ?? g.id;
           if (id) {
             gateNameMap.set(id, {
               gateName: g.gateName || g.name || "",
-              gateType: g.gateType || g.type || "",
+              gateType: normalizeGateType(g.gateType || g.type),
             });
           }
         });
@@ -121,12 +125,13 @@ function ParkingLotModal({ lot, onClose, onSave }) {
               _id: gId,
               _persisted: true,
               gateName: gateInfo?.gateName ?? "",
-              gateType: gateInfo?.gateType ?? "",
+              gateType: normalizeGateType(gateInfo?.gateType),
               devices: [],
             });
           }
           gateMap.get(gId).devices.push({
             _id: d.deviceId ?? d.id ?? crypto.randomUUID(),
+            _persisted: true,
             deviceCode: d.deviceCode || "",
             deviceName: d.deviceName || "",
             deviceType: d.deviceType || "",
@@ -145,7 +150,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
               _id: gId,
               _persisted: true,
               gateName: g.gateName || g.name || "",
-              gateType: g.gateType || g.type || "",
+              gateType: normalizeGateType(g.gateType || g.type),
               devices: [newDevice()],
             });
           }
@@ -325,6 +330,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     formData.gates.forEach((g) => {
       if (!g.gateName.trim())
         newErrors[`gate_${g._id}_gateName`] = "Vui lòng nhập tên cổng";
+      if (!g.gateType)
+        newErrors[`gate_${g._id}_gateType`] = "Vui lòng chọn loại cổng";
 
       g.devices.forEach((d) => {
         const ip = (d.ipAddress || "").trim();
@@ -430,7 +437,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
               gateName: g.gateName.trim(),
               model: d.model.trim(),
               ipAddress: d.ipAddress.trim(),
-              connectionStatus: "READY",
+              connectionStatus: "ONLINE",
             };
             if (d.macAddress.trim())
               dev.macAddress = d.macAddress.trim().toUpperCase();
@@ -462,25 +469,112 @@ function ParkingLotModal({ lot, onClose, onSave }) {
 
       console.log("Payload →", JSON.stringify(backendData, null, 2));
 
-      // Nếu đang edit và có configId → cập nhật AI config riêng
-      if (lot && aiConfigIdRef.current) {
-        const aiPayload = {
-          licensePlateConfidenceThreshold: toDecimal(
-            parseInt(formData.licensePlateThreshold) || 85,
-          ),
-          faceRecognitionConfidenceThreshold: toDecimal(
-            parseInt(formData.faceRecognitionThreshold) || 90,
-          ),
-        };
-        console.log("AI Config update →", aiPayload);
-        await aiConfigService
-          .update(aiConfigIdRef.current, aiPayload)
-          .catch((err) => {
-            console.warn("Không thể cập nhật AI config:", err);
-          });
-      }
+      if (lot) {
+        // ── EDIT MODE ──
 
-      await onSave(backendData);
+        // 1. Cập nhật AI config nếu có
+        if (aiConfigIdRef.current) {
+          const aiPayload = {
+            licensePlateConfidenceThreshold: toDecimal(
+              parseInt(formData.licensePlateThreshold) || 85,
+            ),
+            faceRecognitionConfidenceThreshold: toDecimal(
+              parseInt(formData.faceRecognitionThreshold) || 90,
+            ),
+          };
+          await aiConfigService
+            .update(aiConfigIdRef.current, aiPayload)
+            .catch((err) => console.warn("Không thể cập nhật AI config:", err));
+        }
+
+        // Helper: tạo thiết bị mới cho một gateId
+        const createNewDevices = async (gateId, devices) => {
+          const newDevices = devices.filter(
+            (d) => !d._persisted && (d.model.trim() || d.ipAddress.trim()),
+          );
+          for (const d of newDevices) {
+            const devPayload = {
+              lotId: lot.id,
+              parkingLotId: lot.id,
+              gateId,
+              deviceCode: d.deviceCode.trim(),
+              deviceName: d.deviceName.trim(),
+              deviceType: d.deviceType,
+              model: d.model.trim(),
+              ipAddress: d.ipAddress.trim(),
+              connectionStatus: "ONLINE",
+            };
+            if (d.macAddress.trim())
+              devPayload.macAddress = d.macAddress.trim().toUpperCase();
+            if (d.firmwareVersion.trim())
+              devPayload.firmwareVersion = d.firmwareVersion.trim();
+            console.log("POST device:", devPayload);
+            await iotDeviceService.create(devPayload).catch((err) => {
+              const errData = err.response?.data;
+              const msg = errData?.message ?? errData?.title ?? err.message;
+              console.error("Tạo thiết bị thất bại:", errData);
+              toast.error(
+                `Không thể tạo thiết bị "${d.deviceName || d.deviceCode}": ${msg}`,
+              );
+            });
+          }
+        };
+
+        // 2. Cập nhật cổng đã tồn tại + tạo cổng mới
+        for (const gate of formData.gates) {
+          if (gate._persisted) {
+            // Cập nhật cổng cũ
+            const updatePayload = {
+              gateName: gate.gateName.trim(),
+              gateType: gate.gateType,
+              lotId: lot.id,
+              parkingLotId: lot.id,
+            };
+            await gateService.update(gate._id, updatePayload).catch((err) => {
+              const errData = err.response?.data;
+              console.warn(
+                `Cập nhật cổng thất bại:`,
+                errData?.errors ?? errData?.message ?? err.message,
+              );
+            });
+            // Tạo thiết bị mới trong cổng cũ
+            await createNewDevices(gate._id, gate.devices);
+          } else {
+            // Tạo cổng mới
+            const createPayload = {
+              gateName: gate.gateName.trim(),
+              gateType: gate.gateType,
+              lotId: lot.id,
+              parkingLotId: lot.id,
+            };
+            let created;
+            try {
+              created = await gateService.create(createPayload);
+            } catch (err) {
+              const errData = err.response?.data;
+              const fieldErrors = errData?.errors
+                ? Object.entries(errData.errors)
+                    .map(([f, msgs]) => `${f}: ${[].concat(msgs).join(", ")}`)
+                    .join(" | ")
+                : null;
+              const msg =
+                fieldErrors ?? errData?.message ?? errData?.title ?? err.message;
+              console.error("Tạo cổng thất bại:", errData?.errors ?? errData);
+              toast.error(`Không thể tạo cổng "${gate.gateName}": ${msg}`);
+              continue;
+            }
+            // Tạo thiết bị cho cổng mới
+            const newGateId = created?.gateId ?? created?.id;
+            if (newGateId) await createNewDevices(newGateId, gate.devices);
+          }
+        }
+
+        // 3. Cập nhật thông tin bãi + đóng modal
+        await onSave({ lotInfo });
+      } else {
+        // ── CREATE MODE ────────────────────────────────────────────
+        await onSave(backendData);
+      }
     } catch (err) {
       console.error("Error saving:", err);
     } finally {
@@ -789,7 +883,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                     e.target.value,
                                   )
                                 }
-                                className="input text-sm"
+                                className={`input text-sm ${errClass(`gate_${gate._id}_gateType`)}`}
                               >
                                 <option value="" disabled hidden>
                                   Chọn loại cổng
@@ -800,6 +894,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                   </option>
                                 ))}
                               </select>
+                              <ErrMsg k={`gate_${gate._id}_gateType`} />
                             </div>
                           </div>
 
