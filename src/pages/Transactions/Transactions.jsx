@@ -117,7 +117,7 @@ function Transactions() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
           Giao dịch & Hóa đơn
         </h1>
         <p className="text-gray-600 mt-1">
@@ -126,7 +126,7 @@ function Transactions() {
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
         <div className="card">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -199,12 +199,12 @@ function Transactions() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center space-x-3">
-            <Filter className="w-5 h-5 text-gray-500" />
+          <div className="flex flex-wrap items-center gap-3">
+            <Filter className="w-5 h-5 text-gray-500 flex-shrink-0" />
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="input"
+              className="input flex-1 min-w-[140px]"
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="completed">Hoàn thành</option>
@@ -215,16 +215,17 @@ function Transactions() {
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              className="input"
+              className="input flex-1 min-w-[140px]"
             >
               <option value="all">Tất cả phương thức</option>
               <option value="momo">Momo</option>
               <option value="vnpay">VNPay</option>
               <option value="wallet">Ví điện tử</option>
             </select>
-            <button className="btn btn-secondary flex items-center space-x-2">
-              <Calendar className="w-5 h-5" />
-              <span>Lọc theo ngày</span>
+            <button className="btn btn-secondary flex items-center space-x-2 flex-shrink-0">
+              <Calendar className="w-4 h-4" />
+              <span className="hidden sm:inline">Lọc theo ngày</span>
+              <span className="sm:hidden">Ngày</span>
             </button>
           </div>
         </div>

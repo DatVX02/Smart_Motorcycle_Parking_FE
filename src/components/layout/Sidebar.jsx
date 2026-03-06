@@ -12,71 +12,47 @@ import {
   Cpu,
   ChevronRight,
   ChevronLeft,
+  X,
 } from "lucide-react";
 
 const menuItems = [
-  {
-    title: "Dashboard",
-    icon: LayoutDashboard,
-    path: "/dashboard",
-  },
-  {
-    title: "Quản lý tài khoản",
-    icon: Users,
-    path: "/accounts",
-  },
-  {
-    title: "Quản lý bãi đỗ xe",
-    icon: ParkingCircle,
-    path: "/parking-lots",
-  },
-  {
-    title: "Giao dịch & Hóa đơn",
-    icon: Receipt,
-    path: "/transactions",
-  },
-  {
-    title: "Lịch ca trực",
-    icon: Calendar,
-    path: "/shifts",
-  },
-  {
-    title: "Nhật ký hệ thống",
-    icon: ScrollText,
-    path: "/system-logs",
-  },
-  {
-    title: "Điểm thưởng",
-    icon: Award,
-    path: "/reward-points",
-  },
-  {
-    title: "Bảng giá phí",
-    icon: DollarSign,
-    path: "/price-list",
-  },
-  {
-    title: "Thiết bị IoT",
-    icon: Cpu,
-    path: "/iot-devices",
-  },
+  { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
+  { title: "Quản lý tài khoản", icon: Users, path: "/accounts" },
+  { title: "Quản lý bãi đỗ xe", icon: ParkingCircle, path: "/parking-lots" },
+  { title: "Giao dịch & Hóa đơn", icon: Receipt, path: "/transactions" },
+  { title: "Lịch ca trực", icon: Calendar, path: "/shifts" },
+  { title: "Nhật ký hệ thống", icon: ScrollText, path: "/system-logs" },
+  { title: "Điểm thưởng", icon: Award, path: "/reward-points" },
+  { title: "Bảng giá phí", icon: DollarSign, path: "/price-list" },
+  { title: "Thiết bị IoT", icon: Cpu, path: "/iot-devices" },
 ];
 
-function Sidebar() {
+function Sidebar({ onClose }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <aside
-      className={`bg-gradient-to-b from-primary-800 to-primary-900 text-white flex flex-col transition-all duration-300 ease-in-out relative ${
+      className={`bg-gradient-to-b from-primary-800 to-primary-900 text-white flex flex-col transition-all duration-300 ease-in-out relative h-full ${
         isExpanded ? "w-64" : "w-20"
       }`}
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
     >
-      {/* Toggle Button */}
+      {/* Mobile close button */}
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-3 p-1.5 text-white/70 hover:text-white rounded-lg lg:hidden z-10"
+          title="Đóng menu"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Toggle Button (desktop only) */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="absolute -right-3 top-24 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-1.5 shadow-lg z-10 transition-all"
+        className="absolute -right-3 top-24 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-1.5 shadow-lg z-10 transition-all hidden lg:flex"
         title={isExpanded ? "Thu gọn" : "Mở rộng"}
       >
         {isExpanded ? (
@@ -121,6 +97,7 @@ function Sidebar() {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
+                  onClick={onClose}
                   className={({ isActive }) =>
                     `flex items-center ${isExpanded ? "space-x-3 px-4" : "justify-center px-3"} py-3 rounded-lg transition-all duration-200 group relative ${
                       isActive
@@ -138,7 +115,7 @@ function Sidebar() {
                   >
                     {item.title}
                   </span>
-                  
+
                   {/* Tooltip khi collapsed */}
                   {!isExpanded && (
                     <span className="absolute left-full ml-6 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 shadow-lg">
