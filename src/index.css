@@ -171,3 +171,17 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* FullCalendar: ngày quá khứ */
+.fc-past-disabled {
+  background-color: #f9fafb !important;
+  cursor: not-allowed !important;
+}
+.fc-past-disabled .fc-daygrid-day-number {
+  color: #d1d5db !important;
+}
+/* FullCalendar: highlight selection mirror */
+.fc-highlight {
+  background: #dbeafe !important;
+  opacity: 0.8;
+}

@@ -112,16 +112,16 @@ function Accounts() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
             Quản lý tài khoản
           </h1>
           <p className="text-gray-600 mt-1">Quản lý Admin, Staff và User</p>
         </div>
         <button
           onClick={handleAddNew}
-          className="btn btn-primary flex items-center space-x-2"
+          className="btn btn-primary flex items-center space-x-2 self-start sm:self-auto"
         >
           <Plus className="w-5 h-5" />
           <span>Thêm tài khoản</span>
@@ -163,7 +163,7 @@ function Accounts() {
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
         <div className="card">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
