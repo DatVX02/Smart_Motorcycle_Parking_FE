@@ -76,20 +76,23 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
-function CreateShiftModal({ staff, date, parkingLots, onClose, onSuccess }) {
-  const [tab, setTab] = useState("single");
+function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTab, parkingLots, onClose, onSuccess }) {
+  const [tab, setTab] = useState(initialTab ?? "single");
   const [selectedPreset, setSelectedPreset] = useState("MORNING");
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("14:00");
   const [lotId, setLotId] = useState(
-    parkingLots[0]?.id ?? parkingLots[0]?.lotId ?? "",
+    initialLotId ?? parkingLots[0]?.id ?? parkingLots[0]?.lotId ?? "",
   );
   const [shiftStatus, setShiftStatus] = useState("SCHEDULED");
   const [loading, setLoading] = useState(false);
 
   // Bulk fields
-  const [endDate, setEndDate] = useState("");
-  const [workingDays, setWorkingDays] = useState([1, 3, 5]);
+  const [endDate, setEndDate] = useState(initialEndDate ?? "");
+  // Nếu mở từ drag range → chọn tất cả các ngày; nếu tự tạo lịch tuần → mặc định T2-T6
+  const [workingDays, setWorkingDays] = useState(
+    initialEndDate ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5]
+  );
 
   const staffId = staff?.staffId ?? staff?.id ?? "";
   const staffName = staff?.fullName ?? staff?.name ?? "Nhân viên";
@@ -283,6 +286,21 @@ function CreateShiftModal({ staff, date, parkingLots, onClose, onSuccess }) {
                   </button>
                 ))}
               </div>
+              {/* Preview số ca sẽ tạo */}
+              {endDate && workingDays.length > 0 && (() => {
+                let count = 0;
+                const cur = new Date(date + "T00:00:00");
+                const end = new Date(endDate + "T00:00:00");
+                while (cur <= end) {
+                  if (workingDays.includes(cur.getDay())) count++;
+                  cur.setDate(cur.getDate() + 1);
+                }
+                return (
+                  <p className="text-xs text-blue-600 font-medium mt-1.5 bg-blue-50 px-2.5 py-1.5 rounded-lg">
+                    Sẽ tạo <span className="font-bold">{count} ca</span> trong khoảng này
+                  </p>
+                );
+              })()}
             </div>
           )}
 
