@@ -144,7 +144,7 @@ function DroppableLotCalendar({ lotId, children }) {
   return (
     <div
       ref={setNodeRef}
-      data-lot-id={lotId} // Cực kỳ quan trọng để dò tìm Lot ID khi thả chuột
+      data-lot-id={lotId}
       className={`relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full transition-all duration-200 ${
         isOver ? "ring-2 ring-blue-500 bg-blue-50/20" : ""
       }`}
@@ -154,9 +154,7 @@ function DroppableLotCalendar({ lotId, children }) {
   );
 }
 
-
 function StaffDragOverlayCard({ staff }) {
-  /* ... Giữ nguyên ... */
   const name = staff?.fullName ?? staff?.name ?? "Nhân viên";
   const id = staff?.staffId ?? staff?.id ?? "";
   return (
@@ -197,22 +195,23 @@ function Shifts() {
   const [staffLoading, setStaffLoading] = useState(true);
   const [parkingLots, setParkingLots] = useState([]);
 
-  // State mới: Lưu trữ ca trực của TẤT CẢ bãi xe dạng { lotId: [shifts] }
   const [shiftsByLot, setShiftsByLot] = useState({});
   const [shiftsLoading, setShiftsLoading] = useState(false);
 
-  // Layout Controls
-  const [viewMode, setViewMode] = useState("tab"); // "tab" hoặc "grid"
-  const [gridCols, setGridCols] = useState(2); // Số cột khi ở chế độ Grid
-  const [activeTabLotId, setActiveTabLotId] = useState(""); // Lot đang chọn nếu ở chế độ Tab
+  const [viewMode, setViewMode] = useState("tab");
+  const [gridCols, setGridCols] = useState(2);
+  const [activeTabLotId, setActiveTabLotId] = useState("");
 
   const [activeStaff, setActiveStaff] = useState(null);
-  const [createModal, setCreateModal] = useState(null); // { staff, date, lotId, endDate, useRange }
+  const [createModal, setCreateModal] = useState(null);
   const [detailShift, setDetailShift] = useState(null);
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  // Range được chọn bằng cách kéo trên lịch
-  const [selectedRange, setSelectedRange] = useState(null); // { start: "YYYY-MM-DD", end: "YYYY-MM-DD" }
+
+  const [selectedRange, setSelectedRange] = useState(null);
+  const [isMultiDeleteMode, setIsMultiDeleteMode] = useState(false);
+  const [selectedShiftIds, setSelectedShiftIds] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const lastMousePos = useRef({ x: 0, y: 0 });
 
@@ -249,7 +248,10 @@ function Shifts() {
           : Array.isArray(data?.items)
             ? data.items
             : data?.data?.items || [];
-      setAllStaff(arr);
+      const staffOnly = arr.filter(
+        (s) => (s.role ?? "").toUpperCase() === "STAFF",
+      );
+      setAllStaff(staffOnly);
     } catch (err) {
       toast.error("Lỗi tải nhân viên");
     } finally {
@@ -279,7 +281,9 @@ function Shifts() {
       const results = {};
       await Promise.all(
         lots.map(async (lot) => {
-          const data = await workShiftService.getByLot(lot.id);
+          const data = await workShiftService.getByLot(lot.id, {
+            pageSize: 9999,
+          });
           let arr = Array.isArray(data)
             ? data
             : Array.isArray(data?.data)
@@ -302,7 +306,6 @@ function Shifts() {
 
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // ─── Range select trên lịch ───
   const handleRangeSelect = useCallback((selectInfo) => {
     const todayDate = new Date();
     todayDate.setHours(0, 0, 0, 0);
@@ -311,8 +314,6 @@ function Shifts() {
       toast.error("Không thể chọn ngày trong quá khứ");
       return;
     }
-    // FullCalendar dayGrid: end exclusive → lùi 1 ngày
-    // Dùng selectInfo.endStr để tránh bug timezone offset khi dùng toISOString()
     const endExclusive = new Date(selectInfo.endStr + "T00:00:00");
     endExclusive.setDate(endExclusive.getDate() - 1);
     const endStr = `${endExclusive.getFullYear()}-${String(endExclusive.getMonth() + 1).padStart(2, "0")}-${String(endExclusive.getDate()).padStart(2, "0")}`;
@@ -330,51 +331,53 @@ function Shifts() {
     setActiveStaff(active.data.current ?? null);
   }, []);
 
-  const handleDragEnd = useCallback(({ active }) => {
-    const { x, y } = lastMousePos.current;
-    let targetDate = null;
-    let targetLotId = null;
+  const handleDragEnd = useCallback(
+    ({ active }) => {
+      const { x, y } = lastMousePos.current;
+      let targetDate = null;
+      let targetLotId = null;
 
-    if (x > 0 || y > 0) {
-      const elements = document.elementsFromPoint(x, y);
-      for (const el of elements) {
-        if (!targetDate) {
-          const dateEl =
-            el.closest("[data-date]") ??
-            (el.hasAttribute?.("data-date") ? el : null);
-          if (dateEl) targetDate = dateEl.getAttribute("data-date");
-        }
-        if (!targetLotId) {
-          const lotEl =
-            el.closest("[data-lot-id]") ??
-            (el.hasAttribute?.("data-lot-id") ? el : null);
-          if (lotEl) targetLotId = lotEl.getAttribute("data-lot-id");
+      if (x > 0 || y > 0) {
+        const elements = document.elementsFromPoint(x, y);
+        for (const el of elements) {
+          if (!targetDate) {
+            const dateEl =
+              el.closest("[data-date]") ??
+              (el.hasAttribute?.("data-date") ? el : null);
+            if (dateEl) targetDate = dateEl.getAttribute("data-date");
+          }
+          if (!targetLotId) {
+            const lotEl =
+              el.closest("[data-lot-id]") ??
+              (el.hasAttribute?.("data-lot-id") ? el : null);
+            if (lotEl) targetLotId = lotEl.getAttribute("data-lot-id");
+          }
         }
       }
-    }
 
-    setActiveStaff(null);
-    if (!targetDate || !targetLotId) return;
+      setActiveStaff(null);
+      if (!targetDate || !targetLotId) return;
 
-    // Validate ngày quá khứ
-    const todayMidnight = new Date();
-    todayMidnight.setHours(0, 0, 0, 0);
-    if (new Date(targetDate + "T00:00:00") < todayMidnight) {
-      toast.error("Không thể tạo ca cho ngày trong quá khứ");
-      return;
-    }
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
+      if (new Date(targetDate + "T00:00:00") < todayMidnight) {
+        toast.error("Không thể tạo ca cho ngày trong quá khứ");
+        return;
+      }
 
-    const draggedStaff = active.data.current;
-    const range = selectedRange;
-    setSelectedRange(null);
-    setCreateModal({
-      staff: draggedStaff,
-      date: range?.start ?? targetDate,
-      lotId: targetLotId,
-      endDate: range?.end ?? null,
-      useRange: !!range,
-    });
-  }, [selectedRange]);
+      const draggedStaff = active.data.current;
+      const range = selectedRange;
+      setSelectedRange(null);
+      setCreateModal({
+        staff: draggedStaff,
+        date: range?.start ?? targetDate,
+        lotId: targetLotId,
+        endDate: range?.end ?? null,
+        useRange: !!range,
+      });
+    },
+    [selectedRange],
+  );
 
   const handleDateClick = (info, lotId) => {
     const todayMidnight = new Date();
@@ -395,8 +398,56 @@ function Shifts() {
   };
 
   const handleEventClick = (info) => {
-    if (info.event.extendedProps.shift)
-      setDetailShift(info.event.extendedProps.shift);
+    const shift = info.event.extendedProps.shift;
+    if (!shift) return;
+    if (isMultiDeleteMode) {
+      const id = String(shift.shiftId ?? shift.ShiftId ?? shift.id);
+      setSelectedShiftIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    } else {
+      setDetailShift(shift);
+    }
+  };
+
+  const exitMultiDeleteMode = () => {
+    setIsMultiDeleteMode(false);
+    setSelectedShiftIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedShiftIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedShiftIds);
+      // Xóa theo batch (10 ca/lần) để tránh quá tải server, không giới hạn tổng số ca
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const batch = ids.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map((id) => workShiftService.delete(id)));
+      }
+      setShiftsByLot((prev) => {
+        const next = {};
+        for (const [lotId, shifts] of Object.entries(prev)) {
+          next[lotId] = shifts.filter(
+            (s) => !ids.includes(String(s.shiftId ?? s.ShiftId ?? s.id)),
+          );
+        }
+        return next;
+      });
+      toast.success(`Đã xóa ${ids.length} ca trực`);
+      exitMultiDeleteMode();
+      setTimeout(handleRefresh, 300);
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message ?? err?.message ?? "Xóa thất bại",
+      );
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const allShiftsArray = Object.values(shiftsByLot).flat();
@@ -430,24 +481,21 @@ function Shifts() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex flex-col h-full min-h-0 gap-0 -m-6 bg-gray-50/50">
+      <div className="absolute inset-0 flex flex-col min-h-0 gap-0 bg-gray-50/50">
         {/* ── Top bar ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-3 md:py-4 bg-white border-b border-gray-100 flex-shrink-0 z-10">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-3 bg-white border-b border-gray-100 flex-shrink-0 z-10">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-gray-900">
               Quản lý Lịch Bãi Xe
             </h1>
-            <p className="text-xs md:text-sm text-gray-500 mt-0.5">
-              Kéo nhân sự thả vào lịch của từng bãi xe tương ứng
-            </p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             {/* View Mode Switcher */}
-            <div className="flex bg-gray-100 p-1 rounded-xl">
+            <div className="flex bg-gray-100 p-0.5 rounded-lg">
               <button
                 onClick={() => setViewMode("tab")}
-                className={`p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-1.5 transition-all ${viewMode === "tab" ? "bg-white shadow text-blue-600 font-semibold" : "text-gray-500 hover:text-gray-800"}`}
+                className={`p-1.5 rounded-md flex items-center gap-1 transition-all ${viewMode === "tab" ? "bg-white shadow text-blue-600 font-semibold" : "text-gray-500 hover:text-gray-800"}`}
                 title="Dạng Tab"
               >
                 <SquareDashedBottom className="w-4 h-4" />
@@ -455,38 +503,39 @@ function Shifts() {
               </button>
               <button
                 onClick={() => setViewMode("grid")}
-                className={`p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-1.5 transition-all ${viewMode === "grid" ? "bg-white shadow text-blue-600 font-semibold" : "text-gray-500 hover:text-gray-800"}`}
+                className={`p-1.5 rounded-md flex items-center gap-1 transition-all ${viewMode === "grid" ? "bg-white shadow text-blue-600 font-semibold" : "text-gray-500 hover:text-gray-800"}`}
                 title="Dạng Lưới"
               >
                 <LayoutGrid className="w-4 h-4" />
-                <span className="text-xs sm:text-sm hidden xs:inline">Grid</span>
+                <span className="text-xs sm:text-sm hidden xs:inline">
+                  Grid
+                </span>
               </button>
             </div>
 
-            {/* Grid Size Controls (Only show in Grid mode) */}
             {viewMode === "grid" && (
-              <div className="flex bg-gray-100 p-1 rounded-xl">
+              <div className="flex bg-gray-100 p-0.5 rounded-lg">
                 <button
                   onClick={() => setGridCols(1)}
-                  className={`p-1.5 rounded-lg ${gridCols === 1 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-1 rounded-md ${gridCols === 1 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <LayoutGrid className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setGridCols(2)}
-                  className={`p-1.5 rounded-lg ${gridCols === 2 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-1 rounded-md ${gridCols === 2 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <Columns2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setGridCols(3)}
-                  className={`p-1.5 rounded-lg hidden sm:block ${gridCols === 3 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-1 rounded-md hidden sm:block ${gridCols === 3 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <Columns3 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setGridCols(4)}
-                  className={`p-1.5 rounded-lg hidden md:block ${gridCols === 4 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-1 rounded-md hidden md:block ${gridCols === 4 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <Columns4 className="w-4 h-4" />
                 </button>
@@ -495,44 +544,65 @@ function Shifts() {
 
             <button
               onClick={() => setShowBulkAssign(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-semibold hover:bg-violet-700"
             >
-              <Users className="w-4 h-4" />
+              <Users className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Gán nhóm</span>
+            </button>
+
+            {/* [ĐÃ SỬA] Thay đổi UI nút Toggle Xóa nhiều để tinh tế hơn */}
+            <button
+              onClick={() => {
+                if (isMultiDeleteMode) exitMultiDeleteMode();
+                else setIsMultiDeleteMode(true);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shadow-sm ${
+                isMultiDeleteMode
+                  ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 ring-1 ring-red-100"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:text-red-600"
+              }`}
+              title={
+                isMultiDeleteMode ? "Thoát chế độ chọn" : "Chọn nhiều ca để xóa"
+              }
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {isMultiDeleteMode ? "Hủy chọn" : "Xóa nhiều"}
+              </span>
             </button>
             <button
               onClick={handleRefresh}
-              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl"
+              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
             >
               <RefreshCw
-                className={`w-5 h-5 ${shiftsLoading ? "animate-spin text-blue-500" : ""}`}
+                className={`w-4 h-4 ${shiftsLoading ? "animate-spin text-blue-500" : ""}`}
               />
             </button>
           </div>
         </div>
 
         {/* ── Stats row ── */}
-        <div className="flex flex-wrap gap-2 md:gap-4 px-4 md:px-6 py-2 md:py-3 bg-white border-b border-gray-100 flex-shrink-0 shadow-sm z-10">
+        <div className="flex flex-wrap gap-1.5 px-3 md:px-4 py-1.5 bg-white border-b border-gray-100 flex-shrink-0 shadow-sm z-10">
           <StatChip
-            icon={<Calendar className="w-4 h-4 text-blue-500" />}
+            icon={<Calendar className="w-3.5 h-3.5 text-blue-500" />}
             label="Hôm nay"
             value={todayShifts.length}
             color="bg-blue-50 text-blue-700"
           />
           <StatChip
-            icon={<Clock className="w-4 h-4 text-gray-500" />}
+            icon={<Clock className="w-3.5 h-3.5 text-gray-500" />}
             label="Đã lên lịch"
             value={scheduledCount}
             color="bg-gray-100 text-gray-700"
           />
           <StatChip
-            icon={<AlertCircle className="w-4 h-4 text-emerald-500" />}
+            icon={<AlertCircle className="w-3.5 h-3.5 text-emerald-500" />}
             label="Đang làm"
             value={inProgressCount}
             color="bg-emerald-50 text-emerald-700"
           />
           <StatChip
-            icon={<Users className="w-4 h-4 text-violet-500" />}
+            icon={<Users className="w-3.5 h-3.5 text-violet-500" />}
             label="Tổng ca"
             value={allShiftsArray.length}
             color="bg-violet-50 text-violet-700"
@@ -541,7 +611,7 @@ function Shifts() {
 
         {/* ── Main content ── */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Sidebar Nhân viên — hidden on mobile */}
+          {/* Sidebar */}
           <div className="hidden sm:block flex-shrink-0 h-full overflow-hidden">
             <StaffSidebar
               staff={allStaff}
@@ -552,14 +622,13 @@ function Shifts() {
 
           {/* Vùng Lịch Center */}
           <div className="flex-1 flex flex-col min-w-0 bg-gray-100 overflow-hidden relative">
-            {/* Nếu là dạng Tab, hiển thị thanh Tabs điều hướng */}
             {viewMode === "tab" && (
-              <div className="flex overflow-x-auto gap-2 p-4 pb-0 scrollbar-hide flex-shrink-0">
+              <div className="flex overflow-x-auto gap-1.5 p-2 pb-0 scrollbar-hide flex-shrink-0">
                 {parkingLots.map((lot) => (
                   <button
                     key={lot.id}
                     onClick={() => setActiveTabLotId(lot.id)}
-                    className={`px-4 py-2 rounded-t-xl text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                    className={`px-3 py-1.5 rounded-t-lg text-xs font-semibold whitespace-nowrap border-b-2 transition-colors ${
                       activeTabLotId === lot.id
                         ? "bg-white text-blue-600 border-blue-600"
                         : "bg-gray-200/50 text-gray-500 border-transparent hover:bg-gray-200"
@@ -576,15 +645,25 @@ function Shifts() {
 
             {/* Banner range đã chọn */}
             {selectedRange && (
-              <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 border-b border-blue-200 flex-shrink-0">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
-                <p className="text-sm text-blue-700 flex-1">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-b border-blue-200 flex-shrink-0">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
+                <p className="text-xs text-blue-700 flex-1">
                   <span className="font-semibold">Đã chọn range:</span>{" "}
-                  {new Date(selectedRange.start + "T00:00:00").toLocaleDateString("vi-VN", { day: "numeric", month: "long" })}
+                  {new Date(
+                    selectedRange.start + "T00:00:00",
+                  ).toLocaleDateString("vi-VN", {
+                    day: "numeric",
+                    month: "long",
+                  })}
                   {" → "}
-                  {new Date(selectedRange.end + "T00:00:00").toLocaleDateString("vi-VN", { day: "numeric", month: "long", year: "numeric" })}
+                  {new Date(selectedRange.end + "T00:00:00").toLocaleDateString(
+                    "vi-VN",
+                    { day: "numeric", month: "long", year: "numeric" },
+                  )}
                   {" · "}
-                  <span className="text-blue-500">Kéo nhân viên vào lịch để gán cả khoảng này</span>
+                  <span className="text-blue-500">
+                    Kéo nhân viên vào lịch để gán cả khoảng này
+                  </span>
                 </p>
                 <button
                   onClick={clearRange}
@@ -598,7 +677,7 @@ function Shifts() {
 
             {/* Khung chứa các Lịch */}
             <div
-              className={`flex-1 overflow-auto p-4 ${viewMode === "grid" ? `grid gap-6 ${gridLayoutClass}` : "block bg-white border-t border-gray-200"}`}
+              className={`flex-1 min-h-0 overflow-auto p-2 ${viewMode === "grid" ? `grid gap-4 ${gridLayoutClass}` : "flex flex-col bg-white border-t border-gray-200"}`}
             >
               {visibleLots.length === 0 && (
                 <div className="text-gray-400 p-10 text-center">
@@ -609,13 +688,13 @@ function Shifts() {
               {visibleLots.map((lot) => {
                 const lotShifts = shiftsByLot[lot.id] || [];
                 const calendarEvents = lotShifts.map(toCalendarEvent);
-
-                // Ở dạng nhiều cột, ta cần làm gọn Header của lịch để không bị tràn
                 const isSmallGrid = viewMode === "grid" && gridCols >= 3;
 
                 return (
-                  <div key={lot.id} className="h-[700px] flex flex-col">
-                    {/* Tiêu đề Bãi Xe (Chỉ hiện trong dạng lưới) */}
+                  <div
+                    key={lot.id}
+                    className={`${viewMode === "grid" ? "h-[700px]" : "flex-1 min-h-0"} flex flex-col`}
+                  >
                     {viewMode === "grid" && (
                       <div
                         className="group flex items-center gap-2 mb-2 px-2 cursor-pointer"
@@ -648,7 +727,6 @@ function Shifts() {
                         headerToolbar={
                           isSmallGrid
                             ? {
-                                // Rút gọn thanh công cụ nếu chia 3-4 cột
                                 left: "title",
                                 right: "prev,next",
                               }
@@ -661,6 +739,43 @@ function Shifts() {
                         events={calendarEvents}
                         eventContent={renderEventContent}
                         eventClick={handleEventClick}
+                        // [ĐÃ SỬA] Thay đổi CSS của Event trên lịch khi ở chế độ xóa
+                        eventClassNames={(arg) => {
+                          const shift = arg.event.extendedProps?.shift;
+                          if (!shift) return [];
+                          const id = String(
+                            shift.shiftId ?? shift.ShiftId ?? shift.id,
+                          );
+
+                          if (isMultiDeleteMode) {
+                            if (selectedShiftIds.has(id)) {
+                              return [
+                                "!ring-2",
+                                "!ring-red-500",
+                                "!ring-offset-1",
+                                "!opacity-100",
+                                "relative",
+                                "!z-10",
+                                "transition-all",
+                                "cursor-pointer",
+                              ];
+                            }
+                            // Làm mờ các ca chưa chọn
+                            return [
+                              "!opacity-40",
+                              "hover:!opacity-70",
+                              "transition-all",
+                              "cursor-pointer",
+                            ];
+                          }
+
+                          // Mặc định
+                          return [
+                            "transition-transform",
+                            "hover:scale-[1.02]",
+                            "cursor-pointer",
+                          ];
+                        }}
                         dateClick={(info) => handleDateClick(info, lot.id)}
                         height="100%"
                         dayMaxEvents={3}
@@ -672,7 +787,7 @@ function Shifts() {
                           week: "Tuần",
                         }}
                         eventDisplay="block"
-                        selectable={true}
+                        selectable={!isMultiDeleteMode}
                         selectMirror={true}
                         select={handleRangeSelect}
                         selectAllow={(selectInfo) => {
@@ -691,6 +806,59 @@ function Shifts() {
                 );
               })}
             </div>
+
+            {/* [ĐÃ THÊM] Floating Action Bar cho tính năng xóa nhiều (Thay thế cho banner gạch đỏ cũ) */}
+            {isMultiDeleteMode && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-2xl px-3 py-2.5 flex items-center gap-4 z-[60] animate-in slide-in-from-bottom-8 fade-in duration-300">
+                <div className="flex items-center gap-2.5 pl-3">
+                  {selectedShiftIds.size > 0 ? (
+                    <>
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white font-bold text-xs shadow-inner">
+                        {selectedShiftIds.size}
+                      </div>
+                      <span className="text-sm font-medium whitespace-nowrap">
+                        ca được chọn
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm font-medium text-gray-400 whitespace-nowrap">
+                      Bấm vào các ca trên lịch để chọn...
+                    </span>
+                  )}
+                </div>
+
+                {selectedShiftIds.size > 0 && (
+                  <>
+                    <div className="w-px h-5 bg-gray-700"></div>
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={bulkDeleting}
+                      className="flex items-center gap-1.5 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full text-sm font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {bulkDeleting ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" /> Đang
+                          xóa...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" /> Xóa ngay
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+
+                <div className="w-px h-5 bg-gray-700"></div>
+                <button
+                  onClick={exitMultiDeleteMode}
+                  className="flex items-center gap-1.5 px-4 py-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded-full text-sm font-medium transition-colors mr-1"
+                >
+                  <X className="w-4 h-4" />
+                  Hủy
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -701,7 +869,6 @@ function Shifts() {
       </DragOverlay>
 
       {/* ── Modals ── */}
-      {/* LƯU Ý: Đảm bảo CreateShiftModal của bạn nhận prop `lotId` hoặc `initialLotId` để tự động Set bãi xe nhé */}
       {createModal && (
         <CreateShiftModal
           staff={createModal.staff}
@@ -735,7 +902,7 @@ function Shifts() {
   );
 }
 
-// ─── Shift Detail Popup ───────────────────────────────────────────────────────
+// ─── Shift Detail Popup ───
 
 function ShiftDetailPopup({ shift, onClose, onDelete }) {
   const [deleting, setDeleting] = useState(false);
@@ -756,7 +923,12 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
     : "—";
 
   const shiftType = (shift.shiftType ?? shift.ShiftType ?? "").toUpperCase();
-  const statusKey = (shift.shiftStatus ?? shift.ShiftStatus ?? shift.status ?? "").toUpperCase();
+  const statusKey = (
+    shift.shiftStatus ??
+    shift.ShiftStatus ??
+    shift.status ??
+    ""
+  ).toUpperCase();
   const statusLabel = STATUS_LABELS[statusKey] ?? shift.shiftStatus ?? "—";
   const statusColor = STATUS_COLORS[statusKey] ?? "#6B7280";
   const barColor = SHIFT_COLORS[shiftType] ?? statusColor;
@@ -770,7 +942,9 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
       onDelete();
       onClose();
     } catch (err) {
-      toast.error(err?.response?.data?.message ?? err?.message ?? "Xóa thất bại");
+      toast.error(
+        err?.response?.data?.message ?? err?.message ?? "Xóa thất bại",
+      );
     } finally {
       setDeleting(false);
     }
@@ -784,16 +958,23 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
 
           {/* Header */}
           <div className="flex items-center gap-3 px-5 py-4">
-            <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 ${getAvatarColor(staffId)}`}>
+            <div
+              className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 ${getAvatarColor(staffId)}`}
+            >
               {getInitials(name)}
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-gray-900 truncate">{name}</h3>
               <p className="text-xs text-gray-400">
-                {SHIFT_TYPE_LABELS[shift.shiftType] ?? shift.shiftType ?? "Ca trực"}
+                {SHIFT_TYPE_LABELS[shift.shiftType] ??
+                  shift.shiftType ??
+                  "Ca trực"}
               </p>
             </div>
-            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+            <button
+              onClick={onClose}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            >
               <X className="w-4 h-4 text-gray-500" />
             </button>
           </div>
@@ -804,17 +985,24 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
               <div className="flex flex-col gap-1 bg-gray-50 rounded-xl p-2.5">
                 <div className="flex items-center gap-1.5">
                   <Calendar className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-400 font-medium">Ngày</span>
+                  <span className="text-xs text-gray-400 font-medium">
+                    Ngày
+                  </span>
                 </div>
-                <span className="text-xs text-gray-700 capitalize">{displayDate}</span>
+                <span className="text-xs text-gray-700 capitalize">
+                  {displayDate}
+                </span>
               </div>
               <div className="flex flex-col gap-1 bg-gray-50 rounded-xl p-2.5">
                 <div className="flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-400 font-medium">Giờ làm</span>
+                  <span className="text-xs text-gray-400 font-medium">
+                    Giờ làm
+                  </span>
                 </div>
                 <span className="text-xs text-gray-700">
-                  {(shift.startTime ?? "—").slice(0,5)} → {(shift.endTime ?? "—").slice(0,5)}
+                  {(shift.startTime ?? "—").slice(0, 5)} →{" "}
+                  {(shift.endTime ?? "—").slice(0, 5)}
                 </span>
               </div>
             </div>
@@ -823,7 +1011,9 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
               <div className="flex flex-col gap-1 bg-gray-50 rounded-xl p-2.5">
                 <div className="flex items-center gap-1.5">
                   <MapPin className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-400 font-medium">Bãi xe</span>
+                  <span className="text-xs text-gray-400 font-medium">
+                    Bãi xe
+                  </span>
                 </div>
                 <span className="text-xs text-gray-700">{shift.lotName}</span>
               </div>
@@ -866,22 +1056,51 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
             <AlertDialogDescription>
               Bạn có chắc muốn xóa ca của{" "}
               <span className="font-semibold text-gray-700">{name}</span> vào{" "}
-              <span className="font-semibold text-gray-700 capitalize">{displayDate}</span>?
-              <span className="text-red-500 text-xs mt-1 block">Hành động này không thể hoàn tác.</span>
+              <span className="font-semibold text-gray-700 capitalize">
+                {displayDate}
+              </span>
+              ?
+              <span className="text-red-500 text-xs mt-1 block">
+                Hành động này không thể hoàn tác.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onOpenChange={setShowDeleteDialog} disabled={deleting} />
-            <AlertDialogAction variant="destructive" onClick={handleDeleteConfirm} disabled={deleting}>
+            <AlertDialogCancel
+              onOpenChange={setShowDeleteDialog}
+              disabled={deleting}
+            />
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+            >
               {deleting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  <svg
+                    className="w-4 h-4 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    />
                   </svg>
                   Đang xóa...
                 </span>
-              ) : "Xóa ca trực"}
+              ) : (
+                "Xóa ca trực"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -892,9 +1111,9 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
 
 function StatChip({ icon, label, value, color }) {
   return (
-    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${color}`}>
-      {icon} <span className="text-xs font-medium">{label}:</span>{" "}
-      <span className="text-sm font-bold">{value}</span>
+    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg ${color}`}>
+      {icon} <span className="text-[11px] font-medium">{label}:</span>{" "}
+      <span className="text-xs font-bold">{value}</span>
     </div>
   );
 }
