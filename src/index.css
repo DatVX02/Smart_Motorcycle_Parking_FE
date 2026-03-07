@@ -172,6 +172,26 @@
   display: none;
 }
 
+/* FullCalendar: thu nhỏ toolbar để tiết kiệm không gian */
+.fc .fc-toolbar {
+  padding: 0.25rem 0;
+  gap: 0.25rem;
+}
+.fc .fc-toolbar-title {
+  font-size: 1rem;
+}
+.fc .fc-button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+.fc .fc-daygrid-day-number {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.25rem;
+}
+.fc .fc-daygrid-event {
+  margin: 0.0625rem 0.125rem;
+}
+
 /* FullCalendar: ngày quá khứ */
 .fc-past-disabled {
   background-color: #f9fafb !important;
@@ -180,6 +200,11 @@
 .fc-past-disabled .fc-daygrid-day-number {
   color: #d1d5db !important;
 }
+/* FullCalendar: ca được chọn để xóa nhiều */
+.fc-event.fc-event-selected {
+  box-shadow: 0 0 0 2px #ef4444 !important;
+}
+
 /* FullCalendar: highlight selection mirror */
 .fc-highlight {
   background: #dbeafe !important;
