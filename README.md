@@ -6,15 +6,15 @@ Hệ thống quản lý bãi giữ xe máy thông minh tích hợp nhận dạng
 
 ### Chức năng Admin
 
-- ✅ Dashboard với thống kê tổng quan
-- ✅ Quản lý tài khoản: admin, staff, user
-- ✅ Quản lý bãi đỗ xe
-- ✅ Quản lý giao dịch điện tử và hóa đơn
-- ✅ Quản lý và lên lịch ca trực cho nhân viên
-- ✅ Quản lý nhật ký hệ thống
-- ✅ Quản lý điểm thưởng
-- ✅ Thiết lập bảng giá phí đỗ xe
-- ✅ Quản lý thiết bị IoT
+- Dashboard với thống kê tổng quan
+- Quản lý tài khoản: admin, staff, user
+- Quản lý bãi đỗ xe
+- Quản lý giao dịch điện tử và hóa đơn
+- Quản lý và lên lịch ca trực cho nhân viên
+- Quản lý nhật ký hệ thống
+- Quản lý điểm thưởng
+- Thiết lập bảng giá phí đỗ xe
+- Quản lý thiết bị IoT
 
 ## Công nghệ sử dụng
 
