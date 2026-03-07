@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Users, MapPin, Clock, Calendar, Check, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import workShiftService from "../../services/workShiftService";
+import parkingLotService from "../../services/parkingLotService";
 
 const SHIFT_PRESETS = [
   {
@@ -60,6 +61,30 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
+function timeToMinutes(t) {
+  if (!t || typeof t !== "string") return 0;
+  const [h, m] = t.substring(0, 5).split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+function isShiftWithinOperatingHours(startTime, endTime, openingTime, closingTime, is24h) {
+  if (is24h) return null;
+  const openMin = timeToMinutes(openingTime);
+  const closeMin = timeToMinutes(closingTime);
+  const startMin = timeToMinutes(startTime);
+  const endMin = timeToMinutes(endTime);
+  if (endMin <= startMin) {
+    return "Ca qua đêm không phù hợp với bãi xe có giờ đóng cửa cố định. Vui lòng chọn ca trong khung giờ mở cửa.";
+  }
+  if (startMin < openMin) {
+    return `Giờ bắt đầu phải từ ${openingTime} (giờ mở cửa) trở đi`;
+  }
+  if (endMin > closeMin) {
+    return `Giờ kết thúc phải trước ${closingTime} (giờ đóng cửa)`;
+  }
+  return null;
+}
+
 function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
   const [search, setSearch] = useState("");
   const [selectedStaffIds, setSelectedStaffIds] = useState([]);
@@ -74,6 +99,41 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
   const [endTime, setEndTime] = useState("14:00");
   const [shiftStatus, setShiftStatus] = useState("SCHEDULED");
   const [loading, setLoading] = useState(false);
+  const [lotOperatingHours, setLotOperatingHours] = useState(null);
+
+  useEffect(() => {
+    if (!lotId) {
+      setLotOperatingHours(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const detail = await parkingLotService.getParkingLotDetail(lotId);
+        const lotInfo = detail?.lotInfo ?? detail;
+        if (cancelled) return;
+        setLotOperatingHours({
+          openingTime: lotInfo?.openingTime?.substring(0, 5) || "00:00",
+          closingTime: lotInfo?.closingTime?.substring(0, 5) || "23:59",
+          is24h: !!lotInfo?.is24h,
+        });
+      } catch {
+        if (!cancelled) setLotOperatingHours(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [lotId]);
+
+  useEffect(() => {
+    if (selectedPreset && lotOperatingHours && !lotOperatingHours.is24h) {
+      const p = selectedPreset.toUpperCase();
+      if (p === "MORNING") {
+        setStartTime(lotOperatingHours.openingTime);
+      } else if (p === "NIGHT") {
+        setEndTime(lotOperatingHours.closingTime);
+      }
+    }
+  }, [lotOperatingHours, selectedPreset]);
 
   const filteredStaff = allStaff.filter((s) => {
     const name = (s.fullName ?? s.name ?? "").toLowerCase();
@@ -87,6 +147,16 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
 
+  const shiftTimeError = lotId && lotOperatingHours && !lotOperatingHours.is24h
+    ? isShiftWithinOperatingHours(
+        startTime,
+        endTime,
+        lotOperatingHours.openingTime,
+        lotOperatingHours.closingTime,
+        false,
+      )
+    : null;
+
   const toggleAll = () => {
     const allIds = filteredStaff.map((s) => s.staffId ?? s.id);
     const allSelected = allIds.every((id) => selectedStaffIds.includes(id));
@@ -99,8 +169,17 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
 
   const handlePresetSelect = (preset) => {
     setSelectedPreset(preset.type);
-    setStartTime(preset.startTime);
-    setEndTime(preset.endTime);
+    let start = preset.startTime;
+    let end = preset.endTime;
+    if (lotOperatingHours && !lotOperatingHours.is24h) {
+      if (preset.type === "Morning") {
+        start = lotOperatingHours.openingTime;
+      } else if (preset.type === "Night") {
+        end = lotOperatingHours.closingTime;
+      }
+    }
+    setStartTime(start);
+    setEndTime(end);
   };
 
   const handleSubmit = async () => {
@@ -111,6 +190,20 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
     if (!lotId) {
       toast.error("Vui lòng chọn bãi xe");
       return;
+    }
+
+    if (lotOperatingHours) {
+      const err = isShiftWithinOperatingHours(
+        startTime,
+        endTime,
+        lotOperatingHours.openingTime,
+        lotOperatingHours.closingTime,
+        lotOperatingHours.is24h,
+      );
+      if (err) {
+        toast.error(err);
+        return;
+      }
     }
 
     setLoading(true);
@@ -284,6 +377,15 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
                   </option>
                 ))}
               </select>
+              {lotId && lotOperatingHours && (
+                <p className="text-xs text-gray-500 mt-1.5 px-1">
+                  {lotOperatingHours.is24h ? (
+                    "Bãi hoạt động 24/7"
+                  ) : (
+                    <>Giờ mở cửa: {lotOperatingHours.openingTime} – {lotOperatingHours.closingTime}</>
+                  )}
+                </p>
+              )}
             </div>
 
             {/* Shift type */}
@@ -297,22 +399,22 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
                   <button
                     key={preset.type}
                     onClick={() => handlePresetSelect(preset)}
-                    className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+                    className={`p-3 rounded-xl border-2 text-left transition-all flex items-center gap-2 ${
                       selectedPreset === preset.type
                         ? `${preset.color} border-transparent text-white`
                         : "border-gray-100 hover:border-gray-200 bg-gray-50"
                     }`}
                   >
-                    <p
-                      className={`text-xs font-bold ${selectedPreset === preset.type ? "text-white" : "text-gray-700"}`}
+                    <div
+                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                        selectedPreset === preset.type ? "bg-white/70" : preset.color
+                      }`}
+                    />
+                    <span
+                      className={`text-sm font-bold ${selectedPreset === preset.type ? "text-white" : "text-gray-700"}`}
                     >
                       {preset.label}
-                    </p>
-                    <p
-                      className={`text-xs ${selectedPreset === preset.type ? "text-white/70" : "text-gray-400"}`}
-                    >
-                      {preset.startTime} → {preset.endTime}
-                    </p>
+                    </span>
                   </button>
                 ))}
               </div>
@@ -349,6 +451,11 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
                 />
               </div>
             </div>
+            {shiftTimeError && (
+              <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
+                {shiftTimeError}
+              </p>
+            )}
 
             {/* Status */}
             <div>
@@ -378,7 +485,7 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || selectedStaffIds.length === 0}
+            disabled={loading || selectedStaffIds.length === 0 || !!shiftTimeError}
             className="flex-1 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (

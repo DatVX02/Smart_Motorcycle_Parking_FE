@@ -52,7 +52,7 @@ function Sidebar({ onClose }) {
       {/* Toggle Button (desktop only) */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="absolute -right-3 top-24 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-1.5 shadow-lg z-10 transition-all hidden lg:flex"
+        className="absolute right-3 top-[104px] translate-x-1/2 -translate-y-1/2 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-1 shadow-lg z-10 transition-all hidden lg:flex"
         title={isExpanded ? "Thu gọn" : "Mở rộng"}
       >
         {isExpanded ? (
@@ -110,7 +110,9 @@ function Sidebar({ onClose }) {
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   <span
                     className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${
-                      isExpanded ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"
+                      isExpanded
+                        ? "opacity-100 w-auto"
+                        : "opacity-0 w-0 overflow-hidden"
                     }`}
                   >
                     {item.title}

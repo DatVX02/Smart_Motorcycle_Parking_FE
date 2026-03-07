@@ -6,8 +6,14 @@ const workShiftService = {
   getById: (id) => apiClient.get(`/api/v1/work-shifts/${id}`).then(unwrap),
   getDetail: (id) =>
     apiClient.get(`/api/v1/work-shifts/${id}/detail`).then(unwrap),
-  getByLot: (lotId) =>
-    apiClient.get(`/api/v1/work-shifts/lot/${lotId}`).then(unwrap),
+  getByLot: (lotId, options = {}) => {
+    const params = {};
+    if (options.pageSize != null) params.pageSize = options.pageSize;
+    if (options.page != null) params.page = options.page;
+    return apiClient
+      .get(`/api/v1/work-shifts/lot/${lotId}`, { params })
+      .then(unwrap);
+  },
   getByStaff: (staffId) =>
     apiClient.get(`/api/v1/work-shifts/staff/${staffId}`).then(unwrap),
   getTodayByLot: (lotId) =>
