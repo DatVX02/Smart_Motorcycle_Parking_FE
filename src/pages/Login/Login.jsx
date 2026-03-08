@@ -41,23 +41,23 @@ function Login() {
         response.accessToken ||
         response.token;
 
-      if (token) {
-        authService.setToken(token);
+      // Lưu thông tin user
+      const userInfo =
+        response.data?.staff ||
+        response.data?.user ||
+        response.user ||
+        null;
 
-        // Lưu thông tin user để hiển thị trong Header
-        const userInfo =
-          response.data?.staff ||
-          response.data?.user ||
-          response.user ||
-          null;
-
-        if (userInfo) {
+      if (token && userInfo) {
+        if (userInfo.role == "Admin") {
+          authService.setToken(token);
           localStorage.setItem("user_info", JSON.stringify(userInfo));
+          navigate("/dashboard");
+          navigate(from, { replace: true });
+          toast.success(response.message || "Đăng nhập thành công!");
+        } else {
+          toast.error("Tài khoản của bạn không có quyền truy cập. Vui lòng liên hệ quản trị viên.");
         }
-
-        toast.success(response.message || "Đăng nhập thành công!");
-        // Redirect về trang gốc (hoặc dashboard nếu vào thẳng /login)
-        navigate(from, { replace: true });
       } else {
         toast.error("Không nhận được token từ server");
       }
