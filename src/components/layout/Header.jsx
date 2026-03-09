@@ -1,11 +1,41 @@
 import { Bell, Search, User, LogOut, Settings, Menu } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 import authService from "../../services/authService";
 
+const PAGE_TITLES = {
+  "/dashboard": { title: "Dashboard" },
+  "/accounts": { title: "Quản Lý Tài Khoản Khách Hàng" },
+  "/accounts/staff": { title: "Quản Lý Tài Khoản Nhân Viên" },
+  "/parking-lots": { title: "Quản Lý Bãi Đỗ Xe" },
+  "/transactions": { title: "Giao Dịch & Hóa Đơn" },
+  "/shifts": { title: "Quản Lý Lịch Bãi Xe" },
+  "/system-logs": { title: "Nhật Ký Hệ Thống" },
+  "/reward-points": { title: "Quản Lý Điểm Thưởng" },
+  "/price-list": { title: "Bảng Giá Phí Đỗ Xe" },
+  "/iot-devices": { title: "Quản Lý Thiết Bị IoT" },
+};
+
 function Header({ onMenuClick }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const path = location.pathname || "/dashboard";
+  const pathMatch = [
+    "/accounts/staff",
+    "/accounts",
+    "/dashboard",
+    "/parking-lots",
+    "/transactions",
+    "/shifts",
+    "/system-logs",
+    "/reward-points",
+    "/price-list",
+    "/iot-devices",
+  ].find((p) => path === p || path.startsWith(p + "/"));
+  const pageInfo = PAGE_TITLES[pathMatch || "/dashboard"] || {
+    title: "Dashboard",
+  };
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -33,7 +63,7 @@ function Header({ onMenuClick }) {
       // bỏ qua lỗi API logout
     } finally {
       authService.clearAuth();
-      toast.success("Đã đăng xuất thành công", {duration: 1000});
+      toast.success("Đã đăng xuất thành công", { duration: 1000 });
       navigate("/login", { replace: true });
     }
   };
@@ -60,9 +90,9 @@ function Header({ onMenuClick }) {
   ];
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 md:py-4">
+    <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-4 md:py-5">
       <div className="flex items-center justify-between gap-3">
-        {/* Left: hamburger + search */}
+        {/* Left: hamburger + page title */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
           {/* Hamburger — only on mobile */}
           <button
@@ -72,6 +102,17 @@ function Header({ onMenuClick }) {
           >
             <Menu className="w-5 h-5" />
           </button>
+          {/* Page title */}
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 truncate tracking-tight">
+              {pageInfo.title}
+            </h1>
+            {pageInfo.subtitle && (
+              <p className="text-sm md:text-base text-gray-500 truncate hidden sm:block mt-0.5">
+                {pageInfo.subtitle}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Right Section */}
@@ -83,7 +124,7 @@ function Header({ onMenuClick }) {
                 setShowNotifications(!showNotifications);
                 setShowUserMenu(false);
               }}
-              className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="relative p-2.5 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
             >
               <Bell className="w-5 h-5 md:w-6 md:h-6" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>

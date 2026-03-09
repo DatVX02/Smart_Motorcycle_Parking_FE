@@ -80,14 +80,6 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Page Title */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">
-          Tổng quan hệ thống quản lý bãi đỗ xe
-        </p>
-      </div>
-
       {/* Main Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (

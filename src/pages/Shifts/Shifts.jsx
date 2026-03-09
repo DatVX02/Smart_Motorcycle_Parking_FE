@@ -146,7 +146,7 @@ function DroppableLotCalendar({ lotId, children }) {
       ref={setNodeRef}
       data-lot-id={lotId}
       className={`relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full transition-all duration-200 ${
-        isOver ? "ring-2 ring-blue-500 bg-blue-50/20" : ""
+        isOver ? "ring-2 ring-blue-500 bg-blue-50/30" : ""
       }`}
     >
       {children}
@@ -157,13 +157,26 @@ function DroppableLotCalendar({ lotId, children }) {
 function StaffDragOverlayCard({ staff }) {
   const name = staff?.fullName ?? staff?.name ?? "Nhân viên";
   const id = staff?.staffId ?? staff?.id ?? "";
+  const avatarUrl = staff?.faceImageUrl ?? staff?.avatarUrl ?? staff?.imageUrl ?? "";
   return (
     <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white rounded-xl shadow-2xl border border-blue-300 cursor-grabbing min-w-[180px]">
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${getAvatarColor(id)}`}
-      >
-        {getInitials(name)}
-      </div>
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={name}
+          className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-100"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = "/avatar_comingsoon.png";
+          }}
+        />
+      ) : (
+        <div
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${getAvatarColor(id)}`}
+        >
+          {getInitials(name)}
+        </div>
+      )}
       <div>
         <p className="text-sm font-semibold text-gray-800">{name}</p>
         <p className="text-xs text-blue-500 font-medium">
@@ -178,10 +191,10 @@ function renderEventContent(eventInfo) {
   const { shift } = eventInfo.event.extendedProps;
   const name = shift?.staffName ?? eventInfo.event.title;
   return (
-    <div className="px-1 py-0.5 w-full overflow-hidden">
+    <div className="px-1.5 py-0.5 w-full overflow-hidden">
       <p className="text-xs font-semibold truncate leading-tight">{name}</p>
       {shift?.startTime && shift?.endTime && (
-        <p className="text-[10px] opacity-80 truncate leading-tight">
+        <p className="text-[11px] opacity-90 truncate leading-tight">
           {shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}
         </p>
       )}
@@ -484,16 +497,35 @@ function Shifts() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="absolute inset-0 flex flex-col min-h-0 gap-0 bg-gray-50/50">
-        {/* ── Top bar ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-3 bg-white border-b border-gray-100 flex-shrink-0 z-10">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">
-              Quản lý Lịch Bãi Xe
-            </h1>
+      <div className="absolute inset-0 flex flex-col min-h-0 gap-0 bg-gray-50/80">
+        {/* ── Top bar: Thống kê + Công cụ ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-2.5 bg-white border-b border-gray-100 flex-shrink-0 z-10 shadow-sm">
+          {/* Stats (trái) */}
+          <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700">
+              <Calendar className="w-4 h-4" />
+              <span className="text-xs font-medium">Hôm nay:</span>
+              <span className="text-sm font-bold">{todayShifts.length}</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 text-gray-700">
+              <Clock className="w-4 h-4" />
+              <span className="text-xs font-medium">Đã lên lịch:</span>
+              <span className="text-sm font-bold">{scheduledCount}</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700">
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-xs font-medium">Đang làm:</span>
+              <span className="text-sm font-bold">{inProgressCount}</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet-50 text-violet-700">
+              <Users className="w-4 h-4" />
+              <span className="text-xs font-medium">Tổng ca:</span>
+              <span className="text-sm font-bold">{allShiftsArray.length}</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Công cụ (phải) */}
+          <div className="flex items-center gap-3 flex-wrap">
             {/* View Mode Switcher */}
             <div className="flex bg-gray-100 p-0.5 rounded-lg">
               <button
@@ -502,7 +534,7 @@ function Shifts() {
                 title="Dạng Tab"
               >
                 <SquareDashedBottom className="w-4 h-4" />
-                <span className="text-xs sm:text-sm hidden xs:inline">Tab</span>
+                <span className="text-sm hidden xs:inline">Tab</span>
               </button>
               <button
                 onClick={() => setViewMode("grid")}
@@ -510,35 +542,35 @@ function Shifts() {
                 title="Dạng Lưới"
               >
                 <LayoutGrid className="w-4 h-4" />
-                <span className="text-xs sm:text-sm hidden xs:inline">
+                <span className="text-sm hidden xs:inline">
                   Grid
                 </span>
               </button>
             </div>
 
             {viewMode === "grid" && (
-              <div className="flex bg-gray-100 p-0.5 rounded-lg">
+              <div className="flex bg-gray-100 p-1 rounded-xl">
                 <button
                   onClick={() => setGridCols(1)}
-                  className={`p-1 rounded-md ${gridCols === 1 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-1.5 rounded-lg ${gridCols === 1 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <LayoutGrid className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setGridCols(2)}
-                  className={`p-1 rounded-md ${gridCols === 2 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-1.5 rounded-lg ${gridCols === 2 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <Columns2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setGridCols(3)}
-                  className={`p-1 rounded-md hidden sm:block ${gridCols === 3 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-1.5 rounded-lg hidden sm:block ${gridCols === 3 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <Columns3 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setGridCols(4)}
-                  className={`p-1 rounded-md hidden md:block ${gridCols === 4 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-1.5 rounded-lg hidden md:block ${gridCols === 4 ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <Columns4 className="w-4 h-4" />
                 </button>
@@ -547,9 +579,9 @@ function Shifts() {
 
             <button
               onClick={() => setShowBulkAssign(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-semibold hover:bg-violet-700"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-xl text-xs font-semibold hover:bg-violet-700"
             >
-              <Users className="w-3.5 h-3.5" />
+              <Users className="w-4 h-4" />
               <span className="hidden sm:inline">Gán nhóm</span>
             </button>
 
@@ -559,7 +591,7 @@ function Shifts() {
                 if (isMultiDeleteMode) exitMultiDeleteMode();
                 else setIsMultiDeleteMode(true);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shadow-sm ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border shadow-sm ${
                 isMultiDeleteMode
                   ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 ring-1 ring-red-100"
                   : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:text-red-600"
@@ -568,48 +600,12 @@ function Shifts() {
                 isMultiDeleteMode ? "Thoát chế độ chọn" : "Chọn nhiều ca để xóa"
               }
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
               <span className="hidden sm:inline">
                 {isMultiDeleteMode ? "Hủy chọn" : "Xóa nhiều"}
               </span>
             </button>
-            <button
-              onClick={handleRefresh}
-              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${shiftsLoading ? "animate-spin text-blue-500" : ""}`}
-              />
-            </button>
           </div>
-        </div>
-
-        {/* ── Stats row ── */}
-        <div className="flex flex-wrap gap-1.5 px-3 md:px-4 py-1.5 bg-white border-b border-gray-100 flex-shrink-0 shadow-sm z-10">
-          <StatChip
-            icon={<Calendar className="w-3.5 h-3.5 text-blue-500" />}
-            label="Hôm nay"
-            value={todayShifts.length}
-            color="bg-blue-50 text-blue-700"
-          />
-          <StatChip
-            icon={<Clock className="w-3.5 h-3.5 text-gray-500" />}
-            label="Đã lên lịch"
-            value={scheduledCount}
-            color="bg-gray-100 text-gray-700"
-          />
-          <StatChip
-            icon={<AlertCircle className="w-3.5 h-3.5 text-emerald-500" />}
-            label="Đang làm"
-            value={inProgressCount}
-            color="bg-emerald-50 text-emerald-700"
-          />
-          <StatChip
-            icon={<Users className="w-3.5 h-3.5 text-violet-500" />}
-            label="Tổng ca"
-            value={allShiftsArray.length}
-            color="bg-violet-50 text-violet-700"
-          />
         </div>
 
         {/* ── Main content ── */}
@@ -624,21 +620,23 @@ function Shifts() {
           </div>
 
           {/* Vùng Lịch Center */}
-          <div className="flex-1 flex flex-col min-w-0 bg-gray-100 overflow-hidden relative">
+          <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden relative">
             {viewMode === "tab" && (
-              <div className="flex overflow-x-auto gap-1.5 p-2 pb-0 scrollbar-hide flex-shrink-0">
+              <div className="flex overflow-x-auto gap-1.5 p-2 pb-0 scrollbar-hide flex-shrink-0 bg-gray-50/50 border-b border-gray-100">
                 {parkingLots.map((lot) => (
                   <button
                     key={lot.id}
                     onClick={() => setActiveTabLotId(lot.id)}
-                    className={`px-3 py-1.5 rounded-t-lg text-xs font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                    className={`px-3 py-1.5 rounded-t-lg text-xs font-semibold whitespace-nowrap border-b-2 transition-all flex-shrink-0 ${
                       activeTabLotId === lot.id
-                        ? "bg-white text-blue-600 border-blue-600"
-                        : "bg-gray-200/50 text-gray-500 border-transparent hover:bg-gray-200"
+                        ? "bg-white text-blue-600 border-blue-600 shadow-sm"
+                        : "bg-gray-100/80 text-gray-500 border-transparent hover:bg-gray-200/80 hover:text-gray-700"
                     }`}
                   >
                     {lot.name}
-                    <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-500">
+                    <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                      activeTabLotId === lot.id ? "bg-blue-50 text-blue-600" : "bg-gray-200 text-gray-500"
+                    }`}>
                       {(shiftsByLot[lot.id] || []).length} ca
                     </span>
                   </button>
@@ -680,11 +678,13 @@ function Shifts() {
 
             {/* Khung chứa các Lịch */}
             <div
-              className={`flex-1 min-h-0 overflow-auto p-2 ${viewMode === "grid" ? `grid gap-4 ${gridLayoutClass}` : "flex flex-col bg-white border-t border-gray-200"}`}
+              className={`flex-1 min-h-0 overflow-auto p-2 ${viewMode === "grid" ? `grid gap-4 ${gridLayoutClass}` : "flex flex-col"}`}
             >
               {visibleLots.length === 0 && (
-                <div className="text-gray-400 p-10 text-center">
-                  Chưa có bãi xe nào.
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <MapPin className="w-12 h-12 text-gray-300 mb-3" />
+                  <p className="text-gray-500 font-medium">Chưa có bãi xe nào</p>
+                  <p className="text-sm text-gray-400 mt-1">Thêm bãi đỗ xe trong mục Quản lý bãi đỗ xe</p>
                 </div>
               )}
 
@@ -803,7 +803,9 @@ function Shifts() {
                           const tomorrow = new Date();
                           tomorrow.setDate(tomorrow.getDate() + 1);
                           tomorrow.setHours(0, 0, 0, 0);
-                          return arg.date < tomorrow ? ["fc-past-disabled"] : [];
+                          return arg.date < tomorrow
+                            ? ["fc-past-disabled"]
+                            : [];
                         }}
                       />
                     </DroppableLotCalendar>
@@ -1111,15 +1113,6 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
         </AlertDialogContent>
       </AlertDialog>
     </>
-  );
-}
-
-function StatChip({ icon, label, value, color }) {
-  return (
-    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg ${color}`}>
-      {icon} <span className="text-[11px] font-medium">{label}:</span>{" "}
-      <span className="text-xs font-bold">{value}</span>
-    </div>
   );
 }
 

@@ -133,14 +133,6 @@ function SystemLogs() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Nhật ký hệ thống</h1>
-        <p className="text-gray-600 mt-1">
-          Theo dõi hoạt động và sự kiện hệ thống
-        </p>
-      </div>
-
       {/* Statistics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
         <div className="card">
