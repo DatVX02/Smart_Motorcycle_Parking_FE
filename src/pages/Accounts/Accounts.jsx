@@ -1,319 +1,341 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
-  Plus,
   Search,
-  Filter,
-  Edit,
-  Trash2,
-  Shield,
-  User as UserIcon,
+  Users,
+  UserCheck,
+  UserX,
 } from "lucide-react";
+import image_waiting from "../../../public/avatar_comingsoon.png"
 import AccountModal from "./AccountModal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import userService from "@/services/userService";
+import { Image, Pagination, Tag } from "antd";
 
 function Accounts() {
-  const [selectedRole, setSelectedRole] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [confirm, setConfirm] = useState({ open: false, account: null });
+  const [accounts, setAccounts] = useState([]);
 
-  // Mock data
-  const accounts = [
-    {
-      id: 1,
-      name: "Nguyễn Văn Admin",
-      email: "admin@motoguard.com",
-      phone: "0901234567",
-      role: "admin",
-      status: "active",
-      createdAt: "2024-01-15",
-      lastLogin: "2024-02-03 10:30",
-    },
-    {
-      id: 2,
-      name: "Trần Thị Staff 1",
-      email: "staff1@motoguard.com",
-      phone: "0912345678",
-      role: "staff",
-      status: "active",
-      createdAt: "2024-01-20",
-      lastLogin: "2024-02-03 09:15",
-    },
-    {
-      id: 3,
-      name: "Lê Văn Staff 2",
-      email: "staff2@motoguard.com",
-      phone: "0923456789",
-      role: "staff",
-      status: "active",
-      createdAt: "2024-01-25",
-      lastLogin: "2024-02-03 08:00",
-    },
-    {
-      id: 4,
-      name: "Phạm Thị User",
-      email: "user1@gmail.com",
-      phone: "0934567890",
-      role: "user",
-      status: "active",
-      createdAt: "2024-02-01",
-      lastLogin: "2024-02-03 07:45",
-    },
-    {
-      id: 5,
-      name: "Hoàng Văn User",
-      email: "user2@gmail.com",
-      phone: "0945678901",
-      role: "user",
-      status: "inactive",
-      createdAt: "2024-02-02",
-      lastLogin: "2024-02-01 18:20",
-    },
-  ];
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(4);
 
-  const roleColors = {
-    admin: "bg-purple-100 text-purple-800",
-    staff: "bg-blue-100 text-blue-800",
-    user: "bg-green-100 text-green-800",
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const fetchAccounts = async () => {
+    try {
+      const response = await userService.getAllUser();
+      const users = response?.data?.data?.items || [];
+      setAccounts(users);
+    } catch (error) {
+      console.error("Error fetching accounts:", error);
+      setAccounts([]);
+    }
   };
 
-  const statusColors = {
-    active: "bg-green-100 text-green-800",
-    inactive: "bg-gray-100 text-gray-800",
-  };
-
+  // Filter
   const filteredAccounts = accounts.filter((account) => {
-    const matchesRole = selectedRole === "all" || account.role === selectedRole;
-    const matchesSearch =
-      account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.email.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesRole && matchesSearch;
+    const name = account.fullName?.toLowerCase() || "";
+    const email = account.email?.toLowerCase() || "";
+
+    return (
+      name.includes(searchTerm.toLowerCase()) ||
+      email.includes(searchTerm.toLowerCase())
+    );
   });
 
-  const handleEdit = (account) => {
-    setSelectedAccount(account);
-    setShowModal(true);
+  // Pagination
+  const startIndex = (currentPage - 1) * pageSize;
+
+  const paginatedAccounts = filteredAccounts.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+
+  const activeCount = accounts.filter((a) => a.isActive).length;
+  const inactiveCount = accounts.length - activeCount;
+
+  // const handleEdit = (account) => {
+  //   setSelectedAccount(account);
+  //   setShowModal(true);
+  // };
+
+  // const handleDelete = (account) => {
+  //   setConfirm({ open: true, account });
+  // };
+
+  const handleConfirmDelete = async () => {
+    try {
+      await userService.deleteUser(confirm.account.userId);
+      fetchAccounts();
+      setConfirm({ open: false, account: null });
+    } catch (error) {
+      console.error("Delete failed:", error);
+    }
   };
 
-  const handleDelete = (account) => {
-    setConfirm({ open: true, account });
-  };
-
-  const handleConfirmDelete = () => {
-    console.log("Deleting account:", confirm.account?.id);
-  };
-
-  const handleAddNew = () => {
-    setSelectedAccount(null);
-    setShowModal(true);
-  };
+  // const handleAddNew = () => {
+  //   setSelectedAccount(null);
+  //   setShowModal(true);
+  // };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Quản lý tài khoản
-          </h1>
-          <p className="text-gray-600 mt-1">Quản lý Admin, Staff và User</p>
-        </div>
-        <button
+    <div className="space-y-10">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+        <h1 className="text-4xl font-bold text-gray-900">
+          Quản lý tài khoản khách hàng
+        </h1>
+        {/* Add new account */}
+        {/* <button
           onClick={handleAddNew}
-          className="btn btn-primary flex items-center space-x-2 self-start sm:self-auto"
+          className="btn btn-primary flex items-center gap-3 rounded-2xl"
         >
-          <Plus className="w-5 h-5" />
-          <span>Thêm tài khoản</span>
-        </button>
+          <Plus size={20} />
+          Thêm tài khoản
+        </button> */}
+      </div>
+      {/* Statictics */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <Users className="w-8 h-8 text-blue-600" />
+            <div>
+              <p className="text-3xl font-bold">{accounts.length}</p>
+              <p className="text-gray-500">Tổng người dùng</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <UserCheck className="w-8 h-8 text-green-600" />
+            <div>
+              <p className="text-3xl font-bold text-green-600">
+                {activeCount}
+              </p>
+              <p className="text-gray-500">Đang hoạt động</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <UserX className="w-8 h-8 text-gray-600" />
+            <div>
+              <p className="text-3xl font-bold text-gray-600">
+                {inactiveCount}
+              </p>
+              <p className="text-gray-500">Ngưng hoạt động / Xóa tài khoản</p>
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      {/* Filters */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-          {/* Search */}
-          <div className="flex-1 max-w-md">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm theo tên, email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input pl-10"
-              />
-            </div>
-          </div>
+      {/* Search */}
+      <div className="bg-white rounded-3xl p-6 shadow border">
 
-          {/* Role Filter */}
-          <div className="flex items-center space-x-2">
-            <Filter className="w-5 h-5 text-gray-500" />
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="input"
-            >
-              <option value="all">Tất cả vai trò</option>
-              <option value="admin">Admin</option>
-              <option value="staff">Staff</option>
-              <option value="user">User</option>
-            </select>
-          </div>
-        </div>
-      </div>
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
 
-      {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-        <div className="card">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Shield className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {accounts.filter((a) => a.role === "admin").length}
-              </p>
-              <p className="text-sm text-gray-600">Admin</p>
-            </div>
-          </div>
+          <input
+            type="text"
+            placeholder="Tìm kiếm theo tên hoặc email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-12 py-3 bg-gray-50 border rounded-xl focus:outline-none"
+          />
         </div>
-        <div className="card">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <UserIcon className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {accounts.filter((a) => a.role === "staff").length}
-              </p>
-              <p className="text-sm text-gray-600">Staff</p>
-            </div>
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <UserIcon className="w-6 h-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {accounts.filter((a) => a.role === "user").length}
-              </p>
-              <p className="text-sm text-gray-600">User</p>
-            </div>
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <UserIcon className="w-6 h-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {accounts.filter((a) => a.status === "active").length}
-              </p>
-              <p className="text-sm text-gray-600">Đang hoạt động</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Table */}
-      <div className="card p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead className="table-header">
+        {/* <div className="text-sm text-gray-400">
+          {filteredAccounts.length} kết quả
+        </div> */}
+
+
+
+        {/* Table */}
+        <div className="bg-white shadow rounded-lg overflow-x-auto mt-4">
+
+          <table className="w-full text-sm text-center">
+
+            <thead className="bg-gray-100 text-gray-600">
               <tr>
-                <th className="table-header-cell">Họ tên</th>
-                <th className="table-header-cell">Email</th>
-                <th className="table-header-cell">Số điện thoại</th>
-                <th className="table-header-cell">Vai trò</th>
-                <th className="table-header-cell">Trạng thái</th>
-                <th className="table-header-cell">Đăng nhập cuối</th>
-                <th className="table-header-cell">Hành động</th>
+                <th className=" text-center">STT</th>
+                <th className="p-3">Hình đại diện </th>
+                <th className="p-3">Họ tên</th>
+                <th className="p-3">Email</th>
+                <th className="p-3">Số điện thoại </th>
+                <th className="p-3">Ngày sinh</th>
+                <th className="p-3">Role</th>
+                <th className="p-3 text-center">Trạng thái</th>
+                <th className="p-3">Ngày tạo</th>
+                <th className="p-3">Ngày cập nhật</th>
+                <th className="p-3 "></th>
               </tr>
             </thead>
-            <tbody className="table-body">
-              {filteredAccounts.map((account) => (
-                <tr key={account.id} className="hover:bg-gray-50">
-                  <td className="table-cell">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                        <span className="text-primary-700 font-semibold">
-                          {account.name.charAt(0)}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {account.name}
-                        </p>
-                      </div>
-                    </div>
+
+            <tbody>
+
+              {paginatedAccounts.map((account, index) => (
+
+                <tr
+                  key={account.userId}
+                  className="border-b hover:bg-gray-50"
+                >
+
+                  <td className="p-3 text-center">
+                    {startIndex + index + 1}
                   </td>
-                  <td className="table-cell text-gray-600">{account.email}</td>
-                  <td className="table-cell text-gray-600">{account.phone}</td>
-                  <td className="table-cell">
-                    <span className={`badge ${roleColors[account.role]}`}>
-                      {account.role.toUpperCase()}
+
+                  <td className="p-3">
+                    <Image
+                      src={account.avatarUrl || image_waiting}
+
+                      width={40}
+                      height={40}
+                      className="rounded-full"
+                    />
+                  </td>
+
+                  <td className="p-3 font-semibold">
+                    {account.fullName}
+                  </td>
+
+                  <td className="p-3 text-gray-600">
+                    {account.email}
+                  </td>
+
+                  <td className="p-3">
+                    {account.phoneNumber}
+                  </td>
+
+                  <td className="p-3">
+                    {account.dateOfBirth
+                      ? new Date(account.dateOfBirth).toLocaleDateString("vi-VN")
+                      : "-"}
+                  </td>
+
+                  <td className="p-3 text-center">
+                    {account.role == "user" ?
+                      <Tag color="green"></Tag> :
+                      <Tag color="blue">Customer</Tag>}
+                  </td>
+
+                  <td className="p-3 text-center">
+
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-semibold
+                    ${account.isActive
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-600"
+                        }`}
+                    >
+                      {account.isActive ? "Hoạt động" : "Ngưng hoạt động/Xóa tài khoản"}
                     </span>
+
                   </td>
-                  <td className="table-cell">
-                    <span className={`badge ${statusColors[account.status]}`}>
-                      {account.status === "active"
-                        ? "Hoạt động"
-                        : "Không hoạt động"}
-                    </span>
+
+                  <td className="p-3 text-gray-500">
+                    {new Date(account.createdAt).toLocaleDateString("vi-VN")}
                   </td>
-                  <td className="table-cell text-gray-600 text-sm">
-                    {account.lastLogin}
+
+                  <td className="p-3 text-gray-500">
+                    {new Date(account.updatedAt).toLocaleDateString("vi-VN")}
                   </td>
-                  <td className="table-cell">
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleEdit(account)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(account)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+
+                  {/* <td className="p-3">
+                  <div className="flex justify-center gap-2">
+
+                    <button
+                      onClick={() => handleEdit(account)}
+                      className="w-8 h-8 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100"
+                    >
+                      <Edit size={16} />
+                    </button>
+
+                    <button
+                      onClick={() => handleDelete(account)}
+                      className="w-8 h-8 flex items-center justify-center rounded-md bg-red-50 text-red-600 hover:bg-red-100"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+
+                  </div>
+                </td> */}
+
                 </tr>
+
               ))}
+
             </tbody>
+
           </table>
+
         </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex justify-end">
+
+        <Pagination
+          current={currentPage}
+          pageSize={pageSize}
+          total={filteredAccounts.length}
+          // showSizeChanger
+          // pageSizeOptions={["5", "10", "20", "50"]}
+          onChange={(page, size) => {
+            setCurrentPage(page);
+            setPageSize(size);
+          }}
+        />
+
       </div>
 
       {/* Modal */}
-      {showModal && (
-        <AccountModal
-          account={selectedAccount}
-          onClose={() => setShowModal(false)}
-          onSave={(data) => {
-            console.log("Saving account:", data);
-            setShowModal(false);
-          }}
-        />
-      )}
+      {
+        showModal && (
+          <AccountModal
+            account={selectedAccount}
+            onClose={() => setShowModal(false)}
+            onSave={async (data) => {
+              try {
 
-      {/* Confirm Delete */}
+                if (selectedAccount) {
+                  await userService.updateUser(selectedAccount.userId, data);
+                } else {
+                  await userService.createUser(data);
+                }
+
+                fetchAccounts();
+                setShowModal(false);
+
+              } catch (error) {
+                console.error("Save error:", error);
+              }
+            }}
+          />
+        )
+      }
+
+      {/* Confirm */}
       <ConfirmDialog
         open={confirm.open}
         onClose={() => setConfirm({ open: false, account: null })}
         onConfirm={handleConfirmDelete}
         title="Xóa tài khoản"
-        description={`Bạn có chắc muốn xóa tài khoản "${confirm.account?.name}"? Hành động này không thể hoàn tác.`}
+        description={`Bạn có chắc muốn xóa "${confirm.account?.fullName}"?`}
         confirmLabel="Xóa"
       />
-    </div>
+
+    </div >
   );
 }
 
