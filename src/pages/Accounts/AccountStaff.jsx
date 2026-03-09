@@ -254,20 +254,7 @@ function AccountStaff() {
 
   return (
     <div className="space-y-10">
-      <div className="flex justify-end items-center">
-        <button
-          className="btn btn-primary flex items-center gap-3 rounded-2xl"
-          onClick={() => {
-            setIsViewMode(false);
-            setIsEditMode(false);
-            setIsModalOpen(true);
-            form.resetFields();
-          }}
-        >
-          <Plus className="w-4 h-4" />
-          Thêm nhân viên
-        </button>
-      </div>
+
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="bg-white rounded-3xl p-8 shadow border">
@@ -307,17 +294,38 @@ function AccountStaff() {
       </div>
 
       <div className="bg-white rounded-3xl p-6 shadow border">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+        <div className="flex justify-between items-center">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
 
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo tên hoặc email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 py-3 bg-gray-50 border rounded-xl focus:outline-none"
-          />
+            <input
+              type="text"
+              placeholder="Tìm kiếm theo tên hoặc email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 py-3 bg-gray-50 border rounded-xl focus:outline-none"
+            />
+
+
+          </div>
+
+          <div className="">
+            <button
+              className="btn btn-primary flex items-center gap-3 rounded-2xl"
+              onClick={() => {
+                setIsViewMode(false);
+                setIsEditMode(false);
+                setIsModalOpen(true);
+                form.resetFields();
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              Thêm nhân viên
+            </button>
+          </div>
+
         </div>
+
 
         <div className="bg-white shadow rounded-lg overflow-x-auto mt-4">
           <table className="w-full text-sm text-center">
@@ -365,11 +373,10 @@ function AccountStaff() {
                   <td className="p-3">
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-semibold
-                                        ${
-                                          account.isActive
-                                            ? "bg-green-100 text-green-700"
-                                            : "bg-gray-100 text-gray-600"
-                                        }`}
+                                        ${account.isActive
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-600"
+                        }`}
                     >
                       {account.isActive ? "Hoạt động" : "Ngưng hoạt động"}
                     </span>
@@ -377,6 +384,7 @@ function AccountStaff() {
 
                   <td className="p-3">
                     <Button
+                      type="text"
                       style={{ marginRight: "8px" }}
                       onClick={() => handleViewStaff(account.staffId)}
                     >
@@ -384,6 +392,7 @@ function AccountStaff() {
                     </Button>
 
                     <Button
+                    type="text"
                       style={{ marginRight: "8px" }}
                       onClick={() => handleEditStaff(account.staffId)}
                     >
@@ -402,8 +411,8 @@ function AccountStaff() {
                         cancelText="Hủy"
                         icon={<DeleteFilled style={{ color: "red" }} />}
                       >
-                        <Button>
-                          <DeleteTwoTone />
+                        <Button type="text" danger>
+                          <DeleteTwoTone twoToneColor="red" />
                         </Button>
                       </Popconfirm>
                     )}
