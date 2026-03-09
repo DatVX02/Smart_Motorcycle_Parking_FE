@@ -7,12 +7,9 @@ import {
   WifiOff,
   AlertTriangle,
   Plus,
-  Edit,
-  Trash2,
-  RefreshCw,
-  Eye,
   Unlink,
 } from "lucide-react";
+import { EyeTwoTone, EditTwoTone, DeleteTwoTone } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import DeviceModal from "./DeviceModal";
 import DeviceDetailModal from "./DeviceDetailModal";
@@ -201,89 +198,65 @@ function IoTDevices() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Quản lý thiết bị IoT
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Giám sát và quản lý các thiết bị phần cứng
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <button
-            onClick={() => fetchDevices(true)}
-            className="btn btn-secondary flex items-center gap-2"
-            disabled={loading}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Làm mới
-          </button>
+      <div className="flex justify-end items-center">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => {
               setSelected(null);
               setShowModal(true);
             }}
-            className="btn btn-primary flex items-center gap-2"
+            className="btn btn-primary flex items-center gap-3 rounded-2xl"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
             Thêm thiết bị
           </button>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Tổng thiết bị",
-            val: totalCount,
-            bg: "bg-blue-100",
-            ic: "text-blue-600",
-            Icon: Cpu,
-          },
-          {
-            label: "Trực tuyến",
-            val: onlineCount,
-            bg: "bg-green-100",
-            ic: "text-green-600",
-            Icon: Wifi,
-          },
-          {
-            label: "Ngoại tuyến",
-            val: offlineCount,
-            bg: "bg-red-100",
-            ic: "text-red-600",
-            Icon: WifiOff,
-          },
-          {
-            label: "Khác",
-            val: readyCount,
-            bg: "bg-yellow-100",
-            ic: "text-yellow-600",
-            Icon: AlertTriangle,
-          },
-        ].map(({ label, val, bg, ic, Icon }) => (
-          <div key={label} className="card">
-            <div className="flex items-center gap-4">
-              <div
-                className={`w-12 h-12 ${bg} rounded-lg flex items-center justify-center`}
-              >
-                <Icon className={`w-6 h-6 ${ic}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{val}</p>
-                <p className="text-sm text-gray-600">{label}</p>
-              </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <Cpu className="w-8 h-8 text-blue-600" />
+            <div>
+              <p className="text-3xl font-bold">{totalCount}</p>
+              <p className="text-gray-500">Tổng thiết bị</p>
             </div>
           </div>
-        ))}
+        </div>
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <Wifi className="w-8 h-8 text-green-600" />
+            <div>
+              <p className="text-3xl font-bold text-green-600">{onlineCount}</p>
+              <p className="text-gray-500">Trực tuyến</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <WifiOff className="w-8 h-8 text-red-600" />
+            <div>
+              <p className="text-3xl font-bold text-red-600">{offlineCount}</p>
+              <p className="text-gray-500">Ngoại tuyến</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <AlertTriangle className="w-8 h-8 text-gray-600" />
+            <div>
+              <p className="text-3xl font-bold text-gray-600">{readyCount}</p>
+              <p className="text-gray-500">Khác</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="card flex flex-wrap items-center gap-4">
+      <div className="bg-white rounded-3xl p-6 shadow border flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
             Loại thiết bị:
@@ -326,7 +299,7 @@ function IoTDevices() {
 
       {/* Device grid */}
       {filtered.length === 0 ? (
-        <div className="card text-center py-12">
+        <div className="bg-white rounded-3xl shadow border text-center py-12">
           <Cpu className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             {devices.length === 0
@@ -344,9 +317,9 @@ function IoTDevices() {
                 setSelected(null);
                 setShowModal(true);
               }}
-              className="mt-4 btn btn-primary inline-flex items-center gap-2"
+              className="mt-4 btn btn-primary inline-flex items-center gap-3 rounded-2xl"
             >
-              <Plus className="w-5 h-5" /> Thêm thiết bị
+              <Plus className="w-4 h-4" /> Thêm thiết bị
             </button>
           )}
         </div>
@@ -360,13 +333,11 @@ function IoTDevices() {
             const ConnIcon = conn.icon;
 
             return (
-              <div key={id} className="card hover:shadow-lg transition-shadow">
+              <div key={id} className="bg-white rounded-3xl shadow border hover:shadow-lg transition-shadow p-6">
                 {/* Card header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 flex-shrink-0 bg-primary-100 rounded-lg flex items-center justify-center">
-                      <DevIcon className="w-5 h-5 text-primary-600" />
-                    </div>
+                    <DevIcon className="w-8 h-8 text-blue-600 flex-shrink-0" />
                     <div className="min-w-0">
                       <h3 className="text-base font-semibold text-gray-900 truncate leading-tight">
                         {device.deviceName || device.name || "—"}
@@ -420,7 +391,7 @@ function IoTDevices() {
                     onClick={() => handleViewDetail(device)}
                     className="flex-1 btn btn-secondary flex items-center justify-center gap-1.5 text-sm py-1.5"
                   >
-                    <Eye className="w-4 h-4" />
+                    <EyeTwoTone twoToneColor="#2563eb" />
                     Xem chi tiết
                   </button>
                   {device.gateName && (
@@ -440,14 +411,14 @@ function IoTDevices() {
                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Chỉnh sửa"
                   >
-                    <Edit className="w-4 h-4" />
+                    <EditTwoTone twoToneColor="#2563eb" />
                   </button>
                   <button
                     onClick={() => handleDelete(device)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Xóa"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteTwoTone twoToneColor="#2563eb" />
                   </button>
                 </div>
               </div>

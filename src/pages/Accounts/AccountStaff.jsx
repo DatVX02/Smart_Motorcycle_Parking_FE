@@ -254,11 +254,7 @@ function AccountStaff() {
 
   return (
     <div className="space-y-10">
-      <div className="flex justify-between items-center">
-        <h1 className="text-4xl font-bold text-gray-900">
-          Quản lý tài khoản nhân viên
-        </h1>
-
+      <div className="flex justify-end items-center">
         <button
           className="btn btn-primary flex items-center gap-3 rounded-2xl"
           onClick={() => {

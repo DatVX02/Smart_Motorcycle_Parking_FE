@@ -67,7 +67,13 @@ function timeToMinutes(t) {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function isShiftWithinOperatingHours(startTime, endTime, openingTime, closingTime, is24h) {
+function isShiftWithinOperatingHours(
+  startTime,
+  endTime,
+  openingTime,
+  closingTime,
+  is24h,
+) {
   if (is24h) return null;
   const openMin = timeToMinutes(openingTime);
   const closeMin = timeToMinutes(closingTime);
@@ -124,7 +130,9 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
         if (!cancelled) setLotOperatingHours(null);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [lotId]);
 
   useEffect(() => {
@@ -150,15 +158,16 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
 
-  const shiftTimeError = lotId && lotOperatingHours && !lotOperatingHours.is24h
-    ? isShiftWithinOperatingHours(
-        startTime,
-        endTime,
-        lotOperatingHours.openingTime,
-        lotOperatingHours.closingTime,
-        false,
-      )
-    : null;
+  const shiftTimeError =
+    lotId && lotOperatingHours && !lotOperatingHours.is24h
+      ? isShiftWithinOperatingHours(
+          startTime,
+          endTime,
+          lotOperatingHours.openingTime,
+          lotOperatingHours.closingTime,
+          false,
+        )
+      : null;
 
   const toggleAll = () => {
     const allIds = filteredStaff.map((s) => s.staffId ?? s.id);
@@ -393,7 +402,10 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
                   {lotOperatingHours.is24h ? (
                     "Bãi hoạt động 24/7"
                   ) : (
-                    <>Giờ mở cửa: {lotOperatingHours.openingTime} – {lotOperatingHours.closingTime}</>
+                    <>
+                      Giờ mở cửa: {lotOperatingHours.openingTime} –{" "}
+                      {lotOperatingHours.closingTime}
+                    </>
                   )}
                 </p>
               )}
@@ -418,7 +430,9 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
                   >
                     <div
                       className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                        selectedPreset === preset.type ? "bg-white/70" : preset.color
+                        selectedPreset === preset.type
+                          ? "bg-white/70"
+                          : preset.color
                       }`}
                     />
                     <span
@@ -496,7 +510,9 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || selectedStaffIds.length === 0 || !!shiftTimeError}
+            disabled={
+              loading || selectedStaffIds.length === 0 || !!shiftTimeError
+            }
             className="flex-1 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (

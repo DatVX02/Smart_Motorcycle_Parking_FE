@@ -82,19 +82,6 @@ function Accounts() {
 
   return (
     <div className="space-y-10">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-        <h1 className="text-4xl font-bold text-gray-900">
-          Quản lý tài khoản khách hàng
-        </h1>
-        {/* Add new account */}
-        {/* <button
-          onClick={handleAddNew}
-          className="btn btn-primary flex items-center gap-3 rounded-2xl"
-        >
-          <Plus size={20} />
-          Thêm tài khoản
-        </button> */}
-      </div>
       {/* Statictics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="bg-white rounded-3xl p-8 shadow border">

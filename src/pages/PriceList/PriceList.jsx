@@ -126,13 +126,7 @@ function PriceList() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Bảng giá phí đỗ xe
-          </h1>
-          <p className="text-gray-600 mt-1">Thiết lập và quản lý giá dịch vụ</p>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
         <button
           onClick={handleAddNew}
           className="btn btn-primary flex items-center space-x-2 self-start sm:self-auto"

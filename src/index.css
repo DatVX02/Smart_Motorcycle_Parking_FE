@@ -172,24 +172,31 @@
   display: none;
 }
 
-/* FullCalendar: thu nhỏ toolbar để tiết kiệm không gian */
+/* FullCalendar: toolbar gọn để dành chỗ cho lịch */
 .fc .fc-toolbar {
   padding: 0.25rem 0;
   gap: 0.25rem;
 }
 .fc .fc-toolbar-title {
-  font-size: 1rem;
+  font-size: 1.125rem;
+  font-weight: 600;
 }
 .fc .fc-button {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
 }
 .fc .fc-daygrid-day-number {
-  font-size: 0.75rem;
-  padding: 0.125rem 0.25rem;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  font-weight: 500;
 }
 .fc .fc-daygrid-event {
-  margin: 0.0625rem 0.125rem;
+  margin: 0.125rem 0.25rem;
+}
+.fc .fc-col-header-cell-cushion {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.5rem;
 }
 
 /* FullCalendar: ngày quá khứ */
