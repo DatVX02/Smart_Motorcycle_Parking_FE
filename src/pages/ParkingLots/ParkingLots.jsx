@@ -3,13 +3,10 @@ import {
   ParkingCircle,
   MapPin,
   Plus,
-  Edit,
-  Trash2,
-  Eye,
-  RefreshCw,
   DoorOpen,
   Camera,
 } from "lucide-react";
+import { EyeTwoTone, EditTwoTone, DeleteTwoTone } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import ParkingLotModal from "./ParkingLotModal";
 import ParkingLotDetailModal from "./ParkingLotDetailModal";
@@ -259,81 +256,58 @@ function ParkingLots() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Quản lý bãi đỗ xe
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Theo dõi và quản lý các bãi đỗ xe
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <Button
-            variant="outline"
-            onClick={() => fetchParkingLots(true)}
-            disabled={loading}
-            className="gap-2"
+      <div className="flex justify-end items-center">
+        <div className="flex items-center gap-3">
+          <button
+            className="btn btn-primary flex items-center gap-3 rounded-2xl"
+            onClick={handleAddNew}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Làm mới
-          </Button>
-          <Button onClick={handleAddNew} className="gap-2">
-            <Plus className="w-4 h-4" /> Thêm bãi đỗ
-          </Button>
+            <Plus className="w-4 h-4" />
+            Thêm bãi đỗ
+          </button>
         </div>
       </div>
 
       {/* Overview Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          {
-            Icon: ParkingCircle,
-            bg: "bg-blue-100",
-            ic: "text-blue-600",
-            val: totalLots,
-            label: "Tổng bãi đỗ",
-          },
-          {
-            Icon: MapPin,
-            bg: "bg-green-100",
-            ic: "text-green-600",
-            val: totalSpots,
-            label: "Tổng chỗ đỗ",
-          },
-          {
-            Icon: ParkingCircle,
-            bg: "bg-orange-100",
-            ic: "text-orange-600",
-            val: totalOccupied,
-            label: "Đang sử dụng",
-          },
-          {
-            Icon: ParkingCircle,
-            bg: "bg-purple-100",
-            ic: "text-purple-600",
-            val: totalAvailable,
-            label: "Còn trống",
-          },
-        ].map(({ Icon, bg, ic, val, label }) => (
-          <Card key={label}>
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div
-                  className={`w-12 h-12 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}
-                >
-                  <Icon className={`w-6 h-6 ${ic}`} />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-gray-900">{val}</p>
-                  <p className="text-sm text-gray-500">{label}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <ParkingCircle className="w-8 h-8 text-blue-600" />
+            <div>
+              <p className="text-3xl font-bold">{totalLots}</p>
+              <p className="text-gray-500">Tổng bãi đỗ</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <MapPin className="w-8 h-8 text-blue-600" />
+            <div>
+              <p className="text-3xl font-bold">{totalSpots}</p>
+              <p className="text-gray-500">Tổng chỗ đỗ</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <ParkingCircle className="w-8 h-8 text-green-600" />
+            <div>
+              <p className="text-3xl font-bold text-green-600">{totalOccupied}</p>
+              <p className="text-gray-500">Đang sử dụng</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <ParkingCircle className="w-8 h-8 text-gray-600" />
+            <div>
+              <p className="text-3xl font-bold text-gray-600">{totalAvailable}</p>
+              <p className="text-gray-500">Còn trống</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Parking Lots Grid */}
@@ -488,7 +462,7 @@ function ParkingLots() {
                     className="flex-1 gap-1.5"
                     onClick={() => handleViewDetail(lot)}
                   >
-                    <Eye className="w-4 h-4" /> Xem chi tiết
+                    <EyeTwoTone twoToneColor="#2563eb" /> Xem chi tiết
                   </Button>
                   <Button
                     variant="ghost"
@@ -497,16 +471,16 @@ function ParkingLots() {
                     title="Chỉnh sửa"
                     onClick={() => handleEdit(lot)}
                   >
-                    <Edit className="w-4 h-4" />
+                    <EditTwoTone twoToneColor="#2563eb" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                     title="Xóa"
                     onClick={() => handleDelete(lot)}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteTwoTone twoToneColor="#2563eb" />
                   </Button>
                 </CardFooter>
               </Card>
