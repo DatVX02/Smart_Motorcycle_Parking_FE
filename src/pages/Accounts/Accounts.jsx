@@ -1,11 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  Search,
-  Users,
-  UserCheck,
-  UserX,
-} from "lucide-react";
-import image_waiting from "../../../public/avatar_comingsoon.png"
+import { Search, Users, UserCheck, UserX } from "lucide-react";
 import AccountModal from "./AccountModal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import userService from "@/services/userService";
@@ -56,7 +50,7 @@ function Accounts() {
 
   const paginatedAccounts = filteredAccounts.slice(
     startIndex,
-    startIndex + pageSize
+    startIndex + pageSize,
   );
 
   const activeCount = accounts.filter((a) => a.isActive).length;
@@ -103,7 +97,6 @@ function Accounts() {
       </div>
       {/* Statictics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-
         <div className="bg-white rounded-3xl p-8 shadow border">
           <div className="flex items-center gap-5">
             <Users className="w-8 h-8 text-blue-600" />
@@ -118,9 +111,7 @@ function Accounts() {
           <div className="flex items-center gap-5">
             <UserCheck className="w-8 h-8 text-green-600" />
             <div>
-              <p className="text-3xl font-bold text-green-600">
-                {activeCount}
-              </p>
+              <p className="text-3xl font-bold text-green-600">{activeCount}</p>
               <p className="text-gray-500">Đang hoạt động</p>
             </div>
           </div>
@@ -137,12 +128,10 @@ function Accounts() {
             </div>
           </div>
         </div>
-
       </div>
 
       {/* Search */}
       <div className="bg-white rounded-3xl p-6 shadow border">
-
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
 
@@ -159,13 +148,9 @@ function Accounts() {
           {filteredAccounts.length} kết quả
         </div> */}
 
-
-
         {/* Table */}
         <div className="bg-white shadow rounded-lg overflow-x-auto mt-4">
-
           <table className="w-full text-sm text-center">
-
             <thead className="bg-gray-100 text-gray-600">
               <tr>
                 <th className=" text-center">STT</th>
@@ -183,64 +168,54 @@ function Accounts() {
             </thead>
 
             <tbody>
-
               {paginatedAccounts.map((account, index) => (
-
-                <tr
-                  key={account.userId}
-                  className="border-b hover:bg-gray-50"
-                >
-
-                  <td className="p-3 text-center">
-                    {startIndex + index + 1}
-                  </td>
+                <tr key={account.userId} className="border-b hover:bg-gray-50">
+                  <td className="p-3 text-center">{startIndex + index + 1}</td>
 
                   <td className="p-3">
                     <Image
-                      src={account.avatarUrl || image_waiting}
-
+                      src={account.avatarUrl || "/avatar_comingsoon.png"}
                       width={40}
                       height={40}
                       className="rounded-full"
                     />
                   </td>
 
-                  <td className="p-3 font-semibold">
-                    {account.fullName}
-                  </td>
+                  <td className="p-3 font-semibold">{account.fullName}</td>
 
-                  <td className="p-3 text-gray-600">
-                    {account.email}
-                  </td>
+                  <td className="p-3 text-gray-600">{account.email}</td>
 
-                  <td className="p-3">
-                    {account.phoneNumber}
-                  </td>
+                  <td className="p-3">{account.phoneNumber}</td>
 
                   <td className="p-3">
                     {account.dateOfBirth
-                      ? new Date(account.dateOfBirth).toLocaleDateString("vi-VN")
+                      ? new Date(account.dateOfBirth).toLocaleDateString(
+                          "vi-VN",
+                        )
                       : "-"}
                   </td>
 
                   <td className="p-3 text-center">
-                    {account.role == "user" ?
-                      <Tag color="green"></Tag> :
-                      <Tag color="blue">Customer</Tag>}
+                    {account.role == "user" ? (
+                      <Tag color="green"></Tag>
+                    ) : (
+                      <Tag color="blue">Customer</Tag>
+                    )}
                   </td>
 
                   <td className="p-3 text-center">
-
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-semibold
-                    ${account.isActive
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-600"
-                        }`}
+                    ${
+                      account.isActive
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
                     >
-                      {account.isActive ? "Hoạt động" : "Ngưng hoạt động/Xóa tài khoản"}
+                      {account.isActive
+                        ? "Hoạt động"
+                        : "Ngưng hoạt động/Xóa tài khoản"}
                     </span>
-
                   </td>
 
                   <td className="p-3 text-gray-500">
@@ -270,21 +245,15 @@ function Accounts() {
 
                   </div>
                 </td> */}
-
                 </tr>
-
               ))}
-
             </tbody>
-
           </table>
-
         </div>
       </div>
 
       {/* Pagination */}
       <div className="flex justify-end">
-
         <Pagination
           current={currentPage}
           pageSize={pageSize}
@@ -296,34 +265,29 @@ function Accounts() {
             setPageSize(size);
           }}
         />
-
       </div>
 
       {/* Modal */}
-      {
-        showModal && (
-          <AccountModal
-            account={selectedAccount}
-            onClose={() => setShowModal(false)}
-            onSave={async (data) => {
-              try {
-
-                if (selectedAccount) {
-                  await userService.updateUser(selectedAccount.userId, data);
-                } else {
-                  await userService.createUser(data);
-                }
-
-                fetchAccounts();
-                setShowModal(false);
-
-              } catch (error) {
-                console.error("Save error:", error);
+      {showModal && (
+        <AccountModal
+          account={selectedAccount}
+          onClose={() => setShowModal(false)}
+          onSave={async (data) => {
+            try {
+              if (selectedAccount) {
+                await userService.updateUser(selectedAccount.userId, data);
+              } else {
+                await userService.createUser(data);
               }
-            }}
-          />
-        )
-      }
+
+              fetchAccounts();
+              setShowModal(false);
+            } catch (error) {
+              console.error("Save error:", error);
+            }
+          }}
+        />
+      )}
 
       {/* Confirm */}
       <ConfirmDialog
@@ -334,8 +298,7 @@ function Accounts() {
         description={`Bạn có chắc muốn xóa "${confirm.account?.fullName}"?`}
         confirmLabel="Xóa"
       />
-
-    </div >
+    </div>
   );
 }
 
