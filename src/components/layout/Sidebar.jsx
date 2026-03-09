@@ -15,7 +15,6 @@ import {
   ChevronLeft,
   X,
 } from "lucide-react";
-import logo from "../../../public/logo_motorguard.png"
 const { Sider } = Layout;
 
 const menuItems = [
@@ -73,25 +72,23 @@ function Sidebar({ onClose }) {
 
   return (
     <>
-
-
       <ConfigProvider
         theme={{
           components: {
             Menu: {
               itemBg: "transparent",
               subMenuItemBg: "transparent",
-              itemColor: "#64748b", 
-              itemHoverColor: "#0f172a", 
-              itemHoverBg: "#f1f5f9", 
+              itemColor: "#64748b",
+              itemHoverColor: "#0f172a",
+              itemHoverBg: "#f1f5f9",
               itemSelectedColor: "#2563eb",
-              itemSelectedBg: "#eff6ff", 
+              itemSelectedBg: "#eff6ff",
               itemBorderRadius: 8,
               itemMarginInline: 12,
-              activeBarBorderWidth: 0, 
+              activeBarBorderWidth: 0,
             },
             Layout: {
-              siderBg: "#ffffff"
+              siderBg: "#ffffff",
             },
           },
         }}
@@ -100,7 +97,7 @@ function Sidebar({ onClose }) {
           collapsible
           collapsed={collapsed}
           trigger={null}
-          width={300} 
+          width={300}
           collapsedWidth={80}
           className="h-full relative z-50 border-r border-slate-200"
           style={{ boxShadow: "4px 0 24px rgba(0,0,0,0.02)" }}
@@ -123,10 +120,16 @@ function Sidebar({ onClose }) {
 
           <div className="flex flex-col h-full bg-white">
             <div className="h-20 flex items-center px-5 mt-2">
-              <div className={`flex items-center justify-center rounded-lg text-white transition-all duration-300 ${collapsed ? 'w-10 h-10' : 'w-20 h-20'}`}>
-                 <img src={logo} alt="MotoGuard" className="w-full h-full object-contain p-1" />
+              <div
+                className={`flex items-center justify-center rounded-lg text-white transition-all duration-300 ${collapsed ? "w-10 h-10" : "w-20 h-20"}`}
+              >
+                <img
+                  src="/logo_motorguard.png"
+                  alt="MotoGuard"
+                  className="w-full h-full object-contain p-1"
+                />
               </div>
-              
+
               {!collapsed && (
                 <div className="flex flex-col overflow-hidden whitespace-nowrap">
                   <h1 className="text-2xl font-bold text-slate-800 tracking-tight leading-none mb-1">

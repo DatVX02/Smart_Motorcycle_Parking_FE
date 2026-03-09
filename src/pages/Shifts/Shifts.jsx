@@ -307,11 +307,12 @@ function Shifts() {
   const todayStr = new Date().toISOString().split("T")[0];
 
   const handleRangeSelect = useCallback((selectInfo) => {
-    const todayDate = new Date();
-    todayDate.setHours(0, 0, 0, 0);
-    if (selectInfo.start < todayDate) {
+    const tomorrowDate = new Date();
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    tomorrowDate.setHours(0, 0, 0, 0);
+    if (selectInfo.start < tomorrowDate) {
       selectInfo.view.calendar.unselect();
-      toast.error("Không thể chọn ngày trong quá khứ");
+      toast.error("Chỉ được chia lịch từ ngày mai trở đi");
       return;
     }
     const endExclusive = new Date(selectInfo.endStr + "T00:00:00");
@@ -358,10 +359,11 @@ function Shifts() {
       setActiveStaff(null);
       if (!targetDate || !targetLotId) return;
 
-      const todayMidnight = new Date();
-      todayMidnight.setHours(0, 0, 0, 0);
-      if (new Date(targetDate + "T00:00:00") < todayMidnight) {
-        toast.error("Không thể tạo ca cho ngày trong quá khứ");
+      const tomorrowMidnight = new Date();
+      tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+      tomorrowMidnight.setHours(0, 0, 0, 0);
+      if (new Date(targetDate + "T00:00:00") < tomorrowMidnight) {
+        toast.error("Chỉ được chia lịch từ ngày mai trở đi");
         return;
       }
 
@@ -380,10 +382,11 @@ function Shifts() {
   );
 
   const handleDateClick = (info, lotId) => {
-    const todayMidnight = new Date();
-    todayMidnight.setHours(0, 0, 0, 0);
-    if (new Date(info.dateStr + "T00:00:00") < todayMidnight) {
-      toast.error("Không thể tạo ca cho ngày trong quá khứ");
+    const tomorrowMidnight = new Date();
+    tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+    tomorrowMidnight.setHours(0, 0, 0, 0);
+    if (new Date(info.dateStr + "T00:00:00") < tomorrowMidnight) {
+      toast.error("Chỉ được chia lịch từ ngày mai trở đi");
       return;
     }
     const range = selectedRange;
@@ -791,14 +794,16 @@ function Shifts() {
                         selectMirror={true}
                         select={handleRangeSelect}
                         selectAllow={(selectInfo) => {
-                          const d = new Date();
-                          d.setHours(0, 0, 0, 0);
-                          return selectInfo.start >= d;
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          tomorrow.setHours(0, 0, 0, 0);
+                          return selectInfo.start >= tomorrow;
                         }}
                         dayCellClassNames={(arg) => {
-                          const d = new Date();
-                          d.setHours(0, 0, 0, 0);
-                          return arg.date < d ? ["fc-past-disabled"] : [];
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          tomorrow.setHours(0, 0, 0, 0);
+                          return arg.date < tomorrow ? ["fc-past-disabled"] : [];
                         }}
                       />
                     </DroppableLotCalendar>

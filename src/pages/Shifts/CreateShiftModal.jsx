@@ -1,5 +1,13 @@
 import { useState, useEffect } from "react";
-import { X, Calendar, Clock, MapPin, Repeat, ChevronRight } from "lucide-react";
+import {
+  X,
+  Calendar,
+  Clock,
+  MapPin,
+  Repeat,
+  ChevronRight,
+  AlertCircle,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import workShiftService from "../../services/workShiftService";
 import parkingLotService from "../../services/parkingLotService";
@@ -84,8 +92,140 @@ function timeToMinutes(t) {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
+function minutesToTime(min) {
+  const h = Math.floor(Math.max(0, min) / 60) % 24;
+  const m = Math.floor(Math.max(0, min) % 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+const STANDARD_SHIFT_HOURS = 8;
+const SHORT_DAY_SHIFT_HOURS = 6; // Khi < 14h thì chia 6 tiếng/ca, thời gian còn lại cộng vào ca chiều
+const MIN_NIGHT_SHIFT_HOURS = 4; // Nếu thời gian còn lại < 4h thì cộng vào ca chiều
+
+function calculateShiftSuggestions(openingTime, closingTime, is24h) {
+  if (is24h) {
+    return {
+      Morning: { start: "06:00", end: "14:00" },
+      Afternoon: { start: "14:00", end: "22:00" },
+      Night: { start: "22:00", end: "06:00" },
+      "Full Day": { start: "00:00", end: "23:59" },
+    };
+  }
+
+  const openMin = timeToMinutes(openingTime);
+  const closeMin = timeToMinutes(closingTime);
+  let totalMinutes = closeMin - openMin;
+  if (totalMinutes <= 0) totalMinutes += 24 * 60;
+  const totalHours = totalMinutes / 60;
+  const eightHours = STANDARD_SHIFT_HOURS * 60;
+  const sixHours = SHORT_DAY_SHIFT_HOURS * 60;
+
+  if (totalHours <= 6) {
+    return {
+      Morning: null,
+      Afternoon: null,
+      Night: null,
+      "Full Day": { start: openingTime, end: closingTime },
+    };
+  }
+
+  if (totalHours > 6 && totalHours < 14) {
+    const morningStart = openMin;
+    const morningEnd = openMin + sixHours;
+    const afternoonStart = morningEnd;
+    const afternoonEnd = closeMin;
+
+    return {
+      Morning: {
+        start: minutesToTime(morningStart),
+        end: minutesToTime(morningEnd),
+      },
+      Afternoon: {
+        start: minutesToTime(afternoonStart),
+        end: minutesToTime(afternoonEnd),
+      },
+      Night: null,
+      "Full Day": { start: openingTime, end: closingTime },
+    };
+  }
+
+  if (totalHours >= 14 && totalHours <= 16) {
+    const morningStart = openMin;
+    const morningEnd = openMin + eightHours;
+    const afternoonStart = morningEnd;
+    const afternoonEnd = closeMin;
+
+    return {
+      Morning: {
+        start: minutesToTime(morningStart),
+        end: minutesToTime(morningEnd),
+      },
+      Afternoon: {
+        start: minutesToTime(afternoonStart),
+        end: minutesToTime(afternoonEnd),
+      },
+      Night: null,
+      "Full Day": { start: openingTime, end: closingTime },
+    };
+  }
+
+  if (totalHours > 16) {
+    const morningStart = openMin;
+    const morningEnd = openMin + eightHours;
+    const afternoonStart = morningEnd;
+    const remainingMinutes = closeMin - afternoonStart - eightHours;
+    const remainingHours = remainingMinutes / 60;
+
+    if (remainingHours < MIN_NIGHT_SHIFT_HOURS) {
+      const afternoonEnd = closeMin;
+      return {
+        Morning: {
+          start: minutesToTime(morningStart),
+          end: minutesToTime(morningEnd),
+        },
+        Afternoon: {
+          start: minutesToTime(afternoonStart),
+          end: minutesToTime(afternoonEnd),
+        },
+        Night: null,
+        "Full Day": { start: openingTime, end: closingTime },
+      };
+    }
+
+    const afternoonEnd = afternoonStart + eightHours;
+    const nightStart = afternoonEnd;
+    const nightEnd = closeMin;
+
+    return {
+      Morning: {
+        start: minutesToTime(morningStart),
+        end: minutesToTime(morningEnd),
+      },
+      Afternoon: {
+        start: minutesToTime(afternoonStart),
+        end: minutesToTime(afternoonEnd),
+      },
+      Night: { start: minutesToTime(nightStart), end: minutesToTime(nightEnd) },
+      "Full Day": { start: openingTime, end: closingTime },
+    };
+  }
+
+  return {
+    Morning: { start: "06:00", end: "14:00" },
+    Afternoon: { start: "14:00", end: "22:00" },
+    Night: { start: "22:00", end: "06:00" },
+    "Full Day": { start: openingTime, end: closingTime },
+  };
+}
+
 /** Kiểm tra ca làm có nằm trong giờ mở/đóng cửa của bãi không */
-function isShiftWithinOperatingHours(startTime, endTime, openingTime, closingTime, is24h) {
+function isShiftWithinOperatingHours(
+  startTime,
+  endTime,
+  openingTime,
+  closingTime,
+  is24h,
+) {
   if (is24h) return null; // Không cần validate
   const openMin = timeToMinutes(openingTime);
   const closeMin = timeToMinutes(closingTime);
@@ -105,9 +245,18 @@ function isShiftWithinOperatingHours(startTime, endTime, openingTime, closingTim
   return null;
 }
 
-function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTab, parkingLots, onClose, onSuccess }) {
+function CreateShiftModal({
+  staff,
+  date,
+  initialLotId,
+  initialEndDate,
+  initialTab,
+  parkingLots,
+  onClose,
+  onSuccess,
+}) {
   const [tab, setTab] = useState(initialTab ?? "single");
-  const [selectedPreset, setSelectedPreset] = useState("MORNING");
+  const [selectedPreset, setSelectedPreset] = useState("Morning");
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("14:00");
   const [lotId, setLotId] = useState(
@@ -138,26 +287,52 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
         if (!cancelled) setLotOperatingHours(null);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [lotId]);
 
-  // Cập nhật giờ khi đổi bãi xe và đang chọn Ca sáng/Ca đêm
+  // Tính gợi ý ca tự động dựa trên giờ mở/đóng cửa
+  const shiftSuggestions = lotOperatingHours
+    ? calculateShiftSuggestions(
+        lotOperatingHours.openingTime,
+        lotOperatingHours.closingTime,
+        lotOperatingHours.is24h,
+      )
+    : null;
+
+  // Cập nhật giờ khi đổi bãi xe theo preset đang chọn
   useEffect(() => {
-    if (selectedPreset && lotOperatingHours && !lotOperatingHours.is24h) {
-      const p = selectedPreset.toUpperCase();
-      if (p === "MORNING") {
-        setStartTime(lotOperatingHours.openingTime);
-      } else if (p === "NIGHT") {
-        setEndTime(lotOperatingHours.closingTime);
-      }
+    if (!lotId || !lotOperatingHours) return;
+    const suggestions = calculateShiftSuggestions(
+      lotOperatingHours.openingTime,
+      lotOperatingHours.closingTime,
+      lotOperatingHours.is24h,
+    );
+    const suggested = suggestions[selectedPreset];
+    if (suggested) {
+      setStartTime(suggested.start);
+      setEndTime(suggested.end);
     }
-  }, [lotOperatingHours, selectedPreset]);
+  }, [lotId, lotOperatingHours, selectedPreset]);
 
   // Bulk fields
   const [endDate, setEndDate] = useState(initialEndDate ?? "");
-  // Nếu mở từ drag range → chọn đúng các thứ nằm trong khoảng; nếu tự tạo → mặc định T2-T6
+  // Các ngày trong tuần nằm trong khoảng [date, endDate] - chỉ được chọn những ngày này
+  const allowedDays = (() => {
+    if (!endDate || !date) return [];
+    const daysInRange = new Set();
+    const cur = new Date(date + "T00:00:00");
+    const end = new Date(endDate + "T00:00:00");
+    while (cur <= end) {
+      daysInRange.add(cur.getDay());
+      cur.setDate(cur.getDate() + 1);
+    }
+    return Array.from(daysInRange);
+  })();
+
   const [workingDays, setWorkingDays] = useState(() => {
-    if (!initialEndDate) return [1, 2, 3, 4, 5];
+    if (!initialEndDate) return [];
     const daysInRange = new Set();
     const cur = new Date(date + "T00:00:00");
     const end = new Date(initialEndDate + "T00:00:00");
@@ -168,6 +343,15 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
     return Array.from(daysInRange);
   });
 
+  // Khi endDate hoặc date đổi, chỉ giữ lại workingDays nằm trong khoảng mới
+  useEffect(() => {
+    if (allowedDays.length === 0) {
+      setWorkingDays([]);
+      return;
+    }
+    setWorkingDays((prev) => prev.filter((d) => allowedDays.includes(d)));
+  }, [endDate, date]);
+
   const staffId = staff?.staffId ?? staff?.id ?? "";
   const staffName = staff?.fullName ?? staff?.name ?? "Nhân viên";
 
@@ -175,11 +359,11 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
     setSelectedPreset(preset.type);
     let start = preset.startTime;
     let end = preset.endTime;
-    if (lotOperatingHours && !lotOperatingHours.is24h) {
-      if (preset.type === "Morning") {
-        start = lotOperatingHours.openingTime;
-      } else if (preset.type === "Night") {
-        end = lotOperatingHours.closingTime;
+    if (shiftSuggestions) {
+      const suggested = shiftSuggestions[preset.type];
+      if (suggested) {
+        start = suggested.start;
+        end = suggested.end;
       }
     }
     setStartTime(start);
@@ -192,12 +376,21 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
     setSelectedPreset("");
   };
 
-  const toggleDay = (day) =>
+  const toggleDay = (day) => {
+    if (!allowedDays.includes(day)) return;
     setWorkingDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
     );
+  };
 
   const handleSubmit = async () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    if (new Date(date + "T00:00:00") < tomorrow) {
+      toast.error("Chỉ được chia lịch từ ngày mai trở đi");
+      return;
+    }
     if (!lotId) {
       toast.error("Vui lòng chọn bãi xe");
       return;
@@ -225,7 +418,9 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
           staffId,
           lotId,
           shiftDate: date,
-          shiftType: selectedPreset || "MORNING",
+          shiftType: (selectedPreset || "Morning")
+            .replace(" ", "_")
+            .toUpperCase(),
           startTime,
           endTime,
           shiftStatus,
@@ -247,7 +442,9 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
           lotId,
           startDate: date,
           endDate,
-          shiftType: selectedPreset || "MORNING",
+          shiftType: (selectedPreset || "Morning")
+            .replace(" ", "_")
+            .toUpperCase(),
           startTime,
           endTime,
           workingDays,
@@ -270,15 +467,16 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
     }
   };
 
-  const shiftTimeError = lotId && lotOperatingHours && !lotOperatingHours.is24h
-    ? isShiftWithinOperatingHours(
-        startTime,
-        endTime,
-        lotOperatingHours.openingTime,
-        lotOperatingHours.closingTime,
-        false,
-      )
-    : null;
+  const shiftTimeError =
+    lotId && lotOperatingHours && !lotOperatingHours.is24h
+      ? isShiftWithinOperatingHours(
+          startTime,
+          endTime,
+          lotOperatingHours.openingTime,
+          lotOperatingHours.closingTime,
+          false,
+        )
+      : null;
 
   const displayDate = (() => {
     try {
@@ -294,10 +492,10 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
   })();
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl ring-1 ring-slate-200/60 w-full max-w-md overflow-hidden">
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
           <div
             className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${getAvatarColor(staffId)}`}
           >
@@ -318,23 +516,23 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-100">
+        <div className="flex border-b border-slate-100 bg-slate-50/30">
           <button
             onClick={() => setTab("single")}
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 py-3 text-sm font-semibold transition-all ${
               tab === "single"
-                ? "border-b-2 border-blue-500 text-blue-600"
-                : "text-gray-400 hover:text-gray-600"
+                ? "border-b-2 border-blue-500 text-blue-600 bg-white/50"
+                : "text-slate-500 hover:text-slate-700"
             }`}
           >
             Ca đơn
           </button>
           <button
             onClick={() => setTab("bulk")}
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
               tab === "bulk"
-                ? "border-b-2 border-blue-500 text-blue-600"
-                : "text-gray-400 hover:text-gray-600"
+                ? "border-b-2 border-blue-500 text-blue-600 bg-white/50"
+                : "text-slate-500 hover:text-slate-700"
             }`}
           >
             <Repeat className="w-3.5 h-3.5" />
@@ -344,13 +542,15 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
 
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           {/* Date info */}
-          <div className="flex items-center gap-2.5 p-3 bg-blue-50 rounded-xl border border-blue-100">
-            <Calendar className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100/80">
+            <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+              <Calendar className="w-4 h-4 text-blue-600" />
+            </div>
             <div>
-              <p className="text-xs text-blue-400 font-medium">
+              <p className="text-xs text-blue-600/80 font-medium">
                 {tab === "single" ? "Ngày làm việc" : "Ngày bắt đầu"}
               </p>
-              <p className="text-sm font-semibold text-blue-700 capitalize">
+              <p className="text-sm font-semibold text-slate-800 capitalize">
                 {displayDate}
               </p>
             </div>
@@ -368,7 +568,7 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
                 value={endDate}
                 min={date}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-shadow"
               />
             </div>
           )}
@@ -379,49 +579,65 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
               <label className="text-xs font-semibold text-gray-600 mb-1.5 block">
                 Ngày trong tuần
               </label>
+              {!endDate && (
+                <p className="text-xs text-amber-600 mb-2">
+                  Vui lòng chọn "Đến ngày" trước để chọn ngày trong tuần
+                </p>
+              )}
               <div className="flex gap-1.5">
-                {DAYS_OF_WEEK.map((d) => (
-                  <button
-                    key={d.value}
-                    onClick={() => toggleDay(d.value)}
-                    className={`flex-1 py-2 text-xs rounded-lg border font-semibold transition-all ${
-                      workingDays.includes(d.value)
-                        ? "bg-blue-500 text-white border-blue-500 shadow-sm"
-                        : "bg-white text-gray-500 border-gray-200 hover:border-blue-300"
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                ))}
+                {DAYS_OF_WEEK.map((d) => {
+                  const isInRange = allowedDays.includes(d.value);
+                  const isSelected = workingDays.includes(d.value);
+                  return (
+                    <button
+                      key={d.value}
+                      type="button"
+                      onClick={() => toggleDay(d.value)}
+                      disabled={!isInRange}
+                      className={`flex-1 py-2 text-xs rounded-lg border font-semibold transition-all ${
+                        !isInRange
+                          ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
+                          : isSelected
+                            ? "bg-blue-500 text-white border-blue-500 shadow-sm"
+                            : "bg-white text-gray-500 border-gray-200 hover:border-blue-300"
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
               </div>
               {/* Preview số ca sẽ tạo */}
-              {endDate && workingDays.length > 0 && (() => {
-                let count = 0;
-                const cur = new Date(date + "T00:00:00");
-                const end = new Date(endDate + "T00:00:00");
-                while (cur <= end) {
-                  if (workingDays.includes(cur.getDay())) count++;
-                  cur.setDate(cur.getDate() + 1);
-                }
-                return (
-                  <p className="text-xs text-blue-600 font-medium mt-1.5 bg-blue-50 px-2.5 py-1.5 rounded-lg">
-                    Sẽ tạo <span className="font-bold">{count} ca</span> trong khoảng này
-                  </p>
-                );
-              })()}
+              {endDate &&
+                workingDays.length > 0 &&
+                (() => {
+                  let count = 0;
+                  const cur = new Date(date + "T00:00:00");
+                  const end = new Date(endDate + "T00:00:00");
+                  while (cur <= end) {
+                    if (workingDays.includes(cur.getDay())) count++;
+                    cur.setDate(cur.getDate() + 1);
+                  }
+                  return (
+                    <p className="text-xs text-blue-600 font-medium mt-1.5 bg-blue-50 px-2.5 py-1.5 rounded-lg">
+                      Sẽ tạo <span className="font-bold">{count} ca</span> trong
+                      khoảng này
+                    </p>
+                  );
+                })()}
             </div>
           )}
 
           {/* Parking lot */}
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5" />
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-slate-500" />
               Bãi xe
             </label>
             <select
               value={lotId}
               onChange={(e) => setLotId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 bg-white transition-shadow hover:border-slate-300"
             >
               <option value="">-- Chọn bãi xe --</option>
               {parkingLots.map((lot) => (
@@ -431,69 +647,103 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
               ))}
             </select>
             {lotId && lotOperatingHours && (
-              <p className="text-xs text-gray-500 mt-1.5 px-1">
+              <div
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
+                  lotOperatingHours.is24h
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                    : "bg-slate-50 text-slate-700 border border-slate-100"
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 flex-shrink-0" />
                 {lotOperatingHours.is24h ? (
                   "Bãi hoạt động 24/7"
                 ) : (
-                  <>Giờ mở cửa: {lotOperatingHours.openingTime} – {lotOperatingHours.closingTime}</>
+                  <>
+                    Giờ mở cửa:{" "}
+                    <span className="font-semibold">
+                      {lotOperatingHours.openingTime} –{" "}
+                      {lotOperatingHours.closingTime}
+                    </span>
+                  </>
                 )}
-              </p>
+              </div>
             )}
           </div>
 
-          {/* Shift type presets */}
+          {/* Shift type presets - Auto-suggest dựa trên giờ mở cửa */}
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
               Loại ca
             </label>
             <div className="grid grid-cols-2 gap-2">
-              {SHIFT_PRESETS.map((preset) => (
-                <button
-                  key={preset.type}
-                  onClick={() => handlePresetSelect(preset)}
-                  className={`p-3 text-left rounded-xl border-2 transition-all flex items-center gap-2 ${
-                    selectedPreset === preset.type ? preset.activeBg : preset.bg
-                  }`}
-                >
-                  <div
-                    className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${selectedPreset === preset.type ? "bg-white/70" : preset.dot}`}
-                  />
-                  <span className="text-sm font-bold">{preset.label}</span>
-                </button>
-              ))}
+              {SHIFT_PRESETS.map((preset) => {
+                const suggested = shiftSuggestions?.[preset.type];
+                const isAvailable = !shiftSuggestions || suggested !== null;
+                const isSelected = selectedPreset === preset.type;
+                return (
+                  <button
+                    key={preset.type}
+                    onClick={() => isAvailable && handlePresetSelect(preset)}
+                    disabled={!isAvailable}
+                    className={`p-3 text-left rounded-xl border-2 transition-all flex flex-col gap-1 ${
+                      !isAvailable
+                        ? "bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60"
+                        : isSelected
+                          ? preset.activeBg
+                          : `${preset.bg} hover:border-opacity-80 hover:shadow-sm`
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${!isAvailable ? "bg-gray-300" : isSelected ? "bg-white/70" : preset.dot}`}
+                      />
+                      <span className="text-sm font-bold">{preset.label}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Custom time */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">
+              <label className="text-xs font-medium text-slate-600 mb-1.5 block">
                 Giờ bắt đầu
               </label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => handleTimeChange("start", e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => handleTimeChange("start", e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-shadow"
+                />
+              </div>
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">
+              <label className="text-xs font-medium text-slate-600 mb-1.5 block">
                 Giờ kết thúc
               </label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => handleTimeChange("end", e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => handleTimeChange("end", e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-shadow"
+                />
+              </div>
             </div>
           </div>
           {shiftTimeError && (
-            <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
-              {shiftTimeError}
-            </p>
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200/80">
+              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 font-medium">
+                {shiftTimeError}
+              </p>
+            </div>
           )}
 
           {/* Status - single only */}
@@ -516,17 +766,17 @@ function CreateShiftModal({ staff, date, initialLotId, initialEndDate, initialTa
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 px-5 pb-5 pt-2">
+        <div className="flex gap-3 px-5 pb-5 pt-2 bg-slate-50/50 border-t border-slate-100">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-white hover:border-slate-300 transition-all"
           >
             Hủy
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading || !!shiftTimeError}
-            className="flex-1 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm shadow-blue-600/20"
           >
             {loading ? (
               <>
