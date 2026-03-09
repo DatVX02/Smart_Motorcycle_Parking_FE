@@ -33,7 +33,7 @@ function Header({ onMenuClick }) {
       // bỏ qua lỗi API logout
     } finally {
       authService.clearAuth();
-      toast.success("Đã đăng xuất thành công");
+      toast.success("Đã đăng xuất thành công", {duration: 1000});
       navigate("/login", { replace: true });
     }
   };

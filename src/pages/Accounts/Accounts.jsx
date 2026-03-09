@@ -9,7 +9,7 @@ import image_waiting from "../../../public/avatar_comingsoon.png"
 import AccountModal from "./AccountModal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import userService from "@/services/userService";
-import { Image, Pagination } from "antd";
+import { Image, Pagination, Tag } from "antd";
 
 function Accounts() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -133,7 +133,7 @@ function Accounts() {
               <p className="text-3xl font-bold text-gray-600">
                 {inactiveCount}
               </p>
-              <p className="text-gray-500">Không hoạt động</p>
+              <p className="text-gray-500">Ngưng hoạt động / Xóa tài khoản</p>
             </div>
           </div>
         </div>
@@ -141,7 +141,7 @@ function Accounts() {
       </div>
 
       {/* Search */}
-      <div className="bg-white rounded-3xl p-6 shadow border flex items-center gap-4">
+      <div className="bg-white rounded-3xl p-6 shadow border">
 
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -159,92 +159,99 @@ function Accounts() {
           {filteredAccounts.length} kết quả
         </div> */}
 
-      </div>
 
-      {/* Table */}
-      <div className="bg-white shadow rounded-lg overflow-x-auto">
 
-        <table className="w-full text-sm text-center">
+        {/* Table */}
+        <div className="bg-white shadow rounded-lg overflow-x-auto mt-4">
 
-          <thead className="bg-gray-100 text-gray-600">
-            <tr>
-              <th className="p-3 text-center">STT</th>
-              <th className="p-3">Hình đại diện </th>
-              <th className="p-3">Họ tên</th>
-              <th className="p-3">Email</th>
-              <th className="p-3">Số điện thoại </th>
-              <th className="p-3">Ngày sinh</th>
-              <th className="p-3 text-center">Trạng thái</th>
-              <th className="p-3">Ngày tạo</th>
-              <th className="p-3">Ngày cập nhật</th>
-              <th className="p-3 "></th>
-            </tr>
-          </thead>
+          <table className="w-full text-sm text-center">
 
-          <tbody>
+            <thead className="bg-gray-100 text-gray-600">
+              <tr>
+                <th className=" text-center">STT</th>
+                <th className="p-3">Hình đại diện </th>
+                <th className="p-3">Họ tên</th>
+                <th className="p-3">Email</th>
+                <th className="p-3">Số điện thoại </th>
+                <th className="p-3">Ngày sinh</th>
+                <th className="p-3">Role</th>
+                <th className="p-3 text-center">Trạng thái</th>
+                <th className="p-3">Ngày tạo</th>
+                <th className="p-3">Ngày cập nhật</th>
+                <th className="p-3 "></th>
+              </tr>
+            </thead>
 
-            {paginatedAccounts.map((account, index) => (
+            <tbody>
 
-              <tr
-                key={account.userId}
-                className="border-b hover:bg-gray-50"
-              >
+              {paginatedAccounts.map((account, index) => (
 
-                <td className="p-3 text-center">
-                  {startIndex + index + 1}
-                </td>
+                <tr
+                  key={account.userId}
+                  className="border-b hover:bg-gray-50"
+                >
 
-                <td className="p-3">
-                  <Image
-                    src={account.avatarUrl || image_waiting }
-                    
-                    width={40}
-                    height={40}
-                    className="rounded-full"
-                  />
-                </td>
+                  <td className="p-3 text-center">
+                    {startIndex + index + 1}
+                  </td>
 
-                <td className="p-3 font-semibold">
-                  {account.fullName}
-                </td>
+                  <td className="p-3">
+                    <Image
+                      src={account.avatarUrl || image_waiting}
 
-                <td className="p-3 text-gray-600">
-                  {account.email}
-                </td>
+                      width={40}
+                      height={40}
+                      className="rounded-full"
+                    />
+                  </td>
 
-                <td className="p-3">
-                  {account.phoneNumber}
-                </td>
+                  <td className="p-3 font-semibold">
+                    {account.fullName}
+                  </td>
 
-                <td className="p-3">
-                  {account.dateOfBirth
-                    ? new Date(account.dateOfBirth).toLocaleDateString("vi-VN")
-                    : "-"}
-                </td>
+                  <td className="p-3 text-gray-600">
+                    {account.email}
+                  </td>
 
-                <td className="p-3 text-center">
+                  <td className="p-3">
+                    {account.phoneNumber}
+                  </td>
 
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold
+                  <td className="p-3">
+                    {account.dateOfBirth
+                      ? new Date(account.dateOfBirth).toLocaleDateString("vi-VN")
+                      : "-"}
+                  </td>
+
+                  <td className="p-3 text-center">
+                    {account.role == "user" ?
+                      <Tag color="green"></Tag> :
+                      <Tag color="blue">Customer</Tag>}
+                  </td>
+
+                  <td className="p-3 text-center">
+
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-semibold
                     ${account.isActive
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-100 text-gray-600"
-                      }`}
-                  >
-                    {account.isActive ? "Hoạt động" : "Bị khóa"}
-                  </span>
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-600"
+                        }`}
+                    >
+                      {account.isActive ? "Hoạt động" : "Ngưng hoạt động/Xóa tài khoản"}
+                    </span>
 
-                </td>
+                  </td>
 
-                <td className="p-3 text-gray-500">
-                  {new Date(account.createdAt).toLocaleDateString("vi-VN")}
-                </td>
+                  <td className="p-3 text-gray-500">
+                    {new Date(account.createdAt).toLocaleDateString("vi-VN")}
+                  </td>
 
-                <td className="p-3 text-gray-500">
-                  {new Date(account.updatedAt).toLocaleDateString("vi-VN")}
-                </td>
+                  <td className="p-3 text-gray-500">
+                    {new Date(account.updatedAt).toLocaleDateString("vi-VN")}
+                  </td>
 
-                {/* <td className="p-3">
+                  {/* <td className="p-3">
                   <div className="flex justify-center gap-2">
 
                     <button
@@ -264,14 +271,15 @@ function Accounts() {
                   </div>
                 </td> */}
 
-              </tr>
+                </tr>
 
-            ))}
+              ))}
 
-          </tbody>
+            </tbody>
 
-        </table>
+          </table>
 
+        </div>
       </div>
 
       {/* Pagination */}
@@ -292,28 +300,30 @@ function Accounts() {
       </div>
 
       {/* Modal */}
-      {showModal && (
-        <AccountModal
-          account={selectedAccount}
-          onClose={() => setShowModal(false)}
-          onSave={async (data) => {
-            try {
+      {
+        showModal && (
+          <AccountModal
+            account={selectedAccount}
+            onClose={() => setShowModal(false)}
+            onSave={async (data) => {
+              try {
 
-              if (selectedAccount) {
-                await userService.updateUser(selectedAccount.userId, data);
-              } else {
-                await userService.createUser(data);
+                if (selectedAccount) {
+                  await userService.updateUser(selectedAccount.userId, data);
+                } else {
+                  await userService.createUser(data);
+                }
+
+                fetchAccounts();
+                setShowModal(false);
+
+              } catch (error) {
+                console.error("Save error:", error);
               }
-
-              fetchAccounts();
-              setShowModal(false);
-
-            } catch (error) {
-              console.error("Save error:", error);
-            }
-          }}
-        />
-      )}
+            }}
+          />
+        )
+      }
 
       {/* Confirm */}
       <ConfirmDialog
@@ -325,7 +335,7 @@ function Accounts() {
         confirmLabel="Xóa"
       />
 
-    </div>
+    </div >
   );
 }
 
