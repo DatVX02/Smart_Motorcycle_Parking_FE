@@ -20,13 +20,18 @@ const staffService = {
     },
 
     updateStaff: (id, formData) => {
-        return apiClient.put(`${API_URL}/${id}`, formData);
+        return apiClient.put(`${API_URL}/${id}`, formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+                Authorization: "Bearer " + localStorage.getItem("access_token"),
+            }
+        });
     },
-    
+
     deleteStaff: (id) => {
         return apiClient.delete(`${API_URL}/${id}`);
     },
-    
+
 };
 
 export default staffService;
