@@ -15,13 +15,13 @@ const authService = {
     try {
       // Log request data for debugging
       console.log("Login request:", {
-        email: credentials.email,
+        emailOrPhone: credentials.emailOrPhone,
         password: "***hidden***",
       });
 
       // Backend expects 'emailOrPhone' field (from your Swagger)
       const response = await apiClient.post(`${AUTH_BASE_PATH}/login`, {
-        emailOrPhone: credentials.email,
+        emailOrPhone: credentials.emailOrPhone,
         password: credentials.password,
       });
       

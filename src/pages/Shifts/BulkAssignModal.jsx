@@ -88,9 +88,12 @@ function isShiftWithinOperatingHours(startTime, endTime, openingTime, closingTim
 function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
   const [search, setSearch] = useState("");
   const [selectedStaffIds, setSelectedStaffIds] = useState([]);
-  const [shiftDate, setShiftDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const getMinShiftDate = () => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return t.toISOString().split("T")[0];
+  };
+  const [shiftDate, setShiftDate] = useState(getMinShiftDate);
   const [lotId, setLotId] = useState(
     parkingLots[0]?.id ?? parkingLots[0]?.lotId ?? "",
   );
@@ -183,6 +186,13 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
   };
 
   const handleSubmit = async () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    if (new Date(shiftDate + "T00:00:00") < tomorrow) {
+      toast.error("Chỉ được chia lịch từ ngày mai trở đi");
+      return;
+    }
     if (selectedStaffIds.length === 0) {
       toast.error("Vui lòng chọn ít nhất 1 nhân viên");
       return;
@@ -354,6 +364,7 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
               <input
                 type="date"
                 value={shiftDate}
+                min={getMinShiftDate()}
                 onChange={(e) => setShiftDate(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
