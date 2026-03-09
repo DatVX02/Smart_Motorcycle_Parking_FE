@@ -63,7 +63,7 @@ function AccountStaff() {
 
             <div className="flex justify-between items-center">
                 <h1 className="text-4xl font-bold text-gray-900">
-                    Quản lý nhân viên
+                    Quản lý tài khoản nhân viên
                 </h1>
 
                 <button className="btn btn-primary flex items-center gap-3 rounded-2xl">
@@ -131,7 +131,7 @@ function AccountStaff() {
 
             </div>
 
-            <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="bg-white shadow rounded-lg overflow-x-auto">
 
                 <table className="w-full text-sm text-center">
 
@@ -141,7 +141,7 @@ function AccountStaff() {
                             <th className="p-3">Hình khuôn mặt</th>
                             <th className="p-3">Họ tên</th>
                             <th className="p-3">Email</th>
-                            <th className="p-3">SĐT</th>
+                            <th className="p-3">Số điện thoại</th>
                             <th className="p-3">Role</th>
                             <th className="p-3">Trạng thái</th>
                         </tr>

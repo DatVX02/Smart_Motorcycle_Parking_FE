@@ -90,7 +90,7 @@ function Accounts() {
     <div className="space-y-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <h1 className="text-4xl font-bold text-gray-900">
-          Quản lý tài khoản
+          Quản lý tài khoản khách hàng
         </h1>
         {/* Add new account */}
         {/* <button
@@ -162,7 +162,7 @@ function Accounts() {
       </div>
 
       {/* Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="bg-white shadow rounded-lg overflow-x-auto">
 
         <table className="w-full text-sm text-center">
 
