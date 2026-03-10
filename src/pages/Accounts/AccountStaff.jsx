@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Users, UserCheck, UserX, Plus } from "lucide-react";
+import { Search, Users, UserCheck, UserX, Plus, Check } from "lucide-react";
 import staffService from "@/services/staffService";
 import {
   Image,
@@ -11,12 +11,15 @@ import {
   Upload,
   Button,
   Popconfirm,
+  Tooltip,
 } from "antd";
 import {
+  CheckCircleOutlined,
   DeleteFilled,
   DeleteTwoTone,
   EditTwoTone,
   EyeTwoTone,
+  StopOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import toast from "react-hot-toast";
@@ -26,7 +29,7 @@ function AccountStaff() {
   const [accounts, setAccounts] = useState([]);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(4);
+  const [pageSize, setPageSize] = useState(5);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -252,6 +255,18 @@ function AccountStaff() {
     }
   };
 
+  const handleToggleStatus = async (id) => {
+    try {
+      await staffService.toggleStatus(id);
+
+      toast.success("Cập nhật trạng thái thành công", { duration: 1000 });
+
+      await fetchAccounts();
+    } catch (error) {
+      toast.error("Cập nhật trạng thái thất bại", { duration: 1000 });
+    }
+  };
+
   return (
     <div className="space-y-10">
 
@@ -372,48 +387,51 @@ function AccountStaff() {
 
                   <td className="p-3">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold
-                                        ${account.isActive
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-600"
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${account.isActive
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-600"
                         }`}
                     >
                       {account.isActive ? "Hoạt động" : "Ngưng hoạt động"}
                     </span>
                   </td>
 
-                  <td className="p-3">
+                  <td >
                     <Button
                       type="text"
-                      style={{ marginRight: "8px" }}
+                      // style={{ marginRight: "8px" }}
                       onClick={() => handleViewStaff(account.staffId)}
                     >
                       <EyeTwoTone />
                     </Button>
 
                     <Button
-                    type="text"
-                      style={{ marginRight: "8px" }}
+                      type="text"
+                      // style={{ marginRight: "8px" }}
                       onClick={() => handleEditStaff(account.staffId)}
                     >
                       <EditTwoTone />
                     </Button>
                     {account.role === "Admin" ? (
-                      <Button disabled title="Không thể xóa Admin">
+                      <Button type="text" disabled title="Không thể xóa Admin">
                         <DeleteTwoTone twoToneColor="#d9d9d9" />
                       </Button>
                     ) : (
                       <Popconfirm
-                        title="Xóa tài khoản"
-                        description={`Bạn có chắc chắn muốn xóa tài khoản "${account.fullName}"`}
-                        onConfirm={() => confirm(account.staffId)}
-                        okText="Xóa"
+                        title="Đổi trạng thái tài khoản"
+                        description={`Bạn muốn ${account.isActive ? "ngưng hoạt động" : "kích hoạt"
+                          } tài khoản "${account.fullName}"?`}
+                        onConfirm={() => handleToggleStatus(account.staffId)}
+                        okText="Xác nhận"
                         cancelText="Hủy"
-                        icon={<DeleteFilled style={{ color: "red" }} />}
                       >
-                        <Button type="text" danger>
-                          <DeleteTwoTone twoToneColor="red" />
-                        </Button>
+                        <span
+                          className="cursor-pointer"
+                        >
+                          {account.isActive ? <Button icon={<StopOutlined />} title="Ngưng hoạt động" style={{ backgroundColor: "#f5222d", color: "white" }} /> :
+                            <Button icon={<CheckCircleOutlined />} title="Kích hoạt" style={{ backgroundColor: "#52c41a", color: "white" }} />}
+                        </span>
+
                       </Popconfirm>
                     )}
                   </td>
@@ -520,7 +538,7 @@ function AccountStaff() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </div >
   );
 }
 
