@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Users, UserCheck, UserX, Plus } from "lucide-react";
+import { Search, Users, UserCheck, UserX, Plus, Check } from "lucide-react";
 import staffService from "@/services/staffService";
 import {
   Image,
@@ -11,12 +11,15 @@ import {
   Upload,
   Button,
   Popconfirm,
+  Tooltip,
 } from "antd";
 import {
+  CheckCircleOutlined,
   DeleteFilled,
   DeleteTwoTone,
   EditTwoTone,
   EyeTwoTone,
+  StopOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import toast from "react-hot-toast";
@@ -26,7 +29,7 @@ function AccountStaff() {
   const [accounts, setAccounts] = useState([]);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(4);
+  const [pageSize, setPageSize] = useState(5);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -252,22 +255,21 @@ function AccountStaff() {
     }
   };
 
+  const handleToggleStatus = async (id) => {
+    try {
+      await staffService.toggleStatus(id);
+
+      toast.success("Cập nhật trạng thái thành công", { duration: 1000 });
+
+      await fetchAccounts();
+    } catch (error) {
+      toast.error("Cập nhật trạng thái thất bại", { duration: 1000 });
+    }
+  };
+
   return (
     <div className="space-y-10">
-      <div className="flex justify-end items-center">
-        <button
-          className="btn btn-primary flex items-center gap-3 rounded-2xl"
-          onClick={() => {
-            setIsViewMode(false);
-            setIsEditMode(false);
-            setIsModalOpen(true);
-            form.resetFields();
-          }}
-        >
-          <Plus className="w-4 h-4" />
-          Thêm nhân viên
-        </button>
-      </div>
+
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="bg-white rounded-3xl p-8 shadow border">
@@ -307,17 +309,38 @@ function AccountStaff() {
       </div>
 
       <div className="bg-white rounded-3xl p-6 shadow border">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+        <div className="flex justify-between items-center">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
 
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo tên hoặc email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 py-3 bg-gray-50 border rounded-xl focus:outline-none"
-          />
+            <input
+              type="text"
+              placeholder="Tìm kiếm theo tên hoặc email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 py-3 bg-gray-50 border rounded-xl focus:outline-none"
+            />
+
+
+          </div>
+
+          <div className="">
+            <button
+              className="btn btn-primary flex items-center gap-3 rounded-2xl"
+              onClick={() => {
+                setIsViewMode(false);
+                setIsEditMode(false);
+                setIsModalOpen(true);
+                form.resetFields();
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              Thêm nhân viên
+            </button>
+          </div>
+
         </div>
+
 
         <div className="bg-white shadow rounded-lg overflow-x-auto mt-4">
           <table className="w-full text-sm text-center">
@@ -364,47 +387,51 @@ function AccountStaff() {
 
                   <td className="p-3">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold
-                                        ${
-                                          account.isActive
-                                            ? "bg-green-100 text-green-700"
-                                            : "bg-gray-100 text-gray-600"
-                                        }`}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${account.isActive
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-600"
+                        }`}
                     >
                       {account.isActive ? "Hoạt động" : "Ngưng hoạt động"}
                     </span>
                   </td>
 
-                  <td className="p-3">
+                  <td >
                     <Button
-                      style={{ marginRight: "8px" }}
+                      type="text"
+                      // style={{ marginRight: "8px" }}
                       onClick={() => handleViewStaff(account.staffId)}
                     >
                       <EyeTwoTone />
                     </Button>
 
                     <Button
-                      style={{ marginRight: "8px" }}
+                      type="text"
+                      // style={{ marginRight: "8px" }}
                       onClick={() => handleEditStaff(account.staffId)}
                     >
                       <EditTwoTone />
                     </Button>
                     {account.role === "Admin" ? (
-                      <Button disabled title="Không thể xóa Admin">
+                      <Button type="text" disabled title="Không thể xóa Admin">
                         <DeleteTwoTone twoToneColor="#d9d9d9" />
                       </Button>
                     ) : (
                       <Popconfirm
-                        title="Xóa tài khoản"
-                        description={`Bạn có chắc chắn muốn xóa tài khoản "${account.fullName}"`}
-                        onConfirm={() => confirm(account.staffId)}
-                        okText="Xóa"
+                        title="Đổi trạng thái tài khoản"
+                        description={`Bạn muốn ${account.isActive ? "ngưng hoạt động" : "kích hoạt"
+                          } tài khoản "${account.fullName}"?`}
+                        onConfirm={() => handleToggleStatus(account.staffId)}
+                        okText="Xác nhận"
                         cancelText="Hủy"
-                        icon={<DeleteFilled style={{ color: "red" }} />}
                       >
-                        <Button>
-                          <DeleteTwoTone />
-                        </Button>
+                        <span
+                          className="cursor-pointer"
+                        >
+                          {account.isActive ? <Button icon={<StopOutlined />} title="Ngưng hoạt động" style={{ backgroundColor: "#f5222d", color: "white" }} /> :
+                            <Button icon={<CheckCircleOutlined />} title="Kích hoạt" style={{ backgroundColor: "#52c41a", color: "white" }} />}
+                        </span>
+
                       </Popconfirm>
                     )}
                   </td>
@@ -511,7 +538,7 @@ function AccountStaff() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </div >
   );
 }
 

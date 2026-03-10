@@ -32,6 +32,13 @@ const staffService = {
         return apiClient.delete(`${API_URL}/${id}`);
     },
 
+    toggleStatus: (id) => {
+        return apiClient.patch(`${API_URL}/${id}/toggle-status`, null, {
+            headers: {
+                Authorization: "Bearer " + localStorage.getItem("access_token"),
+            },
+        });
+    },
 };
 
 export default staffService;

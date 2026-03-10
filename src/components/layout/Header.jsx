@@ -15,6 +15,7 @@ const PAGE_TITLES = {
   "/reward-points": { title: "Quản Lý Điểm Thưởng" },
   "/price-list": { title: "Bảng Giá Phí Đỗ Xe" },
   "/iot-devices": { title: "Quản Lý Thiết Bị IoT" },
+  "/device-maintenance": { title: "Bảo Trì Thiết Bị" },
 };
 
 function Header({ onMenuClick }) {
@@ -32,6 +33,7 @@ function Header({ onMenuClick }) {
     "/reward-points",
     "/price-list",
     "/iot-devices",
+    "/device-maintenance",
   ].find((p) => path === p || path.startsWith(p + "/"));
   const pageInfo = PAGE_TITLES[pathMatch || "/dashboard"] || {
     title: "Dashboard",

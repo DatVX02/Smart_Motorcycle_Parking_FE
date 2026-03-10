@@ -17,6 +17,7 @@ import RewardPoints from "./pages/RewardPoints/RewardPoints";
 import PriceList from "./pages/PriceList/PriceList";
 import IoTDevices from "./pages/IoTDevices/IoTDevices";
 import AccountStaff from "./pages/Accounts/AccountStaff";
+import DeviceMaintenance from "./pages/DeviceMaintenance/DeviceMaintenance";
 
 function App() {
   return (
@@ -37,7 +38,7 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="accounts" element={<Accounts />} />
-          <Route path="accounts/staff" element={<AccountStaff/>} />
+          <Route path="accounts/staff" element={<AccountStaff />} />
           <Route path="parking-lots" element={<ParkingLots />} />
           <Route path="transactions" element={<Transactions />} />
           <Route path="shifts" element={<Shifts />} />
@@ -45,6 +46,7 @@ function App() {
           <Route path="reward-points" element={<RewardPoints />} />
           <Route path="price-list" element={<PriceList />} />
           <Route path="iot-devices" element={<IoTDevices />} />
+          <Route path="device-maintenance" element = {<DeviceMaintenance />} />
         </Route>
       </Routes>
     </Router>

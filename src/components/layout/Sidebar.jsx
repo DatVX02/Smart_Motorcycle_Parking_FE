@@ -30,10 +30,16 @@ const menuItems = [
   { title: "Quản lý bãi đỗ xe", icon: ParkingCircle, path: "/parking-lots" },
   { title: "Giao dịch & Hóa đơn", icon: Receipt, path: "/transactions" },
   { title: "Lịch ca trực", icon: Calendar, path: "/shifts" },
-  { title: "Nhật ký hệ thống", icon: ScrollText, path: "/system-logs" },
+  { title: "Nhật ký thiết bị", icon: ScrollText, path: "/system-logs" },
   { title: "Điểm thưởng", icon: Award, path: "/reward-points" },
   { title: "Bảng giá phí", icon: DollarSign, path: "/price-list" },
-  { title: "Thiết bị IoT", icon: Cpu, path: "/iot-devices" },
+  {
+    title: "Thiết bị IoT", icon: Cpu, path: "/iot-devices",
+    children: [
+      { title: "Danh sách thiết bị", path: "/iot-devices" },
+      { title: "Bảo trì thiết bị", path: "/device-maintenance" },
+    ],
+  },
 ];
 
 function Sidebar({ onClose }) {
