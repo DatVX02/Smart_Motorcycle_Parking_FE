@@ -115,7 +115,7 @@ function IoTDevices() {
       setDevices(Array.isArray(devData) ? devData : []);
       setLots(Array.isArray(lotData) ? lotData : []);
     } catch {
-      toast.error("Không thể tải danh sách thiết bị");
+      toast.error("Không thể tải danh sách thiết bị", { duration: 1000 });
     } finally {
       setLoading(false);
     }
@@ -152,17 +152,17 @@ function IoTDevices() {
     try {
       if (type === "delete") {
         await iotDeviceService.delete(device.id ?? device.deviceId);
-        toast.success("Đã xóa thiết bị");
+        toast.success("Đã xóa thiết bị", { duration: 1000 });
       }
 
       if (type === "unassign") {
         await iotDeviceService.unassign(device.id ?? device.deviceId);
-        toast.success("Đã ngắt gán thiết bị");
+        toast.success("Đã ngắt gán thiết bị", { duration: 1000 });
       }
 
       await fetchDevices();
     } catch {
-      toast.error("Thao tác thất bại");
+      toast.error("Thao tác thất bại", { duration: 1000 });
     }
   };
 
@@ -200,9 +200,6 @@ function IoTDevices() {
 
   return (
     <div className="space-y-8">
-      {/* Stats */}
-
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-3xl p-8 shadow border">
           <div className="flex items-center gap-5">
@@ -245,8 +242,6 @@ function IoTDevices() {
         </div>
       </div>
 
-      {/* Filters */}
-
       <div className="bg-white rounded-3xl p-6 shadow border flex flex-wrap gap-4">
         <select
           value={filterType}
@@ -261,7 +256,7 @@ function IoTDevices() {
         <select
           value={filterLot}
           onChange={(e) => setFilterLot(e.target.value)}
-          className="input w-56"
+          className="border rounded-xl px-3 py-2"
         >
           <option value="all">Tất cả bãi đỗ</option>
 
@@ -283,8 +278,6 @@ function IoTDevices() {
           Thêm thiết bị
         </button>
       </div>
-
-      {/* Device grid */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map((device) => {
@@ -384,8 +377,6 @@ function IoTDevices() {
           );
         })}
       </div>
-
-      {/* Modals */}
 
       {showModal && (
         <DeviceModal
