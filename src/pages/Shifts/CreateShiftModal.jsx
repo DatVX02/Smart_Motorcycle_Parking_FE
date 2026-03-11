@@ -7,6 +7,7 @@ import {
   Repeat,
   ChevronRight,
   AlertCircle,
+  Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import workShiftService from "../../services/workShiftService";
@@ -245,24 +246,49 @@ function isShiftWithinOperatingHours(
   return null;
 }
 
+function mapShiftTypeToPreset(shiftType) {
+  const t = (shiftType ?? "").toUpperCase().replace(/_/g, " ");
+  if (t.includes("MORNING")) return "Morning";
+  if (t.includes("AFTERNOON")) return "Afternoon";
+  if (t.includes("NIGHT")) return "Night";
+  if (t.includes("FULL") || t.includes("DAY")) return "Full Day";
+  return "Morning";
+}
+
 function CreateShiftModal({
   staff,
+  staffList = [],
   date,
   initialLotId,
   initialEndDate,
   initialTab,
   parkingLots,
+  editingShift,
   onClose,
   onSuccess,
 }) {
-  const [tab, setTab] = useState(initialTab ?? "single");
-  const [selectedPreset, setSelectedPreset] = useState("Morning");
-  const [startTime, setStartTime] = useState("06:00");
-  const [endTime, setEndTime] = useState("14:00");
-  const [lotId, setLotId] = useState(
-    initialLotId ?? parkingLots[0]?.id ?? parkingLots[0]?.lotId ?? "",
+  const isEdit = !!editingShift;
+  const shiftId = editingShift?.shiftId ?? editingShift?.ShiftId ?? editingShift?.id;
+  const [tab, setTab] = useState(isEdit ? "single" : (initialTab ?? "single"));
+  const [selectedPreset, setSelectedPreset] = useState(
+    isEdit ? mapShiftTypeToPreset(editingShift?.shiftType ?? editingShift?.ShiftType) : "Morning",
   );
-  const [shiftStatus, setShiftStatus] = useState("SCHEDULED");
+  const [startTime, setStartTime] = useState(
+    isEdit ? (editingShift?.startTime ?? "06:00").slice(0, 5) : "06:00",
+  );
+  const [endTime, setEndTime] = useState(
+    isEdit ? (editingShift?.endTime ?? "14:00").slice(0, 5) : "14:00",
+  );
+  const [lotId, setLotId] = useState(
+    isEdit
+      ? (editingShift?.lotId ?? editingShift?.LotId ?? "")
+      : (initialLotId ?? parkingLots[0]?.id ?? parkingLots[0]?.lotId ?? ""),
+  );
+  const [shiftStatus, setShiftStatus] = useState(
+    isEdit
+      ? (editingShift?.shiftStatus ?? editingShift?.ShiftStatus ?? "SCHEDULED").toUpperCase()
+      : "SCHEDULED",
+  );
   const [loading, setLoading] = useState(false);
   const [lotOperatingHours, setLotOperatingHours] = useState(null); // { openingTime, closingTime, is24h }
 
@@ -343,6 +369,10 @@ function CreateShiftModal({
     return Array.from(daysInRange);
   });
 
+  // Khi mở từ click ngày (staff null), cho phép chọn nhân viên
+  const needsStaffSelection = !staff && !editingShift;
+  const [selectedStaffId, setSelectedStaffId] = useState("");
+
   // Khi endDate hoặc date đổi, chỉ giữ lại workingDays nằm trong khoảng mới
   useEffect(() => {
     if (allowedDays.length === 0) {
@@ -352,8 +382,24 @@ function CreateShiftModal({
     setWorkingDays((prev) => prev.filter((d) => allowedDays.includes(d)));
   }, [endDate, date]);
 
-  const staffId = staff?.staffId ?? staff?.id ?? "";
-  const staffName = staff?.fullName ?? staff?.name ?? "Nhân viên";
+  const staffId =
+    staff?.staffId ??
+    staff?.id ??
+    selectedStaffId ??
+    editingShift?.staffId ??
+    editingShift?.StaffId ??
+    "";
+  const selectedStaff = staffList.find(
+    (s) => String(s.staffId ?? s.id ?? "") === String(staffId),
+  );
+  const staffName =
+    staff?.fullName ??
+    staff?.name ??
+    selectedStaff?.fullName ??
+    selectedStaff?.name ??
+    editingShift?.staffName ??
+    editingShift?.StaffName ??
+    "Nhân viên";
 
   const handlePresetSelect = (preset) => {
     setSelectedPreset(preset.type);
@@ -384,6 +430,10 @@ function CreateShiftModal({
   };
 
   const handleSubmit = async () => {
+    if (!staffId) {
+      toast.error("Vui lòng chọn nhân viên");
+      return;
+    }
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
@@ -411,20 +461,25 @@ function CreateShiftModal({
       }
     }
 
+    const payload = {
+      staffId,
+      lotId,
+      shiftDate: date,
+      shiftType: (selectedPreset || "Morning")
+        .replace(" ", "_")
+        .toUpperCase(),
+      startTime,
+      endTime,
+      shiftStatus,
+    };
+
     setLoading(true);
     try {
-      if (tab === "single") {
-        await workShiftService.create({
-          staffId,
-          lotId,
-          shiftDate: date,
-          shiftType: (selectedPreset || "Morning")
-            .replace(" ", "_")
-            .toUpperCase(),
-          startTime,
-          endTime,
-          shiftStatus,
-        });
+      if (isEdit && shiftId) {
+        await workShiftService.update(shiftId, payload);
+        toast.success(`Đã cập nhật ca cho ${staffName} ngày ${date}`);
+      } else if (tab === "single") {
+        await workShiftService.create(payload);
         toast.success(`Đã tạo ca cho ${staffName} ngày ${date}`);
       } else {
         if (!endDate) {
@@ -437,18 +492,20 @@ function CreateShiftModal({
           setLoading(false);
           return;
         }
-        const result = await workShiftService.bulkCreate({
-          staffId,
-          lotId,
+        const bulkPayload = {
+          staffId: String(staffId),
+          lotId: String(lotId),
           startDate: date,
           endDate,
           shiftType: (selectedPreset || "Morning")
             .replace(" ", "_")
             .toUpperCase(),
-          startTime,
-          endTime,
-          workingDays,
-        });
+          startTime: startTime.length === 5 ? startTime : `${startTime}:00`,
+          endTime: endTime.length === 5 ? endTime : `${endTime}:00`,
+          workingDays: workingDays.map(Number),
+          shiftStatus,
+        };
+        const result = await workShiftService.bulkCreate(bulkPayload);
         const count = Array.isArray(result) ? result.length : "nhiều";
         toast.success(`Đã tạo ${count} ca cho ${staffName}`);
       }
@@ -456,11 +513,15 @@ function CreateShiftModal({
       onSuccess();
       onClose();
     } catch (err) {
-      const msg =
-        err?.response?.data?.message ??
-        err?.response?.data?.title ??
-        err?.message ??
-        "Có lỗi xảy ra";
+      const data = err?.response?.data;
+      let msg = data?.message ?? data?.title ?? err?.message ?? "Có lỗi xảy ra";
+      // ASP.NET Core validation: errors = { "FieldName": ["Error1", "Error2"] }
+      if (data?.errors && typeof data.errors === "object") {
+        const parts = Object.entries(data.errors)
+          .flatMap(([k, v]) => (Array.isArray(v) ? v : [v]))
+          .filter(Boolean);
+        if (parts.length > 0) msg = parts.join(". ");
+      }
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -503,7 +564,7 @@ function CreateShiftModal({
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-semibold text-gray-900 leading-tight">
-              Tạo ca trực
+              {isEdit ? "Cập nhật ca trực" : "Tạo ca trực"}
             </h2>
             <p className="text-sm text-gray-500 truncate">{staffName}</p>
           </div>
@@ -515,32 +576,60 @@ function CreateShiftModal({
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-100 bg-slate-50/30">
-          <button
-            onClick={() => setTab("single")}
-            className={`flex-1 py-3 text-sm font-semibold transition-all ${
-              tab === "single"
-                ? "border-b-2 border-blue-500 text-blue-600 bg-white/50"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            Ca đơn
-          </button>
-          <button
-            onClick={() => setTab("bulk")}
-            className={`flex-1 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
-              tab === "bulk"
-                ? "border-b-2 border-blue-500 text-blue-600 bg-white/50"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <Repeat className="w-3.5 h-3.5" />
-            Theo tuần
-          </button>
-        </div>
+        {/* Tabs - ẩn khi sửa ca */}
+        {!isEdit && (
+          <div className="flex border-b border-slate-100 bg-slate-50/30">
+            <button
+              onClick={() => setTab("single")}
+              className={`flex-1 py-3 text-sm font-semibold transition-all ${
+                tab === "single"
+                  ? "border-b-2 border-blue-500 text-blue-600 bg-white/50"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Ca đơn
+            </button>
+            <button
+              onClick={() => setTab("bulk")}
+              className={`flex-1 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                tab === "bulk"
+                  ? "border-b-2 border-blue-500 text-blue-600 bg-white/50"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <Repeat className="w-3.5 h-3.5" />
+              Theo tuần
+            </button>
+          </div>
+        )}
 
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Chọn nhân viên - khi mở từ click ngày (chưa kéo nhân viên) */}
+          {needsStaffSelection && (
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1.5 block flex items-center gap-1">
+                <Users className="w-3.5 h-3.5" />
+                Nhân viên
+              </label>
+              <select
+                value={staffId}
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-shadow"
+              >
+                <option value="">-- Chọn nhân viên --</option>
+                {staffList.map((s) => {
+                  const id = String(s.staffId ?? s.id ?? "");
+                  const name = s.fullName ?? s.name ?? "Nhân viên";
+                  return (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
           {/* Date info */}
           <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100/80">
             <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
@@ -775,7 +864,7 @@ function CreateShiftModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || !!shiftTimeError}
+            disabled={loading || !!shiftTimeError || (needsStaffSelection && !staffId)}
             className="flex-1 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm shadow-blue-600/20"
           >
             {loading ? (
@@ -799,11 +888,11 @@ function CreateShiftModal({
                     d="M4 12a8 8 0 018-8v8H4z"
                   />
                 </svg>
-                Đang tạo...
+                {isEdit ? "Đang cập nhật..." : "Đang tạo..."}
               </>
             ) : (
               <>
-                {tab === "single" ? "Tạo ca" : "Tạo lịch tuần"}
+                {isEdit ? "Cập nhật" : (tab === "single" ? "Tạo ca" : "Tạo lịch tuần")}
                 <ChevronRight className="w-4 h-4" />
               </>
             )}

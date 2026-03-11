@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -27,6 +27,7 @@ import {
   Columns3,
   Columns4,
   Maximize2,
+  Edit,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -47,7 +48,6 @@ import authService from "../../services/authService";
 import workShiftService from "../../services/workShiftService";
 import parkingLotService from "../../services/parkingLotService";
 
-// ─── Constants ───
 const SHIFT_COLORS = {
   MORNING: "#3B82F6",
   AFTERNOON: "#F59E0B",
@@ -99,7 +99,6 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
-// ─── Transform shift to FullCalendar event ───
 function toCalendarEvent(shift) {
   const rawDate =
     shift.shiftDate ?? shift.workDate ?? shift.date ?? shift.ShiftDate ?? "";
@@ -138,7 +137,6 @@ function toCalendarEvent(shift) {
   };
 }
 
-// ─── Droppable wrapper modified to hold Lot ID ───
 function DroppableLotCalendar({ lotId, children }) {
   const { setNodeRef, isOver } = useDroppable({ id: `calendar-${lotId}` });
   return (
@@ -157,7 +155,8 @@ function DroppableLotCalendar({ lotId, children }) {
 function StaffDragOverlayCard({ staff }) {
   const name = staff?.fullName ?? staff?.name ?? "Nhân viên";
   const id = staff?.staffId ?? staff?.id ?? "";
-  const avatarUrl = staff?.faceImageUrl ?? staff?.avatarUrl ?? staff?.imageUrl ?? "";
+  const avatarUrl =
+    staff?.faceImageUrl ?? staff?.avatarUrl ?? staff?.imageUrl ?? "";
   return (
     <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white rounded-xl shadow-2xl border border-blue-300 cursor-grabbing min-w-[180px]">
       {avatarUrl ? (
@@ -202,7 +201,6 @@ function renderEventContent(eventInfo) {
   );
 }
 
-// ─── Main component ───
 function Shifts() {
   const [allStaff, setAllStaff] = useState([]);
   const [staffLoading, setStaffLoading] = useState(true);
@@ -249,7 +247,6 @@ function Shifts() {
     if (parkingLots.length > 0) loadAllShifts(parkingLots);
   }, [parkingLots, refreshKey]);
 
-  // APIs Functions
   const loadStaff = async () => {
     setStaffLoading(true);
     try {
@@ -439,7 +436,6 @@ function Shifts() {
     setBulkDeleting(true);
     try {
       const ids = Array.from(selectedShiftIds);
-      // Xóa theo batch (10 ca/lần) để tránh quá tải server, không giới hạn tổng số ca
       const BATCH_SIZE = 10;
       for (let i = 0; i < ids.length; i += BATCH_SIZE) {
         const batch = ids.slice(i, i + BATCH_SIZE);
@@ -466,7 +462,27 @@ function Shifts() {
     }
   };
 
-  const allShiftsArray = Object.values(shiftsByLot).flat();
+  const inactiveStaffIds = useMemo(
+    () =>
+      new Set(
+        allStaff
+          .filter((s) => s.isActive === false)
+          .map((s) => String(s.staffId ?? s.id ?? "")),
+      ),
+    [allStaff],
+  );
+  const activeStaffForSidebar = useMemo(
+    () => allStaff.filter((s) => s.isActive !== false),
+    [allStaff],
+  );
+
+  const allShiftsArray = useMemo(() => {
+    const raw = Object.values(shiftsByLot).flat();
+    return raw.filter(
+      (s) => !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+    );
+  }, [shiftsByLot, inactiveStaffIds]);
+
   const today = new Date().toISOString().split("T")[0];
   const todayShifts = allShiftsArray.filter(
     (s) => (s.shiftDate ?? "").split("T")[0] === today,
@@ -542,9 +558,7 @@ function Shifts() {
                 title="Dạng Lưới"
               >
                 <LayoutGrid className="w-4 h-4" />
-                <span className="text-sm hidden xs:inline">
-                  Grid
-                </span>
+                <span className="text-sm hidden xs:inline">Grid</span>
               </button>
             </div>
 
@@ -608,18 +622,15 @@ function Shifts() {
           </div>
         </div>
 
-        {/* ── Main content ── */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Sidebar */}
+        <div className="flex flex-1 min-h-0 overflow-hidden">     
           <div className="hidden sm:block flex-shrink-0 h-full overflow-hidden">
             <StaffSidebar
-              staff={allStaff}
+              staff={activeStaffForSidebar}
               loading={staffLoading}
               onRetry={loadStaff}
             />
           </div>
 
-          {/* Vùng Lịch Center */}
           <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden relative">
             {viewMode === "tab" && (
               <div className="flex overflow-x-auto gap-1.5 p-2 pb-0 scrollbar-hide flex-shrink-0 bg-gray-50/50 border-b border-gray-100">
@@ -634,17 +645,29 @@ function Shifts() {
                     }`}
                   >
                     {lot.name}
-                    <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                      activeTabLotId === lot.id ? "bg-blue-50 text-blue-600" : "bg-gray-200 text-gray-500"
-                    }`}>
-                      {(shiftsByLot[lot.id] || []).length} ca
+                    <span
+                      className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        activeTabLotId === lot.id
+                          ? "bg-blue-50 text-blue-600"
+                          : "bg-gray-200 text-gray-500"
+                      }`}
+                    >
+                      {
+                        (shiftsByLot[lot.id] || []).filter(
+                          (s) =>
+                            !inactiveStaffIds.has(
+                              String(s.staffId ?? s.StaffId ?? ""),
+                            ),
+                        ).length
+                      }{" "}
+                      ca
                     </span>
                   </button>
                 ))}
               </div>
             )}
 
-            {/* Banner range đã chọn */}
+            
             {selectedRange && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-b border-blue-200 flex-shrink-0">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
@@ -676,20 +699,27 @@ function Shifts() {
               </div>
             )}
 
-            {/* Khung chứa các Lịch */}
             <div
               className={`flex-1 min-h-0 overflow-auto p-2 ${viewMode === "grid" ? `grid gap-4 ${gridLayoutClass}` : "flex flex-col"}`}
             >
               {visibleLots.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <MapPin className="w-12 h-12 text-gray-300 mb-3" />
-                  <p className="text-gray-500 font-medium">Chưa có bãi xe nào</p>
-                  <p className="text-sm text-gray-400 mt-1">Thêm bãi đỗ xe trong mục Quản lý bãi đỗ xe</p>
+                  <p className="text-gray-500 font-medium">
+                    Chưa có bãi xe nào
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Thêm bãi đỗ xe trong mục Quản lý bãi đỗ xe
+                  </p>
                 </div>
               )}
 
               {visibleLots.map((lot) => {
-                const lotShifts = shiftsByLot[lot.id] || [];
+                const rawLotShifts = shiftsByLot[lot.id] || [];
+                const lotShifts = rawLotShifts.filter(
+                  (s) =>
+                    !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+                );
                 const calendarEvents = lotShifts.map(toCalendarEvent);
                 const isSmallGrid = viewMode === "grid" && gridCols >= 3;
 
@@ -814,7 +844,6 @@ function Shifts() {
               })}
             </div>
 
-            {/* [ĐÃ THÊM] Floating Action Bar cho tính năng xóa nhiều (Thay thế cho banner gạch đỏ cũ) */}
             {isMultiDeleteMode && (
               <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-2xl px-3 py-2.5 flex items-center gap-4 z-[60] animate-in slide-in-from-bottom-8 fade-in duration-300">
                 <div className="flex items-center gap-2.5 pl-3">
@@ -870,20 +899,26 @@ function Shifts() {
         </div>
       </div>
 
-      {/* ── Drag overlay ── */}
       <DragOverlay>
         {activeStaff && <StaffDragOverlayCard staff={activeStaff} />}
       </DragOverlay>
 
-      {/* ── Modals ── */}
       {createModal && (
         <CreateShiftModal
           staff={createModal.staff}
+          staffList={activeStaffForSidebar}
           date={createModal.date}
           initialLotId={createModal.lotId}
           initialEndDate={createModal.endDate}
-          initialTab={createModal.useRange ? "bulk" : "single"}
+          initialTab={
+            createModal.editingShift
+              ? "single"
+              : createModal.useRange
+                ? "bulk"
+                : "single"
+          }
           parkingLots={parkingLots}
+          editingShift={createModal.editingShift}
           onClose={() => setCreateModal(null)}
           onSuccess={handleRefresh}
         />
@@ -892,14 +927,29 @@ function Shifts() {
       {detailShift && (
         <ShiftDetailPopup
           shift={detailShift}
+          parkingLots={parkingLots}
           onClose={() => setDetailShift(null)}
           onDelete={handleRefresh}
+          onEdit={(shift) => {
+            setDetailShift(null);
+            setCreateModal({
+              staff: {
+                staffId: shift.staffId ?? shift.StaffId,
+                id: shift.staffId ?? shift.StaffId,
+                fullName: shift.staffName ?? shift.StaffName,
+                name: shift.staffName ?? shift.StaffName,
+              },
+              date: (shift.shiftDate ?? shift.workDate ?? "").split("T")[0],
+              lotId: shift.lotId ?? shift.LotId,
+              editingShift: shift,
+            });
+          }}
         />
       )}
 
       {showBulkAssign && (
         <BulkAssignModal
-          allStaff={allStaff}
+          allStaff={activeStaffForSidebar}
           parkingLots={parkingLots}
           onClose={() => setShowBulkAssign(false)}
           onSuccess={handleRefresh}
@@ -909,9 +959,7 @@ function Shifts() {
   );
 }
 
-// ─── Shift Detail Popup ───
-
-function ShiftDetailPopup({ shift, onClose, onDelete }) {
+function ShiftDetailPopup({ shift, parkingLots, onClose, onDelete, onEdit }) {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   if (!shift) return null;
@@ -1043,6 +1091,17 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
               >
                 Đóng
               </button>
+              {onEdit && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onEdit(shift);
+                  }}
+                  className="flex-1 py-2 text-sm font-medium text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Edit className="w-3.5 h-3.5" /> Sửa ca
+                </button>
+              )}
               <button
                 onClick={() => setShowDeleteDialog(true)}
                 className="flex-1 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5"

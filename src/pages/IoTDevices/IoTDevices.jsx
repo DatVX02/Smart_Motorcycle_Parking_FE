@@ -117,8 +117,13 @@ function IoTDevices() {
       setDevices(Array.isArray(devData) ? devData : []);
       setLots(Array.isArray(lotData) ? lotData : []);
 
+
     } catch {
       toast.error("Không thể tải danh sách thiết bị", {duration: 1000});
+
+//     } catch {
+//       toast.error("Không thể tải danh sách thiết bị");
+
     } finally {
       setLoading(false);
     }
@@ -151,6 +156,7 @@ function IoTDevices() {
 
   const handleConfirmAction = async () => {
 
+
     const { type, device } = confirmDialog;
 
     try {
@@ -163,12 +169,29 @@ function IoTDevices() {
       if (type === "unassign") {
         await iotDeviceService.unassign(device.id ?? device.deviceId);
         toast.success("Đã ngắt gán thiết bị", {duration: 1000});
+
+//     const { type, device } = confirmDialog;
+
+//     try {
+//       if (type === "delete") {
+//         await iotDeviceService.delete(device.id ?? device.deviceId);
+//         toast.success("Đã xóa thiết bị");
+//       }
+
+//       if (type === "unassign") {
+//         await iotDeviceService.unassign(device.id ?? device.deviceId);
+//         toast.success("Đã ngắt gán thiết bị");
+
       }
 
       await fetchDevices();
 
     } catch {
+
       toast.error("Thao tác thất bại", {duration: 1000});
+
+//       toast.error("Thao tác thất bại");
+
     }
   };
 
@@ -185,6 +208,7 @@ function IoTDevices() {
   });
 
   const totalCount = devices.length;
+
   const onlineCount = devices.filter(d => d.connectionStatus === "ONLINE").length;
   const offlineCount = devices.filter(d => d.connectionStatus === "OFFLINE").length;
   const readyCount = devices.filter(
@@ -192,6 +216,19 @@ function IoTDevices() {
       !["ONLINE", "OFFLINE"].includes(
         String(d.connectionStatus ?? "").toUpperCase()
       )
+
+//   const onlineCount = devices.filter(
+//     (d) => d.connectionStatus === "ONLINE",
+//   ).length;
+//   const offlineCount = devices.filter(
+//     (d) => d.connectionStatus === "OFFLINE",
+//   ).length;
+//   const readyCount = devices.filter(
+//     (d) =>
+//       !["ONLINE", "OFFLINE"].includes(
+//         String(d.connectionStatus ?? "").toUpperCase(),
+//       ),
+
   ).length;
   if (loading) {
     return (
@@ -202,6 +239,7 @@ function IoTDevices() {
   }
 
   return (
+
 
     <div className="space-y-8">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -248,6 +286,57 @@ function IoTDevices() {
 
       <div className="bg-white rounded-3xl p-6 shadow border flex flex-wrap gap-4">
 
+
+//     <div className="space-y-8">
+//       {/* Stats */}
+
+//       {/* Stats */}
+//       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+//         <div className="bg-white rounded-3xl p-8 shadow border">
+//           <div className="flex items-center gap-5">
+//             <Cpu className="w-8 h-8 text-blue-600" />
+//             <div>
+//               <p className="text-3xl font-bold">{totalCount}</p>
+//               <p className="text-gray-500">Tổng thiết bị</p>
+//             </div>
+//           </div>
+//         </div>
+
+//         <div className="bg-white rounded-3xl p-8 shadow border">
+//           <div className="flex items-center gap-5">
+//             <Wifi className="w-8 h-8 text-green-600" />
+//             <div>
+//               <p className="text-3xl font-bold text-green-600">{onlineCount}</p>
+//               <p className="text-gray-500">Trực tuyến</p>
+//             </div>
+//           </div>
+//         </div>
+
+//         <div className="bg-white rounded-3xl p-8 shadow border">
+//           <div className="flex items-center gap-5">
+//             <WifiOff className="w-8 h-8 text-red-600" />
+//             <div>
+//               <p className="text-3xl font-bold text-red-600">{offlineCount}</p>
+//               <p className="text-gray-500">Ngoại tuyến</p>
+//             </div>
+//           </div>
+//         </div>
+
+//         <div className="bg-white rounded-3xl p-8 shadow border">
+//           <div className="flex items-center gap-5">
+//             <AlertTriangle className="w-8 h-8 text-gray-600" />
+//             <div>
+//               <p className="text-3xl font-bold text-gray-600">{readyCount}</p>
+//               <p className="text-gray-500">Khác</p>
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* Filters */}
+
+//       <div className="bg-white rounded-3xl p-6 shadow border flex flex-wrap gap-4">
+
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
@@ -261,7 +350,11 @@ function IoTDevices() {
         <select
           value={filterLot}
           onChange={(e) => setFilterLot(e.target.value)}
+
           className="border rounded-xl px-3 py-2"
+
+//           className="input w-56"
+
         >
           <option value="all">Tất cả bãi đỗ</option>
 
@@ -283,6 +376,7 @@ function IoTDevices() {
           <Plus className="w-4 h-4" />
           Thêm thiết bị
         </button>
+
 
       </div>
 
@@ -309,10 +403,33 @@ function IoTDevices() {
 
                   <DevIcon className="w-8 h-8 text-blue-600" />
 
+
+      </div>
+
+      {/* Device grid */}
+
+//       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+//         {filtered.map((device) => {
+//           const id = device.id ?? device.deviceId;
+
+//           const conn = getConnStatus(device.connectionStatus);
+//           const dtype = getDeviceType(device.deviceType);
+
+//           const DevIcon = dtype.icon;
+//           const ConnIcon = conn.icon;
+
+//           return (
+//             <div key={id} className="bg-white rounded-3xl shadow border p-6">
+//               <div className="flex justify-between mb-3">
+//                 <div className="flex gap-3 items-center">
+//                   <DevIcon className="w-8 h-8 text-blue-600" />
+
+
                   <div>
                     <h3 className="font-semibold">
                       {device.deviceName || device.name}
                     </h3>
+
 
                     <span className={`text-xs px-2 py-1 rounded-full ${dtype.color}`}>
                       {dtype.label}
@@ -392,6 +509,88 @@ function IoTDevices() {
       </div>
 
 
+
+//                     <span
+//                       className={`text-xs px-2 py-1 rounded-full ${dtype.color}`}
+//                     >
+//                       {dtype.label}
+//                     </span>
+//                   </div>
+//                 </div>
+
+//                 <span
+//                   className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${conn.color}`}
+//                 >
+//                   <ConnIcon className="w-3 h-3" />
+//                   {conn.label}
+//                 </span>
+//               </div>
+
+//               <div className="space-y-1 text-sm mb-4">
+//                 {device.gateName && (
+//                   <Row label="Cổng" value={device.gateName} />
+//                 )}
+//                 {device.ipAddress && (
+//                   <Row label="IP" value={device.ipAddress} />
+//                 )}
+//                 {device.model && <Row label="Model" value={device.model} />}
+//                 {device.macAddress && (
+//                   <Row label="MAC" value={device.macAddress} />
+//                 )}
+//               </div>
+
+//               <div className="flex gap-2 pt-3 border-t">
+//                 <button
+//                   onClick={() => {
+//                     setSelected(device);
+//                     setShowDetailModal(true);
+//                   }}
+//                   className="flex-1 btn btn-secondary text-sm"
+//                 >
+//                   <EyeTwoTone /> Chi tiết
+//                 </button>
+
+//                 {device.gateName && (
+//                   <button
+//                     onClick={() => handleUnassign(device)}
+//                     className="p-2 text-orange-500 hover:bg-orange-50 rounded-lg"
+//                   >
+//                     <Unlink className="w-4 h-4" />
+//                   </button>
+//                 )}
+
+//                 <button
+//                   onClick={() => handleMaintenance(device)}
+//                   className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg"
+//                 >
+//                   <Wrench className="w-4 h-4" />
+//                 </button>
+
+//                 <button
+//                   onClick={() => {
+//                     setSelected(device);
+//                     setShowModal(true);
+//                   }}
+//                   className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+//                 >
+//                   <EditTwoTone />
+//                 </button>
+
+//                 <button
+//                   onClick={() => handleDelete(device)}
+//                   className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+//                 >
+//                   <DeleteTwoTone />
+//                 </button>
+//               </div>
+//             </div>
+//           );
+//         })}
+//       </div>
+
+//       {/* Modals */}
+
+
       {showModal && (
         <DeviceModal
           device={selected}
@@ -451,3 +650,4 @@ function Stat({ icon: Icon, value, label, color = "text-gray-900" }) {
 }
 
 export default IoTDevices;
+
