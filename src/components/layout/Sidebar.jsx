@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ChevronLeft,
   X,
+  Ticket,
 } from "lucide-react";
 const { Sider } = Layout;
 
@@ -33,6 +34,7 @@ const menuItems = [
   { title: "Nhật ký thiết bị", icon: ScrollText, path: "/system-logs" },
   { title: "Điểm thưởng", icon: Award, path: "/reward-points" },
   { title: "Bảng giá phí", icon: DollarSign, path: "/price-list" },
+  { title: "Vé tháng", icon: Ticket, path: "/monthly-passes" },
   {
     title: "Thiết bị IoT", icon: Cpu, path: "/iot-devices",
     children: [
