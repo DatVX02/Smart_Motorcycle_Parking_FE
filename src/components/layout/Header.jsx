@@ -21,18 +21,18 @@ import toast from "react-hot-toast";
 import authService from "../../services/authService";
 
 const PAGE_TITLES = {
-  "/dashboard": { title: "Dashboard", icon: LayoutDashboard, iconBg: "bg-slate-100 text-slate-600" },
-  "/accounts": { title: "Quản Lý Tài Khoản Khách Hàng", icon: Users, iconBg: "bg-blue-100 text-blue-600" },
-  "/accounts/staff": { title: "Quản Lý Tài Khoản Nhân Viên", icon: Users, iconBg: "bg-blue-100 text-blue-600" },
-  "/parking-lots": { title: "Quản Lý Bãi Đỗ Xe", icon: ParkingCircle, iconBg: "bg-blue-100 text-blue-600" },
-  "/transactions": { title: "Giao Dịch & Hóa Đơn", icon: Receipt, iconBg: "bg-emerald-100 text-emerald-600" },
-  "/shifts": { title: "Quản Lý Lịch Bãi Xe", icon: Calendar, iconBg: "bg-amber-100 text-amber-600" },
-  "/system-logs": { title: "Nhật Ký Hệ Thống", icon: ScrollText, iconBg: "bg-slate-100 text-slate-600" },
-  "/reward-points": { title: "Quản Lý Điểm Thưởng", icon: Award, iconBg: "bg-amber-100 text-amber-600" },
-  "/price-list": { title: "Bảng Giá Phí Đỗ Xe", icon: DollarSign, iconBg: "bg-emerald-100 text-emerald-600" },
-  "/monthly-passes": { title: "Quản Lý Vé Tháng", icon: Ticket, iconBg: "bg-emerald-100 text-emerald-600" },
-  "/iot-devices": { title: "Quản Lý Thiết Bị IoT", icon: Cpu, iconBg: "bg-violet-100 text-violet-600" },
-  "/device-maintenance": { title: "Bảo Trì Thiết Bị", icon: Wrench, iconBg: "bg-orange-100 text-orange-600" },
+  "/dashboard": { title: "Dashboard" },
+  "/accounts": { title: "Quản Lý Tài Khoản Khách Hàng" },
+  "/accounts/staff": { title: "Quản Lý Tài Khoản Nhân Viên" },
+  "/parking-lots": { title: "Quản Lý Bãi Đỗ Xe" },
+  "/transactions": { title: "Giao Dịch & Hóa Đơn" },
+  "/shifts": { title: "Quản Lý Lịch Bãi Xe" },
+  "/system-logs": { title: "Nhật Ký Hệ Thống" },
+  "/reward-points": { title: "Quản Lý Điểm Thưởng" },
+  "/price-list": { title: "Bảng Giá Phí Đỗ Xe" },
+  "/monthly-passes": { title: "Quản Lý Vé Tháng" },
+  "/iot-devices": { title: "Quản Lý Thiết Bị IoT" },
+  "/device-maintenance": { title: "Bảo Trì Thiết Bị" },
 };
 
 function Header({ onMenuClick }) {
@@ -138,11 +138,11 @@ function Header({ onMenuClick }) {
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 truncate tracking-tight">
                 {pageInfo.title}
               </h1>
-            {pageInfo.subtitle && (
-              <p className="text-sm md:text-base text-gray-500 truncate hidden sm:block mt-0.5">
-                {pageInfo.subtitle}
-              </p>
-            )}
+              {pageInfo.subtitle && (
+                <p className="text-sm md:text-base text-gray-500 truncate hidden sm:block mt-0.5">
+                  {pageInfo.subtitle}
+                </p>
+              )}
             </div>
           </div>
         </div>
