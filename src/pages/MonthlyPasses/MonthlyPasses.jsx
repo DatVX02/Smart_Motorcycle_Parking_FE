@@ -23,7 +23,10 @@ function MonthlyPasses() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPkg, setEditingPkg] = useState(null);
   const [filterLotId, setFilterLotId] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState({ open: false, pkg: null });
+  const [confirmDelete, setConfirmDelete] = useState({
+    open: false,
+    pkg: null,
+  });
 
   const fetchData = async () => {
     try {
@@ -37,7 +40,9 @@ function MonthlyPasses() {
         const byLot = await Promise.all(
           lotsArray.map(async (lot) => {
             const id = lot.id ?? lot.lotId;
-            const items = await monthlyPassService.getByLotId(id).catch(() => []);
+            const items = await monthlyPassService
+              .getByLotId(id)
+              .catch(() => []);
             return (items || []).map((p) => ({
               ...p,
               _lotName: lot.name ?? lot.lotName,
@@ -74,9 +79,7 @@ function MonthlyPasses() {
       setConfirmDelete({ open: false, pkg: null });
       fetchData();
     } catch (err) {
-      toast.error(
-        err?.response?.data?.message ?? "Không thể xóa gói vé tháng",
-      );
+      toast.error(err?.response?.data?.message ?? "Không thể xóa gói vé tháng");
     }
   };
 
@@ -108,7 +111,9 @@ function MonthlyPasses() {
           <div className="flex items-center gap-5">
             <Ticket className="w-8 h-8 text-blue-600" />
             <div>
-              <p className="text-3xl font-bold text-gray-900">{packages.length}</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {packages.length}
+              </p>
               <p className="text-gray-500">Tổng gói vé tháng</p>
             </div>
           </div>
@@ -140,7 +145,6 @@ function MonthlyPasses() {
       {/* Filter */}
       {parkingLots.length > 0 && (
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-500" />
           <select
             value={filterLotId}
             onChange={(e) => setFilterLotId(e.target.value)}
@@ -186,7 +190,11 @@ function MonthlyPasses() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 p-6">
             {filteredPackages.map((pkg, index) => (
               <div
-                key={pkg.id ?? pkg.packageId ?? `pkg-${(pkg._lotId ?? pkg.lotId) ?? "lot"}-${index}`}
+                key={
+                  pkg.id ??
+                  pkg.packageId ??
+                  `pkg-${pkg._lotId ?? pkg.lotId ?? "lot"}-${index}`
+                }
                 className="group bg-white rounded-lg border border-gray-200 p-5 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-500/10 hover:border-blue-500 hover:scale-[1.02]"
               >
                 <div className="flex items-start justify-between mb-4">
