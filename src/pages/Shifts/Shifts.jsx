@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -27,6 +27,7 @@ import {
   Columns3,
   Columns4,
   Maximize2,
+  Edit,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -466,7 +467,28 @@ function Shifts() {
     }
   };
 
-  const allShiftsArray = Object.values(shiftsByLot).flat();
+  // Ẩn lịch của nhân viên ngưng hoạt động
+  const inactiveStaffIds = useMemo(
+    () =>
+      new Set(
+        allStaff
+          .filter((s) => s.isActive === false)
+          .map((s) => String(s.staffId ?? s.id ?? "")),
+      ),
+    [allStaff],
+  );
+  const activeStaffForSidebar = useMemo(
+    () => allStaff.filter((s) => s.isActive !== false),
+    [allStaff],
+  );
+
+  const allShiftsArray = useMemo(() => {
+    const raw = Object.values(shiftsByLot).flat();
+    return raw.filter(
+      (s) => !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+    );
+  }, [shiftsByLot, inactiveStaffIds]);
+
   const today = new Date().toISOString().split("T")[0];
   const todayShifts = allShiftsArray.filter(
     (s) => (s.shiftDate ?? "").split("T")[0] === today,
@@ -613,7 +635,7 @@ function Shifts() {
           {/* Sidebar */}
           <div className="hidden sm:block flex-shrink-0 h-full overflow-hidden">
             <StaffSidebar
-              staff={allStaff}
+              staff={activeStaffForSidebar}
               loading={staffLoading}
               onRetry={loadStaff}
             />
@@ -637,7 +659,10 @@ function Shifts() {
                     <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${
                       activeTabLotId === lot.id ? "bg-blue-50 text-blue-600" : "bg-gray-200 text-gray-500"
                     }`}>
-                      {(shiftsByLot[lot.id] || []).length} ca
+                      {(shiftsByLot[lot.id] || []).filter(
+                        (s) =>
+                          !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+                      ).length} ca
                     </span>
                   </button>
                 ))}
@@ -689,7 +714,11 @@ function Shifts() {
               )}
 
               {visibleLots.map((lot) => {
-                const lotShifts = shiftsByLot[lot.id] || [];
+                const rawLotShifts = shiftsByLot[lot.id] || [];
+                const lotShifts = rawLotShifts.filter(
+                  (s) =>
+                    !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+                );
                 const calendarEvents = lotShifts.map(toCalendarEvent);
                 const isSmallGrid = viewMode === "grid" && gridCols >= 3;
 
@@ -882,8 +911,9 @@ function Shifts() {
           date={createModal.date}
           initialLotId={createModal.lotId}
           initialEndDate={createModal.endDate}
-          initialTab={createModal.useRange ? "bulk" : "single"}
+          initialTab={createModal.editingShift ? "single" : (createModal.useRange ? "bulk" : "single")}
           parkingLots={parkingLots}
+          editingShift={createModal.editingShift}
           onClose={() => setCreateModal(null)}
           onSuccess={handleRefresh}
         />
@@ -892,14 +922,29 @@ function Shifts() {
       {detailShift && (
         <ShiftDetailPopup
           shift={detailShift}
+          parkingLots={parkingLots}
           onClose={() => setDetailShift(null)}
           onDelete={handleRefresh}
+          onEdit={(shift) => {
+            setDetailShift(null);
+            setCreateModal({
+              staff: {
+                staffId: shift.staffId ?? shift.StaffId,
+                id: shift.staffId ?? shift.StaffId,
+                fullName: shift.staffName ?? shift.StaffName,
+                name: shift.staffName ?? shift.StaffName,
+              },
+              date: (shift.shiftDate ?? shift.workDate ?? "").split("T")[0],
+              lotId: shift.lotId ?? shift.LotId,
+              editingShift: shift,
+            });
+          }}
         />
       )}
 
       {showBulkAssign && (
         <BulkAssignModal
-          allStaff={allStaff}
+          allStaff={activeStaffForSidebar}
           parkingLots={parkingLots}
           onClose={() => setShowBulkAssign(false)}
           onSuccess={handleRefresh}
@@ -911,7 +956,7 @@ function Shifts() {
 
 // ─── Shift Detail Popup ───
 
-function ShiftDetailPopup({ shift, onClose, onDelete }) {
+function ShiftDetailPopup({ shift, parkingLots, onClose, onDelete, onEdit }) {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   if (!shift) return null;
@@ -1043,6 +1088,17 @@ function ShiftDetailPopup({ shift, onClose, onDelete }) {
               >
                 Đóng
               </button>
+              {onEdit && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onEdit(shift);
+                  }}
+                  className="flex-1 py-2 text-sm font-medium text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Edit className="w-3.5 h-3.5" /> Sửa ca
+                </button>
+              )}
               <button
                 onClick={() => setShowDeleteDialog(true)}
                 className="flex-1 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5"
