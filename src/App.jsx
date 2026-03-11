@@ -18,6 +18,7 @@ import PriceList from "./pages/PriceList/PriceList";
 import IoTDevices from "./pages/IoTDevices/IoTDevices";
 import AccountStaff from "./pages/Accounts/AccountStaff";
 import DeviceMaintenance from "./pages/DeviceMaintenance/DeviceMaintenance";
+import MonthlyPasses from "./pages/MonthlyPasses/MonthlyPasses";
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
           <Route path="system-logs" element={<SystemLogs />} />
           <Route path="reward-points" element={<RewardPoints />} />
           <Route path="price-list" element={<PriceList />} />
+          <Route path="monthly-passes" element={<MonthlyPasses />} />
           <Route path="iot-devices" element={<IoTDevices />} />
           <Route path="device-maintenance" element = {<DeviceMaintenance />} />
         </Route>
