@@ -72,9 +72,10 @@ function MonthlyPasses() {
 
   const handleConfirmDelete = async () => {
     const pkg = confirmDelete.pkg;
-    if (!pkg?.id) return;
+    const pkgId = pkg?.id ?? pkg?.packageId;
+    if (!pkgId) return;
     try {
-      await monthlyPassService.delete(pkg.id);
+      await monthlyPassService.delete(pkgId);
       toast.success("Đã xóa gói vé tháng");
       setConfirmDelete({ open: false, pkg: null });
       fetchData();

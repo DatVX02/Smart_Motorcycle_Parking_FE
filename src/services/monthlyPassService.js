@@ -50,9 +50,7 @@ const monthlyPassService = {
    * DELETE /api/v1/monthly-pass-packages/{id} - Xóa gói vé tháng
    */
   delete: async (id) => {
-    const response = await apiClient.delete(
-      `${MONTHLY_PASS_BASE_PATH}/${id}`,
-    );
+    const response = await apiClient.delete(`${MONTHLY_PASS_BASE_PATH}/${id}`);
     return unwrap(response.data);
   },
 };

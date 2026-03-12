@@ -268,10 +268,13 @@ function CreateShiftModal({
   onSuccess,
 }) {
   const isEdit = !!editingShift;
-  const shiftId = editingShift?.shiftId ?? editingShift?.ShiftId ?? editingShift?.id;
+  const shiftId =
+    editingShift?.shiftId ?? editingShift?.ShiftId ?? editingShift?.id;
   const [tab, setTab] = useState(isEdit ? "single" : (initialTab ?? "single"));
   const [selectedPreset, setSelectedPreset] = useState(
-    isEdit ? mapShiftTypeToPreset(editingShift?.shiftType ?? editingShift?.ShiftType) : "Morning",
+    isEdit
+      ? mapShiftTypeToPreset(editingShift?.shiftType ?? editingShift?.ShiftType)
+      : "Morning",
   );
   const [startTime, setStartTime] = useState(
     isEdit ? (editingShift?.startTime ?? "06:00").slice(0, 5) : "06:00",
@@ -286,7 +289,11 @@ function CreateShiftModal({
   );
   const [shiftStatus, setShiftStatus] = useState(
     isEdit
-      ? (editingShift?.shiftStatus ?? editingShift?.ShiftStatus ?? "SCHEDULED").toUpperCase()
+      ? (
+          editingShift?.shiftStatus ??
+          editingShift?.ShiftStatus ??
+          "SCHEDULED"
+        ).toUpperCase()
       : "SCHEDULED",
   );
   const [loading, setLoading] = useState(false);
@@ -465,9 +472,7 @@ function CreateShiftModal({
       staffId,
       lotId,
       shiftDate: date,
-      shiftType: (selectedPreset || "Morning")
-        .replace(" ", "_")
-        .toUpperCase(),
+      shiftType: (selectedPreset || "Morning").replace(" ", "_").toUpperCase(),
       startTime,
       endTime,
       shiftStatus,
@@ -834,24 +839,6 @@ function CreateShiftModal({
               </p>
             </div>
           )}
-
-          {/* Status - single only */}
-          {tab === "single" && (
-            <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1.5 block">
-                Trạng thái
-              </label>
-              <select
-                value={shiftStatus}
-                onChange={(e) => setShiftStatus(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="SCHEDULED">Đã lên lịch</option>
-                <option value="IN_PROGRESS">Đang làm việc</option>
-                <option value="COMPLETED">Hoàn thành</option>
-              </select>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
@@ -864,7 +851,9 @@ function CreateShiftModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || !!shiftTimeError || (needsStaffSelection && !staffId)}
+            disabled={
+              loading || !!shiftTimeError || (needsStaffSelection && !staffId)
+            }
             className="flex-1 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm shadow-blue-600/20"
           >
             {loading ? (
@@ -892,7 +881,11 @@ function CreateShiftModal({
               </>
             ) : (
               <>
-                {isEdit ? "Cập nhật" : (tab === "single" ? "Tạo ca" : "Tạo lịch tuần")}
+                {isEdit
+                  ? "Cập nhật"
+                  : tab === "single"
+                    ? "Tạo ca"
+                    : "Tạo lịch tuần"}
                 <ChevronRight className="w-4 h-4" />
               </>
             )}
