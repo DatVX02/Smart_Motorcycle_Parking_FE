@@ -1,18 +1,20 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Dialog = ({ open, onOpenChange, children }) => {
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-fadeIn"
         onClick={() => onOpenChange?.(false)}
       />
-      <div className="relative z-50 animate-slideUp">{children}</div>
-    </div>
+      <div className="relative z-50 animate-slideUp my-auto">{children}</div>
+    </div>,
+    document.body
   );
 };
 
