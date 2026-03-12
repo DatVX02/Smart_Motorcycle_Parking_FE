@@ -102,7 +102,7 @@ function DraggableStaffCard({ staff }) {
   );
 }
 
-function StaffSidebar({ staff, loading, onRetry }) {
+function StaffSidebar({ staff, loading, onRetry, filteredByRange }) {
   const [search, setSearch] = useState("");
 
   const filtered = staff.filter((s) => {
@@ -121,10 +121,22 @@ function StaffSidebar({ staff, loading, onRetry }) {
             <User className="w-5 h-5 text-blue-600" />
           </div>
           <span className="text-base font-semibold text-gray-800">Nhân viên</span>
-          <span className="ml-auto text-sm font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg">
+          <span
+            className={`ml-auto text-sm font-medium px-2.5 py-1 rounded-lg ${
+              filteredByRange
+                ? "bg-blue-100 text-blue-700"
+                : "bg-gray-100 text-gray-500"
+            }`}
+            title={filteredByRange ? "Đang lọc theo khoảng ngày đã chọn" : ""}
+          >
             {staff.length}
           </span>
         </div>
+        {filteredByRange && (
+          <p className="text-xs text-blue-600 mb-2">
+            Chỉ hiển thị nhân viên chưa có ca (rảnh) trong khoảng ngày đã chọn
+          </p>
+        )}
 
         {/* Search */}
         <div className="relative">
@@ -166,7 +178,11 @@ function StaffSidebar({ staff, loading, onRetry }) {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <User className="w-10 h-10 text-gray-200 mb-2" />
-            <p className="text-sm text-gray-500">Không tìm thấy nhân viên</p>
+            <p className="text-sm text-gray-500">
+              {filteredByRange
+                ? "Tất cả nhân viên đều đã có ca trong khoảng này"
+                : "Không tìm thấy nhân viên"}
+            </p>
           </div>
         ) : (
           filtered.map((s) => (
