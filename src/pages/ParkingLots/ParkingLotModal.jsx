@@ -1,5 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { createPortal } from "react-dom";
+import { format, parse } from "date-fns";
+import {
+  X,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import parkingLotService from "../../services/parkingLotService";
 import gateService from "../../services/gateService";
@@ -59,6 +68,52 @@ const toPercent = (v) =>
   v == null ? null : v <= 1 ? Math.round(v * 100) : Math.round(v);
 const toDecimal = (v) =>
   v == null ? null : v > 1 ? parseFloat((v / 100).toFixed(4)) : parseFloat(v);
+
+/** Input ngày hiển thị theo format dd/mm/yyyy (ngày/tháng/năm) */
+function DateInputDDMMYYYY({ label, optionalLabel, value, min, onChange }) {
+  const displayValue =
+    value && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? (() => {
+          try {
+            const d = parse(value, "yyyy-MM-dd", new Date());
+            return format(d, "dd/MM/yyyy");
+          } catch {
+            return value;
+          }
+        })()
+      : "";
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label}
+        {optionalLabel && (
+          <span className="ml-1 text-gray-400 text-xs font-normal">
+            {optionalLabel}
+          </span>
+        )}
+      </label>
+      <div className="relative">
+        <div
+          className={`input flex items-center gap-2 min-h-[42px] ${
+            displayValue ? "text-gray-900" : "text-gray-400"
+          }`}
+        >
+          <span>{displayValue || "dd/mm/yyyy"}</span>
+          <Calendar className="w-4 h-4 text-gray-400 ml-auto flex-shrink-0" />
+        </div>
+        <input
+          type="date"
+          value={value}
+          min={min}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          aria-label={label}
+        />
+      </div>
+    </div>
+  );
+}
 
 function ParkingLotModal({ lot, onClose, onSave }) {
   const [loading, setLoading] = useState(!!lot);
@@ -586,11 +641,11 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   const ErrMsg = ({ k }) =>
     errors[k] ? <p className="text-red-500 text-xs mt-1">{errors[k]}</p> : null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-auto flex flex-col max-h-[90vh] overflow-hidden">
+        {/* Header - cố định */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
             {lot ? "Chỉnh sửa bãi đỗ" : "Thêm bãi đỗ mới"}
           </h2>
@@ -610,7 +665,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="p-6 space-y-6 max-h-[80vh] overflow-y-auto"
+            className="p-6 space-y-6 flex-1 min-h-0 overflow-y-auto"
           >
             {/* ══ SECTION 1: Lot info ══════════════════════════════════════ */}
             <section className="border-b pb-5">
@@ -747,22 +802,12 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                 )}
 
                 {/* Activation date */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày kích hoạt dự kiến
-                    <span className="ml-1 text-gray-400 text-xs font-normal">
-                      (tùy chọn)
-                    </span>
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.scheduledActivationDate}
-                    onChange={(e) =>
-                      setField("scheduledActivationDate", e.target.value)
-                    }
-                    className="input"
-                  />
-                </div>
+                <DateInputDDMMYYYY
+                  label="Ngày kích hoạt dự kiến"
+                  optionalLabel="(tùy chọn)"
+                  value={formData.scheduledActivationDate}
+                  onChange={(v) => setField("scheduledActivationDate", v)}
+                />
               </div>
             </section>
 
@@ -1196,7 +1241,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

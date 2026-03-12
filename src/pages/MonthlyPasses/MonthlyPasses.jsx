@@ -8,7 +8,8 @@ import {
   RefreshCw,
   Edit,
   Trash2,
-  Filter,
+  PowerOff,
+  Power,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import monthlyPassService from "../../services/monthlyPassService";
@@ -27,6 +28,7 @@ function MonthlyPasses() {
     open: false,
     pkg: null,
   });
+  const [togglingId, setTogglingId] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -69,6 +71,27 @@ function MonthlyPasses() {
   }, []);
 
   const handleDelete = (pkg) => setConfirmDelete({ open: true, pkg });
+
+  const handleToggleActive = async (pkg) => {
+    const pkgId = pkg?.id ?? pkg?.packageId;
+    if (!pkgId) return;
+    const newActive = !(pkg.isActive !== false);
+    setTogglingId(pkgId);
+    try {
+      await monthlyPassService.update(pkgId, { isActive: newActive });
+      toast.success(
+        newActive ? "Đã kích hoạt gói vé tháng" : "Đã vô hiệu hóa gói vé tháng",
+      );
+      fetchData();
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message ??
+          "Không thể cập nhật trạng thái gói vé tháng",
+      );
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const handleConfirmDelete = async () => {
     const pkg = confirmDelete.pkg;
@@ -209,6 +232,28 @@ function MonthlyPasses() {
                     {pkg.isActive !== false ? "Đang bán" : "Tạm dừng"}
                   </span>
                   <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleToggleActive(pkg)}
+                      disabled={togglingId === (pkg?.id ?? pkg?.packageId)}
+                      className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                        pkg.isActive !== false
+                          ? "text-amber-600 hover:bg-amber-50"
+                          : "text-emerald-600 hover:bg-emerald-50"
+                      }`}
+                      title={
+                        pkg.isActive !== false
+                          ? "Vô hiệu hóa gói"
+                          : "Kích hoạt gói"
+                      }
+                    >
+                      {togglingId === (pkg?.id ?? pkg?.packageId) ? (
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      ) : pkg.isActive !== false ? (
+                        <PowerOff className="w-5 h-5" />
+                      ) : (
+                        <Power className="w-5 h-5" />
+                      )}
+                    </button>
                     <button
                       onClick={() => setEditingPkg(pkg)}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

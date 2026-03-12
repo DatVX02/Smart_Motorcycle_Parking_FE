@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { format, parse } from "date-fns";
 import {
   X,
   Calendar,
@@ -84,6 +86,50 @@ function getInitials(name = "") {
     .map((n) => n[0] ?? "")
     .join("")
     .toUpperCase();
+}
+
+/** Input ngày hiển thị theo format dd/mm/yyyy (ngày/tháng/năm) */
+function DateInputDDMMYYYY({ label, value, min, onChange, placeholder }) {
+  const displayValue =
+    value && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? (() => {
+          try {
+            const d = parse(value, "yyyy-MM-dd", new Date());
+            return format(d, "dd/MM/yyyy");
+          } catch {
+            return value;
+          }
+        })()
+      : "";
+
+  return (
+    <div>
+      <label className="text-xs font-semibold text-gray-600 mb-1.5 block flex items-center gap-1">
+        <Calendar className="w-3.5 h-3.5" />
+        {label}
+      </label>
+      <div className="relative">
+        {/* Hiển thị format dd/mm/yyyy */}
+        <div
+          className={`w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm flex items-center gap-2 bg-white min-h-[42px] ${
+            displayValue ? "text-slate-800" : "text-slate-400"
+          }`}
+        >
+          <span>{displayValue || placeholder}</span>
+          <Calendar className="w-4 h-4 text-slate-400 ml-auto flex-shrink-0" />
+        </div>
+        {/* Input date phủ lên - click để mở date picker */}
+        <input
+          type="date"
+          value={value}
+          min={min}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          aria-label={label}
+        />
+      </div>
+    </div>
+  );
 }
 
 /** Chuyển "HH:mm" thành số phút từ 0h (vd: "06:30" → 390) */
@@ -557,9 +603,9 @@ function CreateShiftModal({
     }
   })();
 
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl ring-1 ring-slate-200/60 w-full max-w-md overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl ring-1 ring-slate-200/60 w-full max-w-md overflow-hidden my-auto">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
           <div
@@ -652,19 +698,13 @@ function CreateShiftModal({
 
           {/* End date - bulk only */}
           {tab === "bulk" && (
-            <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1.5 block flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                Đến ngày
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                min={date}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-shadow"
-              />
-            </div>
+            <DateInputDDMMYYYY
+              label="Đến ngày"
+              value={endDate}
+              min={date}
+              onChange={setEndDate}
+              placeholder="dd/mm/yyyy"
+            />
           )}
 
           {/* Days of week - bulk only */}
@@ -892,7 +932,8 @@ function CreateShiftModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

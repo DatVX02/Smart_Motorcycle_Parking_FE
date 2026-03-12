@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -642,14 +643,6 @@ function Shifts() {
               </div>
             )}
 
-            <button
-              onClick={() => setShowBulkAssign(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-xl text-xs font-semibold hover:bg-violet-700"
-            >
-              <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Gán nhóm</span>
-            </button>
-
             {/* [ĐÃ SỬA] Thay đổi UI nút Toggle Xóa nhiều để tinh tế hơn */}
             <button
               onClick={() => {
@@ -1057,10 +1050,10 @@ function ShiftDetailPopup({ shift, parkingLots, onClose, onDelete, onEdit }) {
     }
   };
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden my-auto">
           <div className="h-1.5" style={{ background: barColor }} />
 
           {/* Header */}
@@ -1223,7 +1216,8 @@ function ShiftDetailPopup({ shift, parkingLots, onClose, onDelete, onEdit }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </>,
+    document.body
   );
 }
 

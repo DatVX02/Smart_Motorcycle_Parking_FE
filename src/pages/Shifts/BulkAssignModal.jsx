@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Users, MapPin, Clock, Calendar, Check, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import workShiftService from "../../services/workShiftService";
@@ -254,9 +255,9 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col my-auto">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
           <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -547,7 +548,8 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
