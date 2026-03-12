@@ -1,17 +1,35 @@
 import { useState, useEffect } from "react";
-import { X, MapPin, Package, FileText, Calendar, DollarSign } from "lucide-react";
+import {
+  X,
+  MapPin,
+  Package,
+  FileText,
+  Calendar,
+  DollarSign,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import monthlyPassService from "../../services/monthlyPassService";
 import parkingLotService from "../../services/parkingLotService";
 
-function CreateMonthlyPassModal({ onClose, onSuccess, parkingLots, editingPkg }) {
+function CreateMonthlyPassModal({
+  onClose,
+  onSuccess,
+  parkingLots,
+  editingPkg,
+}) {
   const isEdit = !!editingPkg;
-  const [lotId, setLotId] = useState(editingPkg?.lotId ?? editingPkg?._lotId ?? "");
-  const [packageName, setPackageName] = useState(editingPkg?.packageName ?? editingPkg?.name ?? "");
+  const [lotId, setLotId] = useState(
+    editingPkg?.lotId ?? editingPkg?._lotId ?? "",
+  );
+  const [packageName, setPackageName] = useState(
+    editingPkg?.packageName ?? editingPkg?.name ?? "",
+  );
   const [description, setDescription] = useState(editingPkg?.description ?? "");
   const [monthCount, setMonthCount] = useState(editingPkg?.monthCount ?? 1);
   const [price, setPrice] = useState(
-    editingPkg?.price != null ? parseInt(editingPkg.price, 10).toLocaleString("vi-VN") : "",
+    editingPkg?.price != null
+      ? parseInt(editingPkg.price, 10).toLocaleString("vi-VN")
+      : "",
   );
   const [loading, setLoading] = useState(false);
   const [lotOptions, setLotOptions] = useState([]);
@@ -23,7 +41,9 @@ function CreateMonthlyPassModal({ onClose, onSuccess, parkingLots, editingPkg })
       setDescription(editingPkg.description ?? "");
       setMonthCount(editingPkg.monthCount ?? 1);
       setPrice(
-        editingPkg.price != null ? parseInt(editingPkg.price, 10).toLocaleString("vi-VN") : "",
+        editingPkg.price != null
+          ? parseInt(editingPkg.price, 10).toLocaleString("vi-VN")
+          : "",
       );
     }
   }, [editingPkg]);
@@ -48,7 +68,9 @@ function CreateMonthlyPassModal({ onClose, onSuccess, parkingLots, editingPkg })
           if (!cancelled) setLotOptions([]);
         }
       })();
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     }
   }, [parkingLots, lotId, isEdit]);
 
@@ -84,8 +106,9 @@ function CreateMonthlyPassModal({ onClose, onSuccess, parkingLots, editingPkg })
 
     setLoading(true);
     try {
-      if (isEdit && editingPkg?.id) {
-        await monthlyPassService.update(editingPkg.id, payload);
+      const pkgId = editingPkg?.id ?? editingPkg?.packageId;
+      if (isEdit && pkgId) {
+        await monthlyPassService.update(pkgId, payload);
         toast.success("Đã cập nhật gói vé tháng thành công");
       } else {
         await monthlyPassService.create(payload);
@@ -98,7 +121,9 @@ function CreateMonthlyPassModal({ onClose, onSuccess, parkingLots, editingPkg })
         err?.response?.data?.message ??
         err?.response?.data?.title ??
         err?.message ??
-        (isEdit ? "Không thể cập nhật gói vé tháng" : "Không thể tạo gói vé tháng");
+        (isEdit
+          ? "Không thể cập nhật gói vé tháng"
+          : "Không thể tạo gói vé tháng");
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -129,7 +154,9 @@ function CreateMonthlyPassModal({ onClose, onSuccess, parkingLots, editingPkg })
               {isEdit ? "Cập nhật gói vé tháng" : "Tạo gói vé tháng"}
             </h2>
             <p className="text-sm text-gray-500">
-              {isEdit ? "Chỉnh sửa thông tin gói ưu đãi" : "Thêm gói ưu đãi mới cho bãi đỗ xe"}
+              {isEdit
+                ? "Chỉnh sửa thông tin gói ưu đãi"
+                : "Thêm gói ưu đãi mới cho bãi đỗ xe"}
             </p>
           </div>
           <button
@@ -201,10 +228,10 @@ function CreateMonthlyPassModal({ onClose, onSuccess, parkingLots, editingPkg })
               </label>
               <input
                 type="number"
-                min={1}
-                max={24}
                 value={monthCount}
-                onChange={(e) => setMonthCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                onChange={(e) =>
+                  setMonthCount(Math.max(1, parseInt(e.target.value, 10) || 1))
+                }
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
@@ -239,9 +266,24 @@ function CreateMonthlyPassModal({ onClose, onSuccess, parkingLots, editingPkg })
             >
               {loading ? (
                 <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  <svg
+                    className="w-4 h-4 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    />
                   </svg>
                   {isEdit ? "Đang cập nhật..." : "Đang tạo..."}
                 </>

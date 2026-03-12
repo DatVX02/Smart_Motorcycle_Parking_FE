@@ -316,22 +316,6 @@ function Shifts() {
 
   const todayStr = new Date().toISOString().split("T")[0];
 
-  const handleRangeSelect = useCallback((selectInfo) => {
-    const tomorrowDate = new Date();
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    tomorrowDate.setHours(0, 0, 0, 0);
-    if (selectInfo.start < tomorrowDate) {
-      selectInfo.view.calendar.unselect();
-      toast.error("Chỉ được chia lịch từ ngày mai trở đi");
-      return;
-    }
-    const endExclusive = new Date(selectInfo.endStr + "T00:00:00");
-    endExclusive.setDate(endExclusive.getDate() - 1);
-    const endStr = `${endExclusive.getFullYear()}-${String(endExclusive.getMonth() + 1).padStart(2, "0")}-${String(endExclusive.getDate()).padStart(2, "0")}`;
-    setSelectedRange({ start: selectInfo.startStr, end: endStr });
-    selectInfo.view.calendar.unselect();
-  }, []);
-
   const clearRange = () => setSelectedRange(null);
 
   const sensors = useSensors(
@@ -399,14 +383,14 @@ function Shifts() {
       toast.error("Chỉ được chia lịch từ ngày mai trở đi");
       return;
     }
-    const range = selectedRange;
+    // Click vào 1 ô ngày = luôn mở modal tạo ca đơn (single)
     setSelectedRange(null);
     setCreateModal({
       staff: null,
-      date: range?.start ?? info.dateStr,
+      date: info.dateStr,
       lotId,
-      endDate: range?.end ?? null,
-      useRange: !!range,
+      endDate: null,
+      useRange: false,
     });
   };
 
@@ -471,6 +455,53 @@ function Shifts() {
       ),
     [allStaff],
   );
+
+  const handleRangeSelect = useCallback(
+    (selectInfo) => {
+      const tomorrowDate = new Date();
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      tomorrowDate.setHours(0, 0, 0, 0);
+
+      const endExclusive = new Date(selectInfo.endStr + "T00:00:00");
+      endExclusive.setDate(endExclusive.getDate() - 1);
+      const endStr = `${endExclusive.getFullYear()}-${String(endExclusive.getMonth() + 1).padStart(2, "0")}-${String(endExclusive.getDate()).padStart(2, "0")}`;
+      const startStr = selectInfo.startStr;
+
+      if (isMultiDeleteMode) {
+        // Chế độ xóa nhiều: chọn tất cả ca trong khoảng ngày
+        const allShifts = Object.values(shiftsByLot).flat();
+        const idsToAdd = new Set();
+        for (const shift of allShifts) {
+          if (inactiveStaffIds.has(String(shift.staffId ?? shift.StaffId ?? "")))
+            continue;
+          const date = (shift.shiftDate ?? shift.workDate ?? shift.date ?? "")
+            .split("T")[0];
+          if (date && date >= startStr && date <= endStr) {
+            idsToAdd.add(
+              String(shift.shiftId ?? shift.ShiftId ?? shift.id ?? ""),
+            );
+          }
+        }
+        setSelectedShiftIds((prev) => new Set([...prev, ...idsToAdd]));
+        selectInfo.view.calendar.unselect();
+        return;
+      }
+
+      if (selectInfo.start < tomorrowDate) {
+        selectInfo.view.calendar.unselect();
+        toast.error("Chỉ được chia lịch từ ngày mai trở đi");
+        return;
+      }
+      setSelectedRange({ start: startStr, end: endStr });
+      selectInfo.view.calendar.unselect();
+    },
+    [
+      isMultiDeleteMode,
+      shiftsByLot,
+      inactiveStaffIds,
+    ],
+  );
+
   const activeStaffForSidebar = useMemo(
     () => allStaff.filter((s) => s.isActive !== false),
     [allStaff],
@@ -482,6 +513,26 @@ function Shifts() {
       (s) => !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
     );
   }, [shiftsByLot, inactiveStaffIds]);
+
+  // Khi chọn range ngày: chỉ hiển thị staff KHÔNG có ca trong khoảng đó (rảnh để gán)
+  const sidebarStaff = useMemo(() => {
+    if (!selectedRange) return activeStaffForSidebar;
+    const { start, end } = selectedRange;
+    const staffIdsWithShiftsInRange = new Set();
+    for (const shift of allShiftsArray) {
+      const date = (shift.shiftDate ?? shift.workDate ?? shift.date ?? "")
+        .split("T")[0];
+      if (date && date >= start && date <= end) {
+        staffIdsWithShiftsInRange.add(
+          String(shift.staffId ?? shift.StaffId ?? ""),
+        );
+      }
+    }
+    return activeStaffForSidebar.filter(
+      (s) =>
+        !staffIdsWithShiftsInRange.has(String(s.staffId ?? s.id ?? "")),
+    );
+  }, [selectedRange, activeStaffForSidebar, allShiftsArray]);
 
   const today = new Date().toISOString().split("T")[0];
   const todayShifts = allShiftsArray.filter(
@@ -622,12 +673,13 @@ function Shifts() {
           </div>
         </div>
 
-        <div className="flex flex-1 min-h-0 overflow-hidden">     
+        <div className="flex flex-1 min-h-0 overflow-hidden">
           <div className="hidden sm:block flex-shrink-0 h-full overflow-hidden">
             <StaffSidebar
-              staff={activeStaffForSidebar}
+              staff={sidebarStaff}
               loading={staffLoading}
               onRetry={loadStaff}
+              filteredByRange={!!selectedRange}
             />
           </div>
 
@@ -667,7 +719,6 @@ function Shifts() {
               </div>
             )}
 
-            
             {selectedRange && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-b border-blue-200 flex-shrink-0">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
@@ -820,10 +871,11 @@ function Shifts() {
                           week: "Tuần",
                         }}
                         eventDisplay="block"
-                        selectable={!isMultiDeleteMode}
+                        selectable={true}
                         selectMirror={true}
                         select={handleRangeSelect}
                         selectAllow={(selectInfo) => {
+                          if (isMultiDeleteMode) return true;
                           const tomorrow = new Date();
                           tomorrow.setDate(tomorrow.getDate() + 1);
                           tomorrow.setHours(0, 0, 0, 0);
@@ -858,7 +910,7 @@ function Shifts() {
                     </>
                   ) : (
                     <span className="text-sm font-medium text-gray-400 whitespace-nowrap">
-                      Bấm vào các ca trên lịch để chọn...
+                      Bấm vào ca hoặc kéo chọn khoảng ngày...
                     </span>
                   )}
                 </div>
