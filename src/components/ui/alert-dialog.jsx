@@ -1,20 +1,22 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const AlertDialog = ({ open, onOpenChange, children }) => {
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => onOpenChange?.(false)}
       />
-      <div className="relative z-10 w-full max-w-sm animate-in fade-in-0 zoom-in-95">
+      <div className="relative z-10 w-full max-w-sm animate-in fade-in-0 zoom-in-95 my-auto">
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
