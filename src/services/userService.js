@@ -1,6 +1,6 @@
 import apiClient from "../config/api";
 
-const BASE = "/api/User";
+const BASE = "/api/v1/users";
 
 const userService = {
 
