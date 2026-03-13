@@ -29,6 +29,15 @@ const workShiftService = {
   update: (id, payload) =>
     apiClient.put(`/api/v1/work-shifts/${id}`, payload).then(unwrap),
   delete: (id) => apiClient.delete(`/api/v1/work-shifts/${id}`),
+
+  getPendingShiftChangeRequests: () =>
+    apiClient
+      .get("/api/v1/work-shifts/shift-change-requests/pending")
+      .then(unwrap),
+  processShiftChangeRequest: (payload) =>
+    apiClient
+      .post("/api/v1/work-shifts/shift-change-requests/process", payload)
+      .then(unwrap),
 };
 
 export default workShiftService;

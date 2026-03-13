@@ -163,7 +163,13 @@ function AccountStaff() {
       closeModal();
     } catch (error) {
       console.error(error);
-      toast.error("Thêm nhân viên thất bại");
+      const msg =
+        error?.response?.data?.message ??
+        error?.response?.data?.title ??
+        error?.response?.data?.errors?.[0] ??
+        error?.message ??
+        "Thêm nhân viên thất bại";
+      toast.error(msg);
     }
   };
 
@@ -511,7 +517,7 @@ function AccountStaff() {
             </Form.Item>
           )}
 
-          <Form.Item label="Ảnh khuôn mặt" name="faceImageUrl">
+          <Form.Item label="Ảnh khuôn mặt">
             <Upload
               beforeUpload={handleBeforeUpload}
               maxCount={1}
