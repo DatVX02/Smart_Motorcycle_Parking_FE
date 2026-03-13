@@ -7,12 +7,7 @@ const staffService = {
     },
 
     createAccountStaff: (formData) => {
-        return apiClient.post(`${API_URL}/register`, formData, {
-            headers: {
-                "Content-Type": "multipart/form-data",
-                Authorization: "Bearer " + localStorage.getItem("access_token"),
-            },
-        });
+        return apiClient.post(`${API_URL}/register`, formData);
     },
 
     getStaffById: (id) => {
@@ -20,12 +15,7 @@ const staffService = {
     },
 
     updateStaff: (id, formData) => {
-        return apiClient.put(`${API_URL}/${id}`, formData, {
-            headers: {
-                "Content-Type": "multipart/form-data",
-                Authorization: "Bearer " + localStorage.getItem("access_token"),
-            }
-        });
+        return apiClient.put(`${API_URL}/${id}`, formData);
     },
 
     deleteStaff: (id) => {

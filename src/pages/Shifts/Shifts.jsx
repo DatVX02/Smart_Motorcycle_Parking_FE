@@ -29,6 +29,7 @@ import {
   Columns4,
   Maximize2,
   Edit,
+  Inbox,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -45,6 +46,7 @@ import toast from "react-hot-toast";
 import StaffSidebar from "./StaffSidebar";
 import CreateShiftModal from "./CreateShiftModal";
 import BulkAssignModal from "./BulkAssignModal";
+import PendingShiftChangeRequestsModal from "./PendingShiftChangeRequestsModal";
 import authService from "../../services/authService";
 import workShiftService from "../../services/workShiftService";
 import parkingLotService from "../../services/parkingLotService";
@@ -57,12 +59,14 @@ const SHIFT_COLORS = {
 };
 const STATUS_COLORS = {
   SCHEDULED: "#6B7280",
+  PENDING_CHANGE: "#F59E0B",
   IN_PROGRESS: "#3B82F6",
   COMPLETED: "#10B981",
   CANCELLED: "#EF4444",
 };
 const STATUS_LABELS = {
   SCHEDULED: "Đã lên lịch",
+  PENDING_CHANGE: "Chờ đổi ca",
   IN_PROGRESS: "Đang làm",
   COMPLETED: "Hoàn thành",
   CANCELLED: "Đã hủy",
@@ -218,6 +222,7 @@ function Shifts() {
   const [createModal, setCreateModal] = useState(null);
   const [detailShift, setDetailShift] = useState(null);
   const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [showPendingRequests, setShowPendingRequests] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [selectedRange, setSelectedRange] = useState(null);
@@ -643,6 +648,16 @@ function Shifts() {
               </div>
             )}
 
+            {/* Yêu cầu đổi ca chờ xử lý */}
+            <button
+              onClick={() => setShowPendingRequests(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all"
+              title="Xem yêu cầu đổi ca chờ xử lý"
+            >
+              <Inbox className="w-4 h-4" />
+              <span className="hidden sm:inline">Yêu cầu đổi ca</span>
+            </button>
+
             {/* [ĐÃ SỬA] Thay đổi UI nút Toggle Xóa nhiều để tinh tế hơn */}
             <button
               onClick={() => {
@@ -997,6 +1012,14 @@ function Shifts() {
           allStaff={activeStaffForSidebar}
           parkingLots={parkingLots}
           onClose={() => setShowBulkAssign(false)}
+          onSuccess={handleRefresh}
+        />
+      )}
+
+      {showPendingRequests && (
+        <PendingShiftChangeRequestsModal
+          parkingLots={parkingLots}
+          onClose={() => setShowPendingRequests(false)}
           onSuccess={handleRefresh}
         />
       )}
