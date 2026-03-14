@@ -1,263 +1,349 @@
-import { useState, useEffect } from "react";
-import {
-  Bike,
-  TrendingUp,
-  DollarSign,
-  Users,
-  AlertTriangle,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Activity,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bike, TrendingUp, AlertTriangle } from "lucide-react";
+import { useAdminHub } from "../../hooks/useAdminHub";
 import StatCard from "./StatCard";
-import RevenueChart from "./RevenueChart";
-import OccupancyChart from "./OccupancyChart";
-import PeakHoursChart from "./PeakHoursChart";
-import RecentTransactions from "./RecentTransactions";
-import RecentAlerts from "./RecentAlerts";
-import dashboardService from "../../services/dashboardService";
+import parkingLotService from "../../services/parkingLotService";
+import iotDeviceService from "../../services/iotDeviceService";
 
-function formatNumber(n) {
-  if (n == null || isNaN(n)) return "0";
-  return Number(n).toLocaleString("vi-VN");
-}
+export default function Dashboard() {
 
-function formatRevenue(n) {
-  if (n == null || isNaN(n)) return "0 VND";
-  const v = Number(n);
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M VND`;
-  if (v >= 1000) return `${(v / 1000).toFixed(1)}K VND`;
-  return `${v} VND`;
-}
+  const [lots, setLots] = useState([]);
+  const apiBaseUrl =
+    (import.meta?.env?.VITE_API_BASE_URL || "https://localhost:7015").replace(/\/+$/, "");
 
-function Dashboard() {
-  const [loading, setLoading] = useState(true);
-  const [revenue, setRevenue] = useState(null);
-  const [sessions, setSessions] = useState(null);
-  const [occupancy, setOccupancy] = useState(null);
-  const [peakHours, setPeakHours] = useState(null);
-  const [deviceHealth, setDeviceHealth] = useState(null);
+  const {
+    spotsMap,
+    occupancyMap,
+    deviceEvents,
+    sessionEvents,
+    hubStatus,
+    connectionId,
+    adminJoined
+  } = useAdminHub();
 
+  const [initialDeviceEvents, setInitialDeviceEvents] = useState([]);
+
+  // load parking lots
   useEffect(() => {
     let cancelled = false;
+    parkingLotService
+      .getAllParkingLots()
+      .then((items) => {
+        if (!cancelled) setLots(items ?? []);
+      })
+      .catch((err) => {
+        // 401 sẽ được interceptor trong `src/config/api.js` tự redirect /login
+        console.error(err);
+        if (!cancelled) setLots([]);
+      });
 
-    async function fetchAll() {
-      setLoading(true);
-      try {
-        const [revRes, sessRes, occRes, peakRes, healthRes] = await Promise.all(
-          [
-            dashboardService.getRevenue().catch(() => null),
-            dashboardService.getSessions().catch(() => null),
-            dashboardService.getOccupancy().catch(() => null),
-            dashboardService.getPeakHours().catch(() => null),
-            dashboardService.getDeviceHealth().catch(() => null),
-          ],
-        );
-
+    // load snapshot trạng thái thiết bị để không bị mất khi F5
+    iotDeviceService
+      .getAll()
+      .then((devices) => {
         if (cancelled) return;
-        setRevenue(revRes);
-        setSessions(sessRes);
-        setOccupancy(occRes);
-        setPeakHours(peakRes);
-        setDeviceHealth(healthRes);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
+        const snapshot = (devices ?? [])
+          .filter((d) => {
+            const status = (
+              d.status ??
+              d.connectionStatus ??
+              d.eventStatus ??
+              ""
+            )
+              .toString()
+              .toLowerCase();
+            return status !== "online";
+          })
+          .map((d) => ({
+            deviceId: d.deviceId ?? d.id,
+            status:
+              d.status ?? d.connectionStatus ?? d.eventStatus ?? "Unknown",
+            lotId: d.lotId ?? d.parkingLotId ?? null,
+            timestamp: d.lastUpdated ?? d.updatedAt ?? d.createdAt ?? null,
+            _source: "snapshot",
+          }));
+        setInitialDeviceEvents(snapshot);
+      })
+      .catch((err) => {
+        console.error("Load iot devices error:", err);
+        if (!cancelled) setInitialDeviceEvents([]);
+      });
 
-    fetchAll();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [apiBaseUrl]);
 
-  const revData = Array.isArray(revenue)
-    ? revenue
-    : (revenue?.data ?? revenue?.items ?? revenue?.revenueData ?? []);
-  const occData = Array.isArray(occupancy)
-    ? occupancy
-    : (occupancy?.data ?? occupancy?.items ?? occupancy?.occupancyData ?? []);
-  const peakData = Array.isArray(peakHours)
-    ? peakHours
-    : (peakHours?.data ?? peakHours?.items ?? peakHours?.peakHours ?? []);
+  // Tổng số chỗ trống (cộng tất cả các bãi, ưu tiên realtime)
+  const totalAvailableSpots = lots.reduce((sum, lot) => {
+    const rtAvailable = spotsMap[lot.lotId];
+    const available =
+      typeof rtAvailable === "number"
+        ? rtAvailable
+        : Math.max(
+          0,
+          (lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0) -
+          (lot.currentOccupancy ?? lot.occupiedSpots ?? 0),
+        );
+    return sum + available;
+  }, 0);
 
-  const currentOccupancy =
-    occupancy?.current ??
-    occupancy?.total ??
-    occupancy?.count ??
-    occupancy?.vehicles ??
-    sessions?.current ??
-    null;
-  const todayRevenue =
-    revenue?.today ?? revenue?.total ?? revenue?.todayRevenue ?? null;
-  const activeSessions =
-    sessions?.active ?? sessions?.sessions ?? sessions?.count ?? null;
-  const alertCount =
-    deviceHealth?.alertsCount ??
-    deviceHealth?.errors ??
-    deviceHealth?.offline ??
-    deviceHealth?.alerts?.length ??
-    null;
+  // Tỉ lệ lấp đầy TB: ưu tiên realtime, fallback API 
+  const hasRealtimeOcc = Object.values(occupancyMap).length > 0;
+  const avgOccupancyRealtime = hasRealtimeOcc
+    ? (
+      Object.values(occupancyMap).reduce((a, b) => a + b, 0) /
+      Object.values(occupancyMap).length
+    ).toFixed(1)
+    : null;
 
-  const todayIn =
-    sessions?.todayIn ?? sessions?.in ?? sessions?.inCount ?? null;
-  const todayOut =
-    sessions?.todayOut ?? sessions?.out ?? sessions?.outCount ?? null;
-  const avgParkingTime =
-    sessions?.avgParkingTime ??
-    sessions?.avgTime ??
-    sessions?.averageTime ??
-    null;
-  const recognitionErrors =
-    deviceHealth?.recognitionErrors ??
-    deviceHealth?.errors ??
-    deviceHealth?.errorCount ??
-    null;
+  const avgOccupancyFromApi = (() => {
+    if (lots.length === 0) return "0";
+    const totalCapacity = lots.reduce((sum, lot) => {
+      const total = lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0;
+      return sum + (total || 0);
+    }, 0);
+    if (totalCapacity === 0) return "0";
+    const totalOccupied = lots.reduce((sum, lot) => {
+      const occupied = lot.currentOccupancy ?? lot.occupiedSpots ?? 0;
+      return sum + (occupied || 0);
+    }, 0);
+    const pct = (totalOccupied / totalCapacity) * 100;
+    return pct.toFixed(1);
+  })();
+
+  const avgOccupancy = avgOccupancyRealtime ?? avgOccupancyFromApi;
+
+  const mergedDeviceEvents = [
+    ...initialDeviceEvents,
+    ...deviceEvents,
+  ].slice(0, 50);
 
   const stats = [
     {
-      title: "Tổng xe đang đỗ",
-      value: loading ? "—" : formatNumber(currentOccupancy ?? 142),
-      change: "+12%",
+      title: "Tổng chỗ trống",
+      value: totalAvailableSpots || "0",
       icon: Bike,
-      color: "bg-blue-500",
-      trend: "up",
+      color: "bg-blue-500"
     },
     {
-      title: "Doanh thu hôm nay",
-      value: loading
-        ? "—"
-        : todayRevenue != null
-          ? formatRevenue(todayRevenue)
-          : "12.5M VNĐ",
-      change: "+8.2%",
-      icon: DollarSign,
-      color: "bg-green-500",
-      trend: "up",
-    },
-    {
-      title: "Người dùng hoạt động",
-      value: loading ? "—" : formatNumber(activeSessions ?? 1248),
-      change: "+23%",
-      icon: Users,
-      color: "bg-purple-500",
-      trend: "up",
-    },
-    {
-      title: "Cảnh báo",
-      value: loading ? "—" : formatNumber(alertCount ?? 3),
-      change: "-2",
-      icon: AlertTriangle,
-      color: "bg-orange-500",
-      trend: "down",
-    },
-  ];
-
-  const quickStats = [
-    {
-      label: "Xe vào hôm nay",
-      value: loading ? "—" : formatNumber(todayIn ?? 324),
+      title: "Tỉ lệ lấp đầy TB",
+      value: avgOccupancy + "%",
       icon: TrendingUp,
-      color: "text-emerald-600",
-      bg: "bg-emerald-50",
-      border: "border-emerald-100",
+      color: "bg-green-500"
     },
     {
-      label: "Xe ra hôm nay",
-      value: loading ? "—" : formatNumber(todayOut ?? 289),
-      icon: CheckCircle,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-      border: "border-blue-100",
-    },
-    {
-      label: "Thời gian đỗ TB",
-      value: loading
-        ? "—"
-        : avgParkingTime != null
-          ? `${avgParkingTime}h`
-          : "2.5h",
-      icon: Clock,
-      color: "text-violet-600",
-      bg: "bg-violet-50",
-      border: "border-violet-100",
-    },
-    {
-      label: "Lỗi nhận dạng",
-      value: loading ? "—" : formatNumber(recognitionErrors ?? 5),
-      icon: XCircle,
-      color: "text-rose-600",
-      bg: "bg-rose-50",
-      border: "border-rose-100",
-    },
+      title: "Thiết bị lỗi",
+      value: mergedDeviceEvents.filter(e => {
+        const status = (e.status ?? e.eventStatus ?? "").toString().toLowerCase();
+        return status !== "online";
+      }).length,
+      icon: AlertTriangle,
+      color: "bg-orange-500"
+    }
   ];
-
-  const recentTransactions =
-    sessions?.recentTransactions ??
-    sessions?.transactions ??
-    revenue?.recentTransactions ??
-    [];
-  const recentAlerts = deviceHealth?.alerts ?? deviceHealth?.recentAlerts ?? [];
 
   return (
+
+
     <div className="space-y-8">
-      {/* Main Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
         {stats.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
+
       </div>
 
-      {/* Quick Stats */}
-      <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-        <div className="mb-5 flex items-center gap-2">
-          <Activity className="h-5 w-5 text-slate-600" />
-          <h2 className="text-lg font-semibold text-slate-900">
-            Thống kê nhanh
+      {lots.length > 0 && (
+        <div className="bg-white p-6 rounded-xl shadow">
+          <h2 className="text-xl font-semibold mb-4">
+            Chi tiết chỗ trống theo từng bãi
           </h2>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {quickStats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={index}
-                className={`flex items-center gap-4 rounded-xl border p-4 transition-all hover:shadow-md ${stat.bg} ${stat.border}`}
-              >
-                <div className="rounded-xl bg-white/80 p-3 shadow-sm">
-                  <Icon className={`h-6 w-6 ${stat.color}`} />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {stat.value}
-                  </p>
-                  <p className="text-sm text-slate-600">{stat.label}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {lots.map(lot => {
+              const rtAvailable = spotsMap[lot.lotId];
+              const available =
+                typeof rtAvailable === "number"
+                  ? rtAvailable
+                  : Math.max(
+                    0,
+                    (lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0) -
+                    (lot.currentOccupancy ?? lot.occupiedSpots ?? 0),
+                  );
+              const rtOccPct = occupancyMap[lot.lotId];
+              const occPct =
+                typeof rtOccPct === "number"
+                  ? rtOccPct
+                  : (() => {
+                    const total =
+                      lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0;
+                    const occupied =
+                      lot.currentOccupancy ?? lot.occupiedSpots ?? 0;
+                    if (!total) return 0;
+                    return (occupied / total) * 100;
+                  })();
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RevenueChart data={revData} loading={loading} />
-        <OccupancyChart data={occData} loading={loading} />
-      </div>
-
-      {/* Peak Hours */}
-      {(peakData.length > 0 || loading) && (
-        <PeakHoursChart data={peakData} loading={loading} />
+              return (
+                <div
+                  key={lot.lotId}
+                  className="border rounded-lg p-4 flex flex-col gap-1"
+                >
+                  <div className="font-semibold">{lot.lotName}</div>
+                  <div className="text-sm text-gray-600">
+                    Tổng chỗ:{" "}
+                    {lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Đang dùng:{" "}
+                    {Math.max(
+                      0,
+                      (lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0) -
+                      available,
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-900">
+                    Chỗ trống: <span className="font-medium">{available}</span>
+                  </div>
+                  <div className="text-sm text-gray-900">
+                    Lấp đầy:{" "}
+                    <span className="font-medium">
+                      {occPct.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RecentTransactions data={recentTransactions} loading={loading} />
-        <RecentAlerts data={recentAlerts} loading={loading} />
-      </div>
-    </div>
-  );
-}
+      {/* <div className="bg-white p-6 rounded-xl shadow">
 
-export default Dashboard;
+        <h2 className="text-xl font-semibold mb-4">
+          Trạng thái bãi xe
+        </h2>
+
+        {lots.length === 0 ? (
+
+          <p className="text-gray-400">
+            Đang tải dữ liệu...
+          </p>
+
+        ) : (
+
+          <div className="space-y-3">
+
+            {lots.map(lot => (
+
+              <div
+                key={lot.lotId}
+                className="flex justify-between border-b pb-2"
+              >
+
+                <span className="font-medium">
+                  {lot.lotName}
+                </span>
+
+                <span>
+                  Chỗ trống:{" "}
+                  {spotsMap[lot.lotId] ?? Math.max(0, (lot.totalCapacity ?? 0) - (lot.currentOccupancy ?? 0))}
+                </span>
+
+                <span>
+                  Lấp đầy:{" "}
+                  {occupancyMap[lot.lotId] != null
+                    ? occupancyMap[lot.lotId].toFixed(1)
+                    : "0"}
+                  %
+                </span>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        )}
+
+      </div> */}
+
+      <div className="bg-white p-6 rounded-xl shadow">
+
+        <h2 className="text-xl font-semibold mb-4">
+          Hoạt động gần đây
+        </h2>
+
+        {sessionEvents.length === 0 ? (
+
+          <p className="text-gray-400">
+            Chưa có hoạt động
+          </p>
+
+        ) : (
+
+          <div className="space-y-2">
+
+            {sessionEvents.slice(0, 10).map((e, i) => (
+
+              <p key={i} className="text-sm">
+
+                [{e.lotId}] Xe <b>{e.status ?? e.sessionStatus}</b> lúc{" "}
+                {new Date(e.timestamp).toLocaleTimeString()}
+
+              </p>
+
+            ))}
+
+          </div>
+
+        )}
+
+      </div>
+
+      <div className="bg-white p-6 rounded-xl shadow">
+
+        <h2 className="text-xl font-semibold mb-4">
+          Cảnh báo thiết bị
+        </h2>
+
+        {mergedDeviceEvents.filter(e => {
+          const status = (e.status ?? e.eventStatus ?? "").toString().toLowerCase();
+          return status !== "online";
+        }).length === 0 ? (
+
+          <p className="text-green-600">
+            Tất cả thiết bị hoạt động bình thường
+          </p>
+
+        ) : (
+
+          <div className="space-y-2">
+
+            {mergedDeviceEvents
+              .filter(e => {
+                const status = (e.status ?? e.eventStatus ?? "").toString().toLowerCase();
+                return status !== "online";
+              })
+              .map((e, i) => (
+
+                <p key={i} className="text-red-600">
+
+                  Thiết bị {e.deviceId}: {e.status ?? e.eventStatus}
+
+                </p>
+
+              ))}
+
+          </div>
+
+        )}
+
+      </div>
+
+    </div>
+
+
+  );
+
+}
