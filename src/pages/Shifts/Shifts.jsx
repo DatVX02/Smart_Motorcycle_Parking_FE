@@ -260,6 +260,41 @@ function Shifts() {
     if (parkingLots.length > 0) loadAllShifts(parkingLots);
   }, [parkingLots, refreshKey]);
 
+  // Tự động xóa ca trực đã qua (ngày < hôm nay) khi load trang
+  const cleanupPastShiftsRef = useRef(false);
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const allShifts = Object.values(shiftsByLot).flat();
+    const pastShifts = allShifts.filter((s) => {
+      const date = (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0];
+      return date && date < today;
+    });
+    if (pastShifts.length === 0) return;
+    if (cleanupPastShiftsRef.current) return;
+
+    cleanupPastShiftsRef.current = true;
+    const ids = pastShifts
+      .map((s) => s.shiftId ?? s.ShiftId ?? s.id)
+      .filter(Boolean);
+    const BATCH_SIZE = 10;
+    (async () => {
+      try {
+        for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+          const batch = ids.slice(i, i + BATCH_SIZE);
+          await Promise.all(batch.map((id) => workShiftService.delete(id)));
+        }
+        toast.success(`Đã xóa ${ids.length} ca trực đã qua`);
+        setRefreshKey((k) => k + 1);
+      } catch (err) {
+        toast.error(
+          err?.response?.data?.message ?? err?.message ?? "Xóa ca cũ thất bại",
+        );
+      } finally {
+        cleanupPastShiftsRef.current = false;
+      }
+    })();
+  }, [shiftsByLot]);
+
   const loadStaff = async () => {
     setStaffLoading(true);
     try {
