@@ -75,7 +75,14 @@ const SHIFT_TYPE_LABELS = {
   Morning: "Ca sáng",
   Afternoon: "Ca chiều",
   Night: "Ca đêm",
+  FullDay: "Cả ngày",
 };
+const LEGEND_ITEMS = [
+  { type: "MORNING", label: "Ca sáng", color: SHIFT_COLORS.MORNING },
+  { type: "AFTERNOON", label: "Ca chiều", color: SHIFT_COLORS.AFTERNOON },
+  { type: "NIGHT", label: "Ca đêm", color: SHIFT_COLORS.NIGHT },
+  { type: "FULL_DAY", label: "Cả ngày", color: SHIFT_COLORS.FULL_DAY },
+];
 const AVATAR_COLORS = [
   "bg-blue-500",
   "bg-emerald-500",
@@ -478,10 +485,16 @@ function Shifts() {
         const allShifts = Object.values(shiftsByLot).flat();
         const idsToAdd = new Set();
         for (const shift of allShifts) {
-          if (inactiveStaffIds.has(String(shift.staffId ?? shift.StaffId ?? "")))
+          if (
+            inactiveStaffIds.has(String(shift.staffId ?? shift.StaffId ?? ""))
+          )
             continue;
-          const date = (shift.shiftDate ?? shift.workDate ?? shift.date ?? "")
-            .split("T")[0];
+          const date = (
+            shift.shiftDate ??
+            shift.workDate ??
+            shift.date ??
+            ""
+          ).split("T")[0];
           if (date && date >= startStr && date <= endStr) {
             idsToAdd.add(
               String(shift.shiftId ?? shift.ShiftId ?? shift.id ?? ""),
@@ -501,11 +514,7 @@ function Shifts() {
       setSelectedRange({ start: startStr, end: endStr });
       selectInfo.view.calendar.unselect();
     },
-    [
-      isMultiDeleteMode,
-      shiftsByLot,
-      inactiveStaffIds,
-    ],
+    [isMultiDeleteMode, shiftsByLot, inactiveStaffIds],
   );
 
   const activeStaffForSidebar = useMemo(
@@ -526,8 +535,12 @@ function Shifts() {
     const { start, end } = selectedRange;
     const staffIdsWithShiftsInRange = new Set();
     for (const shift of allShiftsArray) {
-      const date = (shift.shiftDate ?? shift.workDate ?? shift.date ?? "")
-        .split("T")[0];
+      const date = (
+        shift.shiftDate ??
+        shift.workDate ??
+        shift.date ??
+        ""
+      ).split("T")[0];
       if (date && date >= start && date <= end) {
         staffIdsWithShiftsInRange.add(
           String(shift.staffId ?? shift.StaffId ?? ""),
@@ -535,8 +548,7 @@ function Shifts() {
       }
     }
     return activeStaffForSidebar.filter(
-      (s) =>
-        !staffIdsWithShiftsInRange.has(String(s.staffId ?? s.id ?? "")),
+      (s) => !staffIdsWithShiftsInRange.has(String(s.staffId ?? s.id ?? "")),
     );
   }, [selectedRange, activeStaffForSidebar, allShiftsArray]);
 
@@ -577,23 +589,44 @@ function Shifts() {
           <div className="flex flex-wrap gap-2">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700">
               <Calendar className="w-4 h-4" />
-              <span className="text-xs font-medium">Hôm nay:</span>
+              <span className="text-xs font-medium">Ca hôm nay:</span>
               <span className="text-sm font-bold">{todayShifts.length}</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 text-gray-700">
               <Clock className="w-4 h-4" />
-              <span className="text-xs font-medium">Đã lên lịch:</span>
+              <span className="text-xs font-medium">Ca đã lên lịch:</span>
               <span className="text-sm font-bold">{scheduledCount}</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700">
               <AlertCircle className="w-4 h-4" />
-              <span className="text-xs font-medium">Đang làm:</span>
+              <span className="text-xs font-medium">Ca đang trực:</span>
               <span className="text-sm font-bold">{inProgressCount}</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet-50 text-violet-700">
               <Users className="w-4 h-4" />
-              <span className="text-xs font-medium">Tổng ca:</span>
+              <span className="text-xs font-medium">Tổng ca trực:</span>
               <span className="text-sm font-bold">{allShiftsArray.length}</span>
+            </div>
+
+            {/* Bảng chú thích loại ca */}
+            <div className="hidden sm:flex items-center gap-3 pl-3 border-l border-gray-200">
+              <span className="text-xs font-medium text-gray-500">Chú thích:</span>
+              <div className="flex flex-wrap gap-2">
+                {LEGEND_ITEMS.map(({ label, color }) => (
+                  <div
+                    key={label}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-gray-100 bg-white/80"
+                  >
+                    <div
+                      className="w-3 h-3 rounded flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="text-xs font-medium text-gray-700">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -679,6 +712,23 @@ function Shifts() {
               </span>
             </button>
           </div>
+        </div>
+
+        {/* Bảng chú thích (mobile) */}
+        <div className="sm:hidden flex items-center gap-2 px-4 py-2 bg-gray-50/80 border-b border-gray-100 flex-wrap">
+          <span className="text-xs font-medium text-gray-500">Chú thích:</span>
+          {LEGEND_ITEMS.map(({ label, color }) => (
+            <div
+              key={label}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-gray-100"
+            >
+              <div
+                className="w-2.5 h-2.5 rounded"
+                style={{ backgroundColor: color }}
+              />
+              <span className="text-xs text-gray-600">{label}</span>
+            </div>
+          ))}
         </div>
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -1240,7 +1290,7 @@ function ShiftDetailPopup({ shift, parkingLots, onClose, onDelete, onEdit }) {
         </AlertDialogContent>
       </AlertDialog>
     </>,
-    document.body
+    document.body,
   );
 }
 
