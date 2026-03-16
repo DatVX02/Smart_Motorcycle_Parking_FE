@@ -11,6 +11,7 @@ import toast from "react-hot-toast";
 import ParkingLotModal from "./ParkingLotModal";
 import ParkingLotDetailModal from "./ParkingLotDetailModal";
 import parkingLotService from "../../services/parkingLotService";
+import { useAdminHub } from "../../hooks/useAdminHub";
 import gateService from "../../services/gateService";
 import iotDeviceService from "../../services/iotDeviceService";
 import { API_BASE_URL } from "../../config/api";
@@ -32,6 +33,9 @@ function ParkingLots() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [confirm, setConfirm] = useState({ open: false, lot: null });
+
+  const { spotsMap, occupancyMap, hubStatus, adminJoined, connectionId } =
+    useAdminHub();
 
   // Fetch parking lots on component mount
   useEffect(() => {
@@ -258,8 +262,14 @@ function ParkingLots() {
   return (
     <div className="space-y-10">
       {/* Header */}
-      <div className="flex justify-end items-center">
-        <div className="flex items-center gap-3">
+      <div className="flex justify-between items-center gap-4">
+        <div className="text-xs text-gray-400">
+          Realtime: <span className="font-medium">{hubStatus}</span>
+          {" "}· AdminGroup:{" "}
+          <span className="font-medium">{adminJoined ? "joined" : "not-joined"}</span>
+          {" "}· ConnId: <span className="font-mono">{connectionId ?? "—"}</span>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
           <button
             className="btn btn-primary flex items-center gap-3 rounded-2xl"
             onClick={handleAddNew}
@@ -331,11 +341,22 @@ function ParkingLots() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {parkingLots.map((lot) => {
+            const rtAvailable = spotsMap[lot.id];
+            const availableSpots =
+              typeof rtAvailable === "number"
+                ? rtAvailable
+                : lot.totalSpots - lot.occupiedSpots;
+            const rtOccupancyPct = occupancyMap[lot.id];
             const occupancyRate =
-              lot.totalSpots > 0
-                ? (lot.occupiedSpots / lot.totalSpots) * 100
-                : 0;
-            const availableSpots = lot.totalSpots - lot.occupiedSpots;
+              typeof rtOccupancyPct === "number"
+                ? rtOccupancyPct
+                : lot.totalSpots > 0
+                  ? (lot.occupiedSpots / lot.totalSpots) * 100
+                  : 0;
+            const occupiedSpots =
+              typeof rtAvailable === "number"
+                ? Math.max(0, lot.totalSpots - rtAvailable)
+                : lot.occupiedSpots;
             const statusMap = {
               active: { label: "Hoạt động", variant: "success" },
               inactive: { label: "Không hoạt động", variant: "destructive" },
@@ -418,6 +439,11 @@ function ParkingLots() {
                         val: availableSpots,
                         label: "Còn trống",
                         color: "text-green-600",
+                      },
+                      {
+                        val: occupiedSpots,
+                        label: "Đang dùng",
+                        color: "text-orange-600",
                       },
                       {
                         val: lot.gates,
