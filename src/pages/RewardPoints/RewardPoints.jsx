@@ -39,14 +39,24 @@ function RewardPoints() {
   const [showModal, setShowModal] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState(null);
 
-  const [confirmDelete, setConfirmDelete] = useState({ open: false, config: null });
+  const [confirmDelete, setConfirmDelete] = useState({
+    open: false,
+    config: null,
+  });
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+  const [toast, setToast] = useState({
+    show: false,
+    message: "",
+    type: "success",
+  });
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "success" }), 3000);
+    setTimeout(
+      () => setToast({ show: false, message: "", type: "success" }),
+      3000,
+    );
   };
 
   const fetchLots = useCallback(async () => {
@@ -67,7 +77,10 @@ function RewardPoints() {
       const data = await loyaltyConfigService.getAll(params);
       setConfigs(data);
     } catch (err) {
-      showToast(err?.response?.data?.message || "Không thể tải danh sách cấu hình.", "error");
+      showToast(
+        err?.response?.data?.message || "Không thể tải danh sách cấu hình.",
+        "error",
+      );
     } finally {
       setLoading(false);
     }
@@ -101,7 +114,10 @@ function RewardPoints() {
 
   const handleSave = async (payload) => {
     if (selectedConfig) {
-      await loyaltyConfigService.update(selectedConfig.id || selectedConfig.configId, payload);
+      await loyaltyConfigService.update(
+        selectedConfig.id || selectedConfig.configId,
+        payload,
+      );
       showToast("Cập nhật cấu hình thành công.");
     } else {
       await loyaltyConfigService.create(payload);
@@ -124,7 +140,10 @@ function RewardPoints() {
       setConfirmDelete({ open: false, config: null });
       fetchConfigs();
     } catch (err) {
-      showToast(err?.response?.data?.message || "Xóa thất bại, vui lòng thử lại.", "error");
+      showToast(
+        err?.response?.data?.message || "Xóa thất bại, vui lòng thử lại.",
+        "error",
+      );
     } finally {
       setDeleteLoading(false);
     }
@@ -146,37 +165,31 @@ function RewardPoints() {
       )}
 
       {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-        <div className="card">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Settings className="w-6 h-6 text-blue-600" />
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <Settings className="w-8 h-8 text-blue-600" />
             <div>
-              <p className="text-2xl font-bold text-gray-900">{configs.length}</p>
-              <p className="text-sm text-gray-600">Tổng cấu hình</p>
+              <p className="text-3xl font-bold">{configs.length}</p>
+              <p className="text-gray-500">Tổng cấu hình</p>
             </div>
           </div>
         </div>
-        <div className="card">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <CheckCircle className="w-8 h-8 text-green-600" />
             <div>
-              <p className="text-2xl font-bold text-gray-900">{activeCount}</p>
-              <p className="text-sm text-gray-600">Đang hoạt động</p>
+              <p className="text-3xl font-bold text-green-600">{activeCount}</p>
+              <p className="text-gray-500">Đang hoạt động</p>
             </div>
           </div>
         </div>
-        <div className="card">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <Award className="w-6 h-6 text-yellow-600" />
-            </div>
+        <div className="bg-white rounded-3xl p-8 shadow border">
+          <div className="flex items-center gap-5">
+            <Award className="w-8 h-8 text-yellow-500" />
             <div>
-              <p className="text-2xl font-bold text-gray-900">{lots.length}</p>
-              <p className="text-sm text-gray-600">Bãi đỗ xe</p>
+              <p className="text-3xl font-bold">{lots.length}</p>
+              <p className="text-gray-500">Bãi đỗ xe</p>
             </div>
           </div>
         </div>
@@ -194,7 +207,9 @@ function RewardPoints() {
               className="btn btn-secondary btn-sm flex items-center space-x-1"
               disabled={loading}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+              />
               <span>Làm mới</span>
             </button>
             <button
@@ -249,16 +264,18 @@ function RewardPoints() {
             <div className="flex flex-col items-center justify-center py-16 text-gray-400">
               <Award className="w-12 h-12 mb-3" />
               <p className="text-base font-medium">Chưa có cấu hình nào</p>
-              <p className="text-sm">Nhấn &quot;Thêm mới&quot; để tạo cấu hình điểm thưởng đầu tiên.</p>
+              <p className="text-sm">
+                Nhấn &quot;Thêm mới&quot; để tạo cấu hình điểm thưởng đầu tiên.
+              </p>
             </div>
           ) : (
             <table className="table">
               <thead className="table-header">
                 <tr>
                   <th className="table-header-cell">Bãi đỗ xe</th>
-                  <th className="table-header-cell">Điểm / 1.000 VND</th>
+                  <th className="table-header-cell">Điểm / 1.000 VNĐ</th>
                   <th className="table-header-cell">VND / Điểm</th>
-                  <th className="table-header-cell">GT vé tháng (VND)</th>
+                  <th className="table-header-cell">GT vé tháng (VNĐ)</th>
                   <th className="table-header-cell">Ngày bắt đầu</th>
                   <th className="table-header-cell">Ngày kết thúc</th>
                   <th className="table-header-cell">Trạng thái</th>
@@ -300,7 +317,7 @@ function RewardPoints() {
                         ) : (
                           <span className="badge bg-gray-100 text-gray-600 flex items-center space-x-1 w-fit">
                             <XCircle className="w-3 h-3" />
-                            <span>Tắt</span>
+                            <span>Ngừng hoạt động</span>
                           </span>
                         )}
                       </td>

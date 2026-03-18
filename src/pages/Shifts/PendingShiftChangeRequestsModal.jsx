@@ -15,11 +15,59 @@ import toast from "react-hot-toast";
 import workShiftService from "../../services/workShiftService";
 
 const SHIFT_TYPE_LABELS = {
-  Morning: "Ca sáng",
-  Afternoon: "Ca chiều",
-  Night: "Ca đêm",
-  FullDay: "Cả ngày",
+  Morning: "Ca sáng", MORNING: "Ca sáng", morning: "Ca sáng",
+  Afternoon: "Ca chiều", AFTERNOON: "Ca chiều", afternoon: "Ca chiều",
+  Night: "Ca đêm", NIGHT: "Ca đêm", night: "Ca đêm",
+  FullDay: "Cả ngày", FULL_DAY: "Cả ngày", full_day: "Cả ngày",
 };
+
+/**
+ * Parse thông tin từ message text của notification SHIFT_CHANGE_REQUEST
+ * Ví dụ message:
+ *   "Nhân viên Đạt Võ Sư yêu cầu thay đổi lịch làm việc:\n
+ *    Bãi xe: Bãi xe Sân bay Tân Sơn Nhất\n
+ *    Ca hiện tại: MORNING - 16/03/2026 (6:30 AM - 2:30 PM)\n
+ *    Lý do: đổi lịch\n
+ *    Ngày đề xuất: 30/03/2026\n
+ *    Ca đề xuất: đổi ca\n
+ *    Ghi chú: hehe"
+ */
+function parseShiftChangeMessage(message = "") {
+  const result = {};
+  const lines = message.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  // Trích tên nhân viên từ dòng đầu: "Nhân viên X yêu cầu..."
+  const nameMatch = (lines[0] ?? "").match(/^Nhân viên (.+?) yêu cầu/);
+  if (nameMatch) result.staffName = nameMatch[1];
+
+  for (const line of lines) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) continue;
+    const key = line.substring(0, colonIdx).trim();
+    const val = line.substring(colonIdx + 1).trim();
+
+    if (key === "Bãi xe") {
+      result.lotName = val;
+    } else if (key === "Ca hiện tại") {
+      // "MORNING - 16/03/2026 (6:30 AM - 2:30 PM)"
+      const dashIdx = val.indexOf(" - ");
+      if (dashIdx !== -1) {
+        result.currentShiftType = val.substring(0, dashIdx).trim();
+        result.currentShiftDate = val.substring(dashIdx + 3).split(" ")[0]?.trim();
+      }
+    } else if (key === "Lý do") {
+      result.reason = val;
+    } else if (key === "Ngày đề xuất") {
+      result.proposedDate = val; // "30/03/2026" – hiển thị trực tiếp
+    } else if (key === "Ca đề xuất") {
+      result.proposedShiftType = val;
+    } else if (key === "Ghi chú") {
+      result.note = val;
+    }
+  }
+
+  return result;
+}
 
 function getAvatarColor(id = "") {
   const colors = [
@@ -85,14 +133,12 @@ function ProcessRequestModal({
     }
   };
 
+  const parsed = parseShiftChangeMessage(request?.message ?? "");
   const staffName =
-    request?.staffName ??
-    request?.staff?.fullName ??
-    request?.staff?.name ??
-    "Nhân viên";
-  const proposedDate = request?.proposedDate ?? request?.proposedShiftDate ?? "";
+    parsed.staffName ?? request?.staffName ?? request?.staff?.fullName ?? "Nhân viên";
+  const proposedDate = parsed.proposedDate ?? request?.proposedDate ?? "";
   const proposedShiftType =
-    request?.proposedShiftType ?? request?.proposedShift ?? "Morning";
+    parsed.proposedShiftType ?? request?.proposedShiftType ?? "";
 
   return createPortal(
     <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -235,13 +281,21 @@ function PendingShiftChangeRequestsModal({
     setLoading(true);
     try {
       const data = await workShiftService.getPendingShiftChangeRequests();
+      console.log("[PendingRequests] Raw response:", data);
       const arr = Array.isArray(data)
         ? data
         : Array.isArray(data?.items)
           ? data.items
-          : data?.data ?? [];
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data?.data?.items)
+              ? data.data.items
+              : [];
+      console.log("[PendingRequests] Parsed array:", arr);
+      if (arr.length > 0) console.log("[PendingRequests] First item keys:", Object.keys(arr[0]));
       setRequests(arr);
     } catch (err) {
+      console.error("[PendingRequests] Error:", err?.response?.status, err?.response?.data);
       const msg =
         err?.response?.data?.message ??
         err?.response?.data?.title ??
@@ -353,32 +407,18 @@ function PendingShiftChangeRequestsModal({
           ) : (
             <div className="space-y-3">
               {requests.map((req, idx) => {
+                // Parse toàn bộ thông tin từ field "message" của notification
+                const parsed = parseShiftChangeMessage(req.message ?? "");
+
                 const staffName =
-                  req.staffName ??
-                  req.staff?.fullName ??
-                  req.staff?.name ??
-                  "Nhân viên";
-                const staffId = req.staffId ?? req.staff?.staffId ?? req.staff?.id ?? idx;
-                const currentDate =
-                  (req.currentShiftDate ?? req.shiftDate ?? req.workDate ?? "").split(
-                    "T"
-                  )[0];
-                const currentShiftType =
-                  req.currentShiftType ?? req.shiftType ?? "Morning";
-                const lotName =
-                  req.lotName ??
-                  req.parkingLotName ??
-                  parkingLots?.find(
-                    (l) =>
-                      (l.id ?? l.lotId) === (req.lotId ?? req.LotId)
-                  )?.name ??
-                  "";
-                const proposedDate =
-                  req.proposedDate ?? req.proposedShiftDate ?? "";
-                const proposedShiftType =
-                  req.proposedShiftType ?? req.proposedShift ?? "Morning";
-                const additionalNote =
-                  req.additionalNote ?? req.note ?? req.reason ?? "";
+                  parsed.staffName ?? req.staffName ?? req.fullName ?? "Nhân viên";
+                const staffId = req.staffId ?? idx;
+                const currentDate = parsed.currentShiftDate ?? ""; // "16/03/2026"
+                const currentShiftType = parsed.currentShiftType ?? "Morning";
+                const lotName = parsed.lotName ?? req.lotName ?? "";
+                const proposedDate = parsed.proposedDate ?? ""; // "30/03/2026"
+                const proposedShiftType = parsed.proposedShiftType ?? "";
+                const additionalNote = parsed.note ?? parsed.reason ?? "";
 
                 return (
                   <div
@@ -397,11 +437,9 @@ function PendingShiftChangeRequestsModal({
                           <p className="flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5 text-gray-400" />
                             <span>Ca hiện tại:</span>{" "}
-                            {currentDate
-                              ? new Date(
-                                  currentDate + "T00:00:00"
-                                ).toLocaleDateString("vi-VN")
-                              : "—"}{" "}
+                            <span className="font-medium">
+                              {currentDate || "—"}
+                            </span>{" "}
                             · {SHIFT_TYPE_LABELS[currentShiftType] ?? currentShiftType}
                             {lotName && (
                               <>
@@ -413,12 +451,12 @@ function PendingShiftChangeRequestsModal({
                           <p className="flex items-center gap-1.5">
                             <Clock className="w-3.5 h-3.5 text-amber-500" />
                             <span>Đề xuất đổi sang:</span>{" "}
-                            {proposedDate
-                              ? new Date(
-                                  proposedDate + "T00:00:00"
-                                ).toLocaleDateString("vi-VN")
-                              : "—"}{" "}
-                            · {SHIFT_TYPE_LABELS[proposedShiftType] ?? proposedShiftType}
+                            <span className="font-medium">
+                              {proposedDate || "—"}
+                            </span>
+                            {proposedShiftType && (
+                              <span> · {SHIFT_TYPE_LABELS[proposedShiftType] ?? proposedShiftType}</span>
+                            )}
                           </p>
                           {additionalNote && (
                             <p className="flex items-start gap-1.5 mt-1">
