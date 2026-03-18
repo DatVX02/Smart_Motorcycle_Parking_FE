@@ -12,7 +12,6 @@ import {
   X,
   RefreshCw,
   AlertCircle,
-  Filter,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import transactionService from "../../services/transactionService";
@@ -369,7 +368,7 @@ function StatCard({ icon: Icon, iconColor, label, value }) {
 
 /* Main Page */
 export default function Transactions() {
-  const [transactions, setTransactions] = useState([]);
+  const [allTransactions, setAllTransactions] = useState([]);
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -382,21 +381,25 @@ export default function Transactions() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  // Pagination
+  // Pagination (client-side)
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
 
   const [detailId, setDetailId] = useState(null);
 
+  const totalCount = allTransactions.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const transactions = allTransactions.slice(
+    (pageNumber - 1) * pageSize,
+    pageNumber * pageSize,
+  );
 
-  /* Load transactions */
+  /* Load transactions – lấy toàn bộ 1 lần, phân trang phía client */
   const loadTransactions = useCallback(async () => {
     setLoading(true);
     setStatsLoading(true);
     try {
-      const params = { pageNumber, pageSize };
+      const params = { pageSize: 9999 }; // lấy hết để phân trang client-side
       if (search) params.search = search;
       if (paymentStatus) params.paymentStatus = paymentStatus;
       if (paymentMethod) params.paymentMethod = paymentMethod;
@@ -407,72 +410,52 @@ export default function Transactions() {
       const data = await transactionService.getAll(params);
 
       let items = [];
-      let count = 0;
-
       if (Array.isArray(data)) {
         items = data;
-        count = data.length;
       } else if (data?.items) {
         items = data.items;
-        count = data.totalCount ?? data.total ?? data.items.length;
       } else if (data?.data && Array.isArray(data.data)) {
         items = data.data;
-        count = data.totalCount ?? data.total ?? data.data.length;
       }
 
-      // Client-side status filter as fallback (in case API filter doesn't apply server-side)
-      if (paymentStatus && items.length > 0) {
+      // Client-side filter fallback nếu API chưa lọc server-side
+      if (paymentStatus) {
         const needle = paymentStatus.toLowerCase();
-        const filtered = items.filter((tx) => {
-          const s = (tx.paymentStatus ?? tx.status ?? "").toLowerCase();
-          return s === needle;
-        });
-        // Only apply client filter if it changed the result (API filter might have worked already)
-        if (filtered.length !== items.length) {
-          items = filtered;
-          count = filtered.length;
-        }
+        const filtered = items.filter(
+          (tx) =>
+            (tx.paymentStatus ?? tx.status ?? "").toLowerCase() === needle,
+        );
+        if (filtered.length !== items.length) items = filtered;
       }
 
-      setTransactions(items);
-      setTotalCount(count);
+      setAllTransactions(items);
+      setPageNumber(1); // reset về trang 1 khi filter thay đổi
 
-      // Compute statistics from loaded data (avoids separate /statistics call which may be 403)
-      const allRevenue = items.reduce(
+      // Tính thống kê từ toàn bộ kết quả
+      const totalRevenue = items.reduce(
         (s, tx) => s + Number(tx.amount ?? tx.totalAmount ?? 0),
         0,
       );
-      const completedItems = items.filter((tx) => {
-        const s = (tx.paymentStatus ?? tx.status ?? "").toLowerCase();
-        return s === "completed";
-      });
-      const pendingItems = items.filter((tx) => {
-        const s = (tx.paymentStatus ?? tx.status ?? "").toLowerCase();
-        return s === "pending";
-      });
       setStatistics({
-        totalTransactions: count,
-        totalRevenue: allRevenue,
-        completedTransactions: completedItems.length,
-        pendingTransactions: pendingItems.length,
+        totalTransactions: items.length,
+        totalRevenue,
+        completedTransactions: items.filter(
+          (tx) =>
+            (tx.paymentStatus ?? tx.status ?? "").toLowerCase() === "completed",
+        ).length,
+        pendingTransactions: items.filter(
+          (tx) =>
+            (tx.paymentStatus ?? tx.status ?? "").toLowerCase() === "pending",
+        ).length,
       });
     } catch {
       toast.error("Không thể tải danh sách giao dịch");
-      setTransactions([]);
+      setAllTransactions([]);
     } finally {
       setLoading(false);
       setStatsLoading(false);
     }
-  }, [
-    pageNumber,
-    pageSize,
-    search,
-    paymentStatus,
-    paymentMethod,
-    transactionType,
-    fromDate,
-    toDate,
-  ]);
+  }, [search, paymentStatus, paymentMethod, transactionType, fromDate, toDate]);
 
   useEffect(() => {
     loadTransactions();
@@ -486,12 +469,11 @@ export default function Transactions() {
     setFromDate("");
     setToDate("");
     setPageNumber(1);
-    // Reset statistics
     setStatistics(null);
   };
 
   /* Stat values */
-  const statTotal = totalCount;
+  const statTotal = statistics?.totalTransactions ?? totalCount;
   const statRevenue = formatCurrency(statistics?.totalRevenue ?? 0);
   const statCompleted = statistics?.completedTransactions ?? 0;
   const statPending = statistics?.pendingTransactions ?? 0;
@@ -550,32 +532,35 @@ export default function Transactions() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 space-y-3">
-        {/* Row 1: search + dropdowns */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Tìm biển số, tên, mã giao dịch..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPageNumber(1);
-              }}
-              className="input pl-10 w-full text-sm"
-            />
-          </div>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
+        {/* Row 1: Search */}
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Tìm theo biển số, tên người dùng, mã giao dịch..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPageNumber(1);
+            }}
+            className="input pl-10 w-full text-sm"
+          />
+        </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <Filter className="w-4 h-4 text-gray-400" />
+        {/* Row 2: Dropdowns */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">
+              Trạng thái
+            </label>
             <select
               value={paymentStatus}
               onChange={(e) => {
                 setPaymentStatus(e.target.value);
                 setPageNumber(1);
               }}
-              className="input text-sm min-w-[150px]"
+              className="input text-sm"
             >
               <option value="">Tất cả trạng thái</option>
               <option value="Completed">Hoàn thành</option>
@@ -586,47 +571,55 @@ export default function Transactions() {
             </select>
           </div>
 
-          <select
-            value={paymentMethod}
-            onChange={(e) => {
-              setPaymentMethod(e.target.value);
-              setPageNumber(1);
-            }}
-            className="input text-sm min-w-[150px] shrink-0"
-          >
-            <option value="">Tất cả phương thức</option>
-            <option value="Momo">Momo</option>
-            <option value="VNPay">VNPay</option>
-            <option value="payos">PayOS</option>
-            <option value="Wallet">Ví điện tử</option>
-            <option value="Cash">Tiền mặt</option>
-          </select>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">
+              Phương thức thanh toán
+            </label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => {
+                setPaymentMethod(e.target.value);
+                setPageNumber(1);
+              }}
+              className="input text-sm"
+            >
+              <option value="">Tất cả phương thức</option>
+              <option value="Momo">Momo</option>
+              <option value="VNPay">VNPay</option>
+              <option value="payos">PayOS</option>
+              <option value="Wallet">Ví điện tử</option>
+              <option value="Cash">Tiền mặt</option>
+            </select>
+          </div>
 
-          <select
-            value={transactionType}
-            onChange={(e) => {
-              setTransactionType(e.target.value);
-              setPageNumber(1);
-            }}
-            className="input text-sm min-w-[150px] shrink-0"
-          >
-            <option value="">Tất cả loại GD</option>
-            <option value="parking">Đỗ xe</option>
-            <option value="monthly_pass">Vé tháng</option>
-            <option value="deposit">Nạp tiền</option>
-            <option value="refund">Hoàn tiền</option>
-            <option value="withdrawal">Rút tiền</option>
-            <option value="payment">Thanh toán</option>
-            <option value="reward">Thưởng điểm</option>
-          </select>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">
+              Loại giao dịch
+            </label>
+            <select
+              value={transactionType}
+              onChange={(e) => {
+                setTransactionType(e.target.value);
+                setPageNumber(1);
+              }}
+              className="input text-sm"
+            >
+              <option value="">Tất cả loại GD</option>
+              <option value="parking">Đỗ xe</option>
+              <option value="monthly_pass">Vé tháng</option>
+              <option value="deposit">Nạp tiền</option>
+              <option value="refund">Hoàn tiền</option>
+              <option value="withdrawal">Rút tiền</option>
+              <option value="payment">Thanh toán</option>
+              <option value="reward">Thưởng điểm</option>
+            </select>
+          </div>
         </div>
 
-        {/* Row 2: date range + actions */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500 whitespace-nowrap">
-              Từ ngày
-            </label>
+        {/* Row 3: Date range + Reset */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+            <label className="text-xs font-medium text-gray-500">Từ ngày</label>
             <input
               type="datetime-local"
               value={fromDate}
@@ -634,8 +627,8 @@ export default function Transactions() {
               className="input text-sm"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500 whitespace-nowrap">
+          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+            <label className="text-xs font-medium text-gray-500">
               Đến ngày
             </label>
             <input
@@ -645,7 +638,11 @@ export default function Transactions() {
               className="input text-sm"
             />
           </div>
-          <button onClick={handleReset} className="btn btn-secondary text-sm">
+          <button
+            onClick={handleReset}
+            className="btn btn-secondary text-sm flex items-center gap-1.5 shrink-0"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
             Xóa bộ lọc
           </button>
         </div>
@@ -653,41 +650,11 @@ export default function Transactions() {
 
       {/* Table card */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        {/* Card header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900 text-sm">
-            Danh sách giao dịch
-            {!loading && totalCount > 0 && (
-              <span className="ml-2 text-gray-400 font-normal">
-                ({totalCount})
-              </span>
-            )}
-          </h3>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span>Hiển thị</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPageNumber(1);
-              }}
-              className="input py-1 px-2 text-sm w-auto"
-            >
-              {PAGE_SIZE_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <span>dòng</span>
-          </div>
-        </div>
-
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
+              <tr className="bg-gray-100 text-gray-600 text-center">
                 {[
                   "STT",
                   "Biển số",
@@ -702,7 +669,7 @@ export default function Transactions() {
                 ].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                    className="p-3 text-center text-sm font-semibold whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -744,57 +711,44 @@ export default function Transactions() {
                       className={`hover:bg-blue-50/40 transition-colors cursor-default ${!isLast ? "border-b border-gray-50" : ""}`}
                     >
                       {/* STT */}
-                      <td className="px-4 py-3.5 w-12 text-center">
-                        <span className="text-sm font-semibold text-gray-500">
-                          {(pageNumber - 1) * pageSize + idx + 1}
-                        </span>
+                      <td className="p-3 text-center text-gray-500 font-semibold">
+                        {(pageNumber - 1) * pageSize + idx + 1}
                       </td>
                       {/* Biển số */}
-                      <td className="px-4 py-3.5">
-                        <span className="font-semibold text-gray-900">
-                          {tx.licensePlate ??
-                            tx.vehicleLicensePlate ??
-                            tx.plate ??
-                            "—"}
-                        </span>
+                      <td className="p-3 text-center font-semibold text-gray-900">
+                        {tx.licensePlate ?? tx.vehicleLicensePlate ?? tx.plate ?? "—"}
                       </td>
                       {/* Người dùng */}
-                      <td className="px-4 py-3.5 text-gray-600 max-w-[140px] truncate">
+                      <td className="p-3 text-center text-gray-600 max-w-[140px] truncate">
                         {tx.userName ?? tx.customerName ?? tx.fullName ?? "—"}
                       </td>
                       {/* Loại GD */}
-                      <td className="px-4 py-3.5 text-gray-500">
+                      <td className="p-3 text-center text-gray-500">
                         {TX_TYPE_LABELS[tx.transactionType ?? tx.type ?? ""] ??
-                          tx.transactionType ??
-                          tx.type ??
-                          "—"}
+                          tx.transactionType ?? tx.type ?? "—"}
                       </td>
                       {/* Thời gian vào */}
-                      <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap">
-                        {formatDateTime(
-                          tx.entryTime ?? tx.checkInTime ?? tx.createdAt,
-                        )}
+                      <td className="p-3 text-center text-gray-500 whitespace-nowrap">
+                        {formatDateTime(tx.entryTime ?? tx.checkInTime ?? tx.createdAt)}
                       </td>
                       {/* Thời gian ra */}
-                      <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap">
+                      <td className="p-3 text-center text-gray-500 whitespace-nowrap">
                         {formatDateTime(tx.exitTime ?? tx.checkOutTime)}
                       </td>
                       {/* Số tiền */}
-                      <td className="px-4 py-3.5">
-                        <span className="font-semibold text-gray-900">
-                          {formatCurrency(tx.amount ?? tx.totalAmount)}
-                        </span>
+                      <td className="p-3 text-center font-semibold text-gray-900">
+                        {formatCurrency(tx.amount ?? tx.totalAmount)}
                       </td>
                       {/* Phương thức */}
-                      <td className="px-4 py-3.5 text-gray-600">
+                      <td className="p-3 text-center text-gray-600">
                         {tx.paymentMethod ?? "—"}
                       </td>
                       {/* Trạng thái */}
-                      <td className="px-4 py-3.5">
+                      <td className="p-3 text-center">
                         <StatusBadge tx={tx} />
                       </td>
                       {/* Action */}
-                      <td className="px-4 py-3.5">
+                      <td className="p-3 text-center">
                         <button
                           onClick={() => setDetailId(txId)}
                           className="p-1.5 text-blue-500 hover:bg-blue-100 rounded-lg transition-colors"
@@ -814,11 +768,15 @@ export default function Transactions() {
         {/* ── Pagination ── */}
         {!loading && totalCount > 0 && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-            <p className="text-xs text-gray-500">
-              Trang{" "}
-              <span className="font-semibold text-gray-700">{pageNumber}</span>{" "}
-              / {totalPages} &nbsp;·&nbsp; {totalCount} giao dịch
-            </p>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span>
+                Trang{" "}
+                <span className="font-semibold text-gray-700">
+                  {pageNumber}
+                </span>{" "}
+                / {totalPages}
+              </span>
+            </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPageNumber((p) => Math.max(1, p - 1))}

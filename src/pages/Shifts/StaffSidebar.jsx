@@ -100,7 +100,9 @@ function DraggableStaffCard({ staff }) {
         {phone && (
           <div className="flex items-center gap-1 mt-0.5">
             <Phone className="w-3 h-3 text-gray-400 flex-shrink-0" />
-            <p className="text-xs text-gray-400 truncate leading-tight">{phone}</p>
+            <p className="text-xs text-gray-400 truncate leading-tight">
+              {phone}
+            </p>
           </div>
         )}
       </div>
@@ -116,8 +118,14 @@ function StaffSidebar({ staff, loading, onRetry, filteredByRange }) {
   const filtered = staff.filter((s) => {
     const name = (s.fullName ?? s.name ?? "").toLowerCase();
     const email = (s.email ?? "").toLowerCase();
+    const phone = (
+      s.phoneContact ??
+      s.phone ??
+      s.phoneNumber ??
+      ""
+    ).toLowerCase();
     const q = search.toLowerCase();
-    return name.includes(q) || email.includes(q);
+    return name.includes(q) || email.includes(q) || phone.includes(q);
   });
 
   return (
@@ -153,7 +161,7 @@ function StaffSidebar({ staff, loading, onRetry, filteredByRange }) {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Tìm theo tên, email..."
+            placeholder="Tìm theo tên, email, sđt..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl
