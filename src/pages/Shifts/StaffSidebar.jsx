@@ -36,7 +36,8 @@ function DraggableStaffCard({ staff }) {
   const name = staff.fullName ?? staff.name ?? "Nhân viên";
   const role = staff.role ?? "STAFF";
   const email = staff.email ?? "";
-  const avatarUrl = staff.faceImageUrl ?? staff.avatarUrl ?? staff.imageUrl ?? "";
+  const avatarUrl =
+    staff.faceImageUrl ?? staff.avatarUrl ?? staff.imageUrl ?? "";
 
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -113,14 +114,16 @@ function StaffSidebar({ staff, loading, onRetry, filteredByRange }) {
   });
 
   return (
-    <div className="w-[260px] flex-shrink-0 flex flex-col bg-white border-r border-gray-200 overflow-hidden shadow-sm">
+    <div className="w-[260px] flex-shrink-0 flex flex-col bg-white overflow-hidden">
       {/* Header */}
       <div className="px-4 pt-4 pb-3 border-b border-gray-100">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
             <User className="w-5 h-5 text-blue-600" />
           </div>
-          <span className="text-base font-semibold text-gray-800">Nhân viên</span>
+          <span className="text-base font-semibold text-gray-800">
+            Tổng nhân viên
+          </span>
           <span
             className={`ml-auto text-sm font-medium px-2.5 py-1 rounded-lg ${
               filteredByRange
@@ -153,8 +156,12 @@ function StaffSidebar({ staff, loading, onRetry, filteredByRange }) {
         </div>
       </div>
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      {/* List - scroll khi có từ 5 nhân viên trở lên (hiển thị ít nhất 4) */}
+      <div
+        className={`flex-1 overflow-y-auto p-3 space-y-2 min-h-0 ${
+          filtered.length >= 5 ? "max-h-[352px]" : ""
+        }`}
+      >
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <div
@@ -189,13 +196,6 @@ function StaffSidebar({ staff, loading, onRetry, filteredByRange }) {
             <DraggableStaffCard key={s.staffId ?? s.id} staff={s} />
           ))
         )}
-      </div>
-
-      {/* Footer hint */}
-      <div className="px-4 py-3 border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white">
-        <p className="text-sm text-gray-500 text-center leading-relaxed">
-          Kéo thẻ nhân viên vào lịch để tạo ca trực
-        </p>
       </div>
     </div>
   );
