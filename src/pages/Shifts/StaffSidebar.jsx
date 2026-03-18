@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, User, GripVertical, ChevronRight } from "lucide-react";
+import { Search, User, GripVertical, ChevronRight, Phone } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -36,6 +36,7 @@ function DraggableStaffCard({ staff }) {
   const name = staff.fullName ?? staff.name ?? "Nhân viên";
   const role = staff.role ?? "STAFF";
   const email = staff.email ?? "";
+  const phone = staff.phoneContact ?? staff.phone ?? staff.phoneNumber ?? "";
   const avatarUrl =
     staff.faceImageUrl ?? staff.avatarUrl ?? staff.imageUrl ?? "";
 
@@ -56,15 +57,15 @@ function DraggableStaffCard({ staff }) {
     <div
       ref={setNodeRef}
       style={style}
+      {...listeners}
+      {...attributes}
       className="group flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm
-        hover:shadow-md hover:border-blue-200 transition-all select-none"
+        hover:shadow-md hover:border-blue-200 transition-all select-none cursor-grab active:cursor-grabbing"
     >
-      {/* Drag handle */}
+      {/* Drag handle icon – visual indicator only */}
       <div
-        {...listeners}
-        {...attributes}
-        className="text-gray-300 group-hover:text-blue-500 transition-colors cursor-grab active:cursor-grabbing flex-shrink-0"
-        title="Kéo để gán ca"
+        className="text-gray-300 group-hover:text-blue-400 transition-colors flex-shrink-0"
+        title="Kéo vào lịch để gán ca"
       >
         <GripVertical className="w-4 h-4" />
       </div>
@@ -96,6 +97,12 @@ function DraggableStaffCard({ staff }) {
         <p className="text-xs text-gray-500 truncate leading-tight mt-0.5">
           {email || role}
         </p>
+        {phone && (
+          <div className="flex items-center gap-1 mt-0.5">
+            <Phone className="w-3 h-3 text-gray-400 flex-shrink-0" />
+            <p className="text-xs text-gray-400 truncate leading-tight">{phone}</p>
+          </div>
+        )}
       </div>
 
       <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-400 transition-colors flex-shrink-0" />

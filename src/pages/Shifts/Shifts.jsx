@@ -30,6 +30,10 @@ import {
   Maximize2,
   Edit,
   Inbox,
+  Phone,
+  StickyNote,
+  SlidersHorizontal,
+  CheckCircle2,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -73,9 +77,18 @@ const STATUS_LABELS = {
 };
 const SHIFT_TYPE_LABELS = {
   Morning: "Ca sáng",
+  MORNING: "Ca sáng",
+  morning: "Ca sáng",
   Afternoon: "Ca chiều",
+  AFTERNOON: "Ca chiều",
+  afternoon: "Ca chiều",
   Night: "Ca đêm",
+  NIGHT: "Ca đêm",
+  night: "Ca đêm",
   FullDay: "Cả ngày",
+  FULL_DAY: "Cả ngày",
+  full_day: "Cả ngày",
+  Fullday: "Cả ngày",
 };
 const LEGEND_ITEMS = [
   { type: "MORNING", label: "Ca sáng", color: SHIFT_COLORS.MORNING },
@@ -198,18 +211,142 @@ function StaffDragOverlayCard({ staff }) {
   );
 }
 
+const STATUS_DOT = {
+  COMPLETED: { color: "#10B981", label: "Hoàn thành", icon: "✓" },
+  IN_PROGRESS: { color: "#3B82F6", label: "Đang làm" },
+  PENDING_CHANGE: { color: "#F59E0B", label: "Chờ đổi ca" },
+  CANCELLED: { color: "#EF4444", label: "Đã hủy" },
+};
+
 function renderEventContent(eventInfo) {
   const { shift } = eventInfo.event.extendedProps;
   const name = shift?.staffName ?? eventInfo.event.title;
+  const statusKey = (shift?.shiftStatus ?? shift?.status ?? "").toUpperCase();
+  const dot = STATUS_DOT[statusKey];
+
   return (
-    <div className="px-1.5 py-0.5 w-full overflow-hidden">
-      <p className="text-xs font-semibold truncate leading-tight">{name}</p>
-      {shift?.startTime && shift?.endTime && (
-        <p className="text-[11px] opacity-90 truncate leading-tight">
-          {shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}
-        </p>
+    <div className="px-1.5 py-0.5 w-full overflow-hidden flex items-start gap-1">
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold truncate leading-tight">{name}</p>
+        {shift?.startTime && shift?.endTime && (
+          <p className="text-[11px] opacity-90 truncate leading-tight">
+            {shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}
+          </p>
+        )}
+      </div>
+      {dot && (
+        <div
+          className="flex-shrink-0 mt-0.5"
+          title={dot.label}
+        >
+          {dot.icon ? (
+            <span className="text-[10px] font-bold leading-none opacity-90">{dot.icon}</span>
+          ) : (
+            <div
+              className="w-2 h-2 rounded-full ring-1 ring-white"
+              style={{ backgroundColor: dot.color }}
+            />
+          )}
+        </div>
       )}
     </div>
+  );
+}
+
+function ShiftTooltip({ tooltip }) {
+  if (!tooltip) return null;
+  const { x, y, shift } = tooltip;
+  const shiftType = (shift?.shiftType ?? "").toUpperCase();
+  const statusKey = (shift?.shiftStatus ?? shift?.status ?? "").toUpperCase();
+  const barColor = SHIFT_COLORS[shiftType] ?? STATUS_COLORS[statusKey] ?? "#6B7280";
+
+  const name = shift?.staffName ?? shift?.StaffName ?? "Nhân viên";
+  const phone = shift?.phone ?? shift?.phoneContact ?? shift?.staffPhone ?? shift?.contactPhone ?? null;
+  const position = shift?.position ?? shift?.dutyPosition ?? shift?.workPosition ?? null;
+  const notes = shift?.notes ?? shift?.note ?? shift?.description ?? null;
+  const startTime = (shift?.startTime ?? "").slice(0, 5);
+  const endTime = (shift?.endTime ?? "").slice(0, 5);
+  const lotName = shift?.lotName ?? shift?.LotName ?? "";
+
+  const safeX = Math.min(x + 14, window.innerWidth - 240);
+  const safeY = Math.max(8, Math.min(y - 12, window.innerHeight - 260));
+
+  return createPortal(
+    <div
+      className="fixed z-[9999] pointer-events-none"
+      style={{ left: safeX, top: safeY }}
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden w-[220px]"
+        style={{ borderTopWidth: 3, borderTopColor: barColor }}
+      >
+        <div className="px-3 pt-2.5 pb-3 space-y-2">
+          {/* Name & shift type */}
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs font-bold text-gray-800 leading-snug truncate flex-1">
+              {name}
+            </p>
+            {shift?.shiftType && (
+              <span
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                style={{ background: barColor + "25", color: barColor }}
+              >
+                {SHIFT_TYPE_LABELS[shift.shiftType] ?? shift.shiftType}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-1.5 text-[11px] text-gray-600">
+            {(startTime || endTime) && (
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                <span className="font-medium">{startTime} – {endTime}</span>
+              </div>
+            )}
+            {lotName && (
+              <div className="flex items-center gap-1.5">
+                <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                <span className="truncate">{lotName}</span>
+              </div>
+            )}
+            {position && (
+              <div className="flex items-center gap-1.5">
+                <MapPin className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                <span className="truncate text-blue-600 font-medium">{position}</span>
+              </div>
+            )}
+            {phone && (
+              <div className="flex items-center gap-1.5">
+                <Phone className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                <span>{phone}</span>
+              </div>
+            )}
+            {notes && (
+              <div className="flex items-start gap-1.5 pt-1.5 mt-0.5 border-t border-gray-100">
+                <StickyNote className="w-3 h-3 text-amber-400 flex-shrink-0 mt-0.5" />
+                <span className="text-gray-500 line-clamp-3 leading-relaxed">{notes}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Status badge */}
+          <div className="pt-1.5 border-t border-gray-100 flex items-center gap-1.5">
+            <div
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: STATUS_COLORS[statusKey] ?? "#6B7280" }}
+            />
+            <span
+              className="text-[10px] font-semibold"
+              style={{ color: STATUS_COLORS[statusKey] ?? "#6B7280" }}
+            >
+              {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? "—"}
+            </span>
+            <span className="text-[10px] text-gray-400 ml-auto">Nhấn để xem chi tiết</span>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -236,6 +373,8 @@ function Shifts() {
   const [isMultiDeleteMode, setIsMultiDeleteMode] = useState(false);
   const [selectedShiftIds, setSelectedShiftIds] = useState(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [filterShiftType, setFilterShiftType] = useState("");
+  const [tooltip, setTooltip] = useState(null);
 
   const lastMousePos = useRef({ x: 0, y: 0 });
 
@@ -422,6 +561,17 @@ function Shifts() {
     },
     [selectedRange],
   );
+
+  const handleEventMouseEnter = useCallback((info) => {
+    const shift = info.event.extendedProps?.shift;
+    if (!shift) return;
+    const rect = info.el.getBoundingClientRect();
+    setTooltip({ x: rect.right + 6, y: rect.top, shift });
+  }, []);
+
+  const handleEventMouseLeave = useCallback(() => {
+    setTooltip(null);
+  }, []);
 
   const handleDateClick = (info, lotId) => {
     const tomorrowMidnight = new Date();
@@ -617,6 +767,40 @@ function Shifts() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
+      <style>{`
+        .fc .fc-day-today {
+          background: rgba(59, 130, 246, 0.07) !important;
+        }
+        .fc .fc-day-today .fc-daygrid-day-frame {
+          border-left: 2px solid rgba(59, 130, 246, 0.5);
+        }
+        .fc .fc-col-header-cell.fc-day-today {
+          background: rgba(59, 130, 246, 0.1) !important;
+        }
+        .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+          color: #2563EB;
+          font-weight: 700;
+        }
+        .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+          color: #2563EB;
+          font-weight: 800;
+          background: rgba(59, 130, 246, 0.15);
+          border-radius: 50%;
+          width: 26px;
+          height: 26px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 2px;
+        }
+        .fc-past-disabled {
+          background: rgba(0,0,0,0.02) !important;
+          color: #9CA3AF;
+        }
+        .fc-past-disabled .fc-daygrid-day-number {
+          color: #D1D5DB;
+        }
+      `}</style>
       <div className="absolute inset-0 flex flex-col min-h-0 gap-0 bg-gray-50/80">
         {/* ── Top bar: Thống kê + Công cụ ── */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-2.5 bg-white border-b border-gray-100 flex-shrink-0 z-10 shadow-sm">
@@ -647,6 +831,22 @@ function Shifts() {
 
           {/* Công cụ (phải) */}
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Bộ lọc loại ca */}
+            <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 shadow-sm">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <select
+                value={filterShiftType}
+                onChange={(e) => setFilterShiftType(e.target.value)}
+                className="text-xs text-gray-700 bg-transparent border-none outline-none cursor-pointer font-medium"
+              >
+                <option value="">Tất cả ca</option>
+                <option value="MORNING">Ca sáng</option>
+                <option value="AFTERNOON">Ca chiều</option>
+                <option value="NIGHT">Ca đêm</option>
+                <option value="FULL_DAY">Cả ngày</option>
+              </select>
+            </div>
+
             {/* View Mode Switcher */}
             <div className="flex bg-gray-100 p-0.5 rounded-lg">
               <button
@@ -706,7 +906,7 @@ function Shifts() {
               <span className="hidden sm:inline">Yêu cầu đổi ca</span>
             </button>
 
-            {/* [ĐÃ SỬA] Thay đổi UI nút Toggle Xóa nhiều để tinh tế hơn */}
+            {/* Thay đổi UI nút Toggle Xóa nhiều để tinh tế hơn */}
             <button
               onClick={() => {
                 if (isMultiDeleteMode) exitMultiDeleteMode();
@@ -878,10 +1078,11 @@ function Shifts() {
 
               {visibleLots.map((lot) => {
                 const rawLotShifts = shiftsByLot[lot.id] || [];
-                const lotShifts = rawLotShifts.filter(
-                  (s) =>
-                    !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
-                );
+                const lotShifts = rawLotShifts.filter((s) => {
+                  if (inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? ""))) return false;
+                  if (filterShiftType && (s.shiftType ?? s.ShiftType ?? "").toUpperCase() !== filterShiftType) return false;
+                  return true;
+                });
                 const calendarEvents = lotShifts.map(toCalendarEvent);
                 const isSmallGrid = viewMode === "grid" && gridCols >= 3;
 
@@ -934,7 +1135,9 @@ function Shifts() {
                         events={calendarEvents}
                         eventContent={renderEventContent}
                         eventClick={handleEventClick}
-                        // [ĐÃ SỬA] Thay đổi CSS của Event trên lịch khi ở chế độ xóa
+                        eventMouseEnter={handleEventMouseEnter}
+                        eventMouseLeave={handleEventMouseLeave}
+                        // Thay đổi CSS của Event trên lịch khi ở chế độ xóa
                         eventClassNames={(arg) => {
                           const shift = arg.event.extendedProps?.shift;
                           if (!shift) return [];
@@ -1126,6 +1329,8 @@ function Shifts() {
           onSuccess={handleRefresh}
         />
       )}
+
+      <ShiftTooltip tooltip={tooltip} />
     </DndContext>
   );
 }
