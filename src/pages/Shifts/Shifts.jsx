@@ -643,26 +643,6 @@ function Shifts() {
               <span className="text-sm font-bold">{allShiftsArray.length}</span>
             </div>
 
-            {/* Bảng chú thích loại ca */}
-            <div className="hidden sm:flex items-center gap-3 pl-3 border-l border-gray-200">
-              <span className="text-xs font-medium text-gray-500">Chú thích:</span>
-              <div className="flex flex-wrap gap-2">
-                {LEGEND_ITEMS.map(({ label, color }) => (
-                  <div
-                    key={label}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-gray-100 bg-white/80"
-                  >
-                    <div
-                      className="w-3 h-3 rounded flex-shrink-0"
-                      style={{ backgroundColor: color }}
-                    />
-                    <span className="text-xs font-medium text-gray-700">
-                      {label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* Công cụ (phải) */}
@@ -749,31 +729,69 @@ function Shifts() {
           </div>
         </div>
 
-        {/* Bảng chú thích (mobile) */}
-        <div className="sm:hidden flex items-center gap-2 px-4 py-2 bg-gray-50/80 border-b border-gray-100 flex-wrap">
-          <span className="text-xs font-medium text-gray-500">Chú thích:</span>
-          {LEGEND_ITEMS.map(({ label, color }) => (
-            <div
-              key={label}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-gray-100"
-            >
-              <div
-                className="w-2.5 h-2.5 rounded"
-                style={{ backgroundColor: color }}
-              />
-              <span className="text-xs text-gray-600">{label}</span>
+        <div className="flex flex-1 min-h-0 overflow-hidden flex-col sm:flex-row">
+          {/* Chú thích mobile (sidebar ẩn trên mobile) */}
+          <div className="sm:hidden px-4 py-2.5 bg-gray-50/50 border-b border-gray-100 flex-shrink-0 w-full">
+            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide block mb-2">
+              Chú thích
+            </span>
+            <div className="grid grid-cols-2 gap-2 w-full">
+              {LEGEND_ITEMS.map(({ label, color }) => (
+                <div
+                  key={label}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl border-l-4 w-full min-w-0"
+                  style={{
+                    borderLeftColor: color,
+                    backgroundColor: `${color}18`,
+                  }}
+                >
+                  <div
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-xs font-semibold text-gray-800 truncate">
+                    {label}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
 
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          <div className="hidden sm:block flex-shrink-0 h-full overflow-hidden">
-            <StaffSidebar
-              staff={sidebarStaff}
-              loading={staffLoading}
-              onRetry={loadStaff}
-              filteredByRange={!!selectedRange}
-            />
+          <div className="hidden sm:flex flex-col flex-shrink-0 w-[260px] h-full border-r border-gray-200 bg-white">
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <StaffSidebar
+                staff={sidebarStaff}
+                loading={staffLoading}
+                onRetry={loadStaff}
+                filteredByRange={!!selectedRange}
+              />
+            </div>
+            {/* Bảng chú thích - dưới sidebar nhân viên */}
+            <div className="flex-shrink-0 w-full px-3 py-3 border-t border-gray-100 bg-gray-50/50">
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide block mb-2.5">
+                Chú thích
+              </span>
+              <div className="grid grid-cols-2 gap-2 w-full">
+                {LEGEND_ITEMS.map(({ label, color }) => (
+                  <div
+                    key={label}
+                    className="flex items-center gap-2.5 w-full min-w-0 px-3 py-2 rounded-xl border-l-4 transition-all"
+                    style={{
+                      borderLeftColor: color,
+                      backgroundColor: `${color}18`,
+                    }}
+                  >
+                    <div
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="text-xs font-semibold text-gray-800 truncate flex-1">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden relative">
