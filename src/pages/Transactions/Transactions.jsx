@@ -17,7 +17,7 @@ import {
 import toast from "react-hot-toast";
 import transactionService from "../../services/transactionService";
 
-/* ─────────────────── Constants ─────────────────── */
+/* Constants */
 const PAYMENT_STATUS_MAP = {
   // exact values returned by API
   Completed: {
@@ -83,15 +83,34 @@ const PAYMENT_STATUS_MAP = {
 };
 
 const TX_TYPE_LABELS = {
+  // Đỗ xe
   parking: "Đỗ xe",
   Parking: "Đỗ xe",
   PARKING: "Đỗ xe",
+  // Vé tháng
   monthly_pass: "Vé tháng",
   MonthlyPass: "Vé tháng",
   MONTHLY_PASS: "Vé tháng",
+  // Nạp tiền
+  deposit: "Nạp tiền",
+  Deposit: "Nạp tiền",
+  DEPOSIT: "Nạp tiền",
+  // Hoàn tiền
   refund: "Hoàn tiền",
   Refund: "Hoàn tiền",
   REFUND: "Hoàn tiền",
+  // Rút tiền
+  withdrawal: "Rút tiền",
+  Withdrawal: "Rút tiền",
+  WITHDRAWAL: "Rút tiền",
+  // Thanh toán
+  payment: "Thanh toán",
+  Payment: "Thanh toán",
+  PAYMENT: "Thanh toán",
+  // Thưởng điểm
+  reward: "Thưởng điểm",
+  Reward: "Thưởng điểm",
+  REWARD: "Thưởng điểm",
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -140,7 +159,7 @@ function StatusBadge({ tx }) {
   );
 }
 
-/* ─────────────────── Detail Modal ─────────────────── */
+/* Detail Modal */
 function DetailModal({ id, onClose, onStatusUpdate }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -333,7 +352,7 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
   );
 }
 
-/* ─────────────────── Stat Card ─────────────────── */
+/* Stat Card */
 function StatCard({ icon: Icon, bg, iconColor, label, value }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex items-center gap-4">
@@ -350,7 +369,7 @@ function StatCard({ icon: Icon, bg, iconColor, label, value }) {
   );
 }
 
-/* ─────────────────── Main Page ─────────────────── */
+/* Main Page */
 export default function Transactions() {
   const [transactions, setTransactions] = useState([]);
   const [statistics, setStatistics] = useState(null);
@@ -374,7 +393,7 @@ export default function Transactions() {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
-  /* ── Load transactions ── */
+  /* Load transactions */
   const loadTransactions = useCallback(async () => {
     setLoading(true);
     setStatsLoading(true);
@@ -473,13 +492,13 @@ export default function Transactions() {
     setStatistics(null);
   };
 
-  /* ── Stat values ── */
+  /* Stat values */
   const statTotal = totalCount;
   const statRevenue = formatCurrency(statistics?.totalRevenue ?? 0);
   const statCompleted = statistics?.completedTransactions ?? 0;
   const statPending = statistics?.pendingTransactions ?? 0;
 
-  /* ── Pagination numbers ── */
+  /* Pagination numbers */
   const pageNums = (() => {
     const start = Math.max(1, Math.min(pageNumber - 2, totalPages - 4));
     return Array.from({ length: Math.min(5, totalPages) }, (_, i) => start + i);
@@ -487,7 +506,7 @@ export default function Transactions() {
 
   return (
     <div className="space-y-5">
-      {/* ── Statistics ── */}
+      {/* Statistics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -536,7 +555,7 @@ export default function Transactions() {
         )}
       </div>
 
-      {/* ── Filters ── */}
+      {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 space-y-3">
         {/* Row 1: search + dropdowns */}
         <div className="flex flex-wrap gap-3 items-center">
@@ -600,7 +619,11 @@ export default function Transactions() {
             <option value="">Tất cả loại GD</option>
             <option value="parking">Đỗ xe</option>
             <option value="monthly_pass">Vé tháng</option>
+            <option value="deposit">Nạp tiền</option>
             <option value="refund">Hoàn tiền</option>
+            <option value="withdrawal">Rút tiền</option>
+            <option value="payment">Thanh toán</option>
+            <option value="reward">Thưởng điểm</option>
           </select>
         </div>
 
@@ -634,7 +657,7 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* ── Table card ── */}
+      {/* Table card */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {/* Card header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
@@ -837,7 +860,7 @@ export default function Transactions() {
         )}
       </div>
 
-      {/* ── Detail Modal ── */}
+      {/* Detail Modal */}
       {detailId && (
         <DetailModal
           id={detailId}
