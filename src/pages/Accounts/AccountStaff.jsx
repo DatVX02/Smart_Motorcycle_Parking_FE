@@ -275,8 +275,6 @@ function AccountStaff() {
 
   return (
     <div className="space-y-10">
-
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="bg-white rounded-3xl p-8 shadow border">
           <div className="flex items-center gap-5">
@@ -326,8 +324,6 @@ function AccountStaff() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 py-3 bg-gray-50 border rounded-xl focus:outline-none"
             />
-
-
           </div>
 
           <div className="">
@@ -344,9 +340,7 @@ function AccountStaff() {
               Thêm nhân viên
             </button>
           </div>
-
         </div>
-
 
         <div className="bg-white shadow rounded-lg overflow-x-auto mt-4">
           <table className="w-full text-sm text-center">
@@ -387,22 +381,23 @@ function AccountStaff() {
                     {account.role == "Admin" ? (
                       <Tag color="blue">Admin</Tag>
                     ) : (
-                      <Tag color="green">Staff</Tag>
+                      <Tag color="green">Nhân viên</Tag>
                     )}
                   </td>
 
                   <td className="p-3">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${account.isActive
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-100 text-gray-600"
-                        }`}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        account.isActive
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
                     >
                       {account.isActive ? "Hoạt động" : "Ngưng hoạt động"}
                     </span>
                   </td>
 
-                  <td >
+                  <td>
                     <Button
                       type="text"
                       // style={{ marginRight: "8px" }}
@@ -425,19 +420,34 @@ function AccountStaff() {
                     ) : (
                       <Popconfirm
                         title="Đổi trạng thái tài khoản"
-                        description={`Bạn muốn ${account.isActive ? "ngưng hoạt động" : "kích hoạt"
-                          } tài khoản "${account.fullName}"?`}
+                        description={`Bạn muốn ${
+                          account.isActive ? "ngưng hoạt động" : "kích hoạt"
+                        } tài khoản "${account.fullName}"?`}
                         onConfirm={() => handleToggleStatus(account.staffId)}
                         okText="Xác nhận"
                         cancelText="Hủy"
                       >
-                        <span
-                          className="cursor-pointer"
-                        >
-                          {account.isActive ? <Button icon={<StopOutlined />} title="Ngưng hoạt động" style={{ backgroundColor: "#f5222d", color: "white" }} /> :
-                            <Button icon={<CheckCircleOutlined />} title="Kích hoạt" style={{ backgroundColor: "#52c41a", color: "white" }} />}
+                        <span className="cursor-pointer">
+                          {account.isActive ? (
+                            <Button
+                              icon={<StopOutlined />}
+                              title="Ngưng hoạt động"
+                              style={{
+                                backgroundColor: "#f5222d",
+                                color: "white",
+                              }}
+                            />
+                          ) : (
+                            <Button
+                              icon={<CheckCircleOutlined />}
+                              title="Kích hoạt"
+                              style={{
+                                backgroundColor: "#52c41a",
+                                color: "white",
+                              }}
+                            />
+                          )}
                         </span>
-
                       </Popconfirm>
                     )}
                   </td>
@@ -544,7 +554,7 @@ function AccountStaff() {
           </Form.Item>
         </Form>
       </Modal>
-    </div >
+    </div>
   );
 }
 

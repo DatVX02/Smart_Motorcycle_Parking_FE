@@ -186,7 +186,7 @@ function Accounts() {
                     {account.role == "user" ? (
                       <Tag color="green"></Tag>
                     ) : (
-                      <Tag color="blue">Customer</Tag>
+                      <Tag color="blue">Khách hàng</Tag>
                     )}
                   </td>
 
