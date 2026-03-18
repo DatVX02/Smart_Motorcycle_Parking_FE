@@ -203,16 +203,6 @@ function RewardPoints() {
           </h2>
           <div className="flex items-center space-x-2">
             <button
-              onClick={fetchConfigs}
-              className="btn btn-secondary btn-sm flex items-center space-x-1"
-              disabled={loading}
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-              />
-              <span>Làm mới</span>
-            </button>
-            <button
               onClick={handleCreate}
               className="btn btn-primary btn-sm flex items-center space-x-1"
             >
@@ -272,10 +262,11 @@ function RewardPoints() {
             <table className="table">
               <thead className="table-header">
                 <tr>
+                  <th className="table-header-cell">STT</th>
                   <th className="table-header-cell">Bãi đỗ xe</th>
                   <th className="table-header-cell">Điểm / 1.000 VNĐ</th>
-                  <th className="table-header-cell">VND / Điểm</th>
-                  <th className="table-header-cell">GT vé tháng (VNĐ)</th>
+                  <th className="table-header-cell">VNĐ / Điểm</th>
+                  <th className="table-header-cell">Giá trị vé tháng (VNĐ)</th>
                   <th className="table-header-cell">Ngày bắt đầu</th>
                   <th className="table-header-cell">Ngày kết thúc</th>
                   <th className="table-header-cell">Trạng thái</th>
@@ -283,46 +274,49 @@ function RewardPoints() {
                 </tr>
               </thead>
               <tbody className="table-body">
-                {configs.map((config) => {
+                {configs.map((config, idx) => {
                   const id = config.id || config.configId;
                   return (
                     <tr key={id} className="hover:bg-gray-50">
-                      <td className="table-cell font-medium text-gray-900">
+                      <td className="p-3 text-center text-gray-500 font-semibold w-12">
+                        {idx + 1}
+                      </td>
+                      <td className="p-3 text-center font-medium text-gray-900">
                         {config.lotName || getLotName(config.lotId)}
                       </td>
-                      <td className="table-cell text-gray-700">
-                        <div className="flex items-center space-x-1">
+                      <td className="p-3 text-center text-gray-700">
+                        <div className="flex items-center justify-center gap-1">
                           <Award className="w-4 h-4 text-yellow-500" />
                           <span>{formatNumber(config.pointsPer1000vnd)}</span>
                         </div>
                       </td>
-                      <td className="table-cell text-gray-700">
+                      <td className="p-3 text-center text-gray-700">
                         {formatNumber(config.vndPerPoint)}
                       </td>
-                      <td className="table-cell text-gray-700">
+                      <td className="p-3 text-center text-gray-700">
                         {formatNumber(config.monthlyPassValue)}
                       </td>
-                      <td className="table-cell text-gray-600 text-sm">
+                      <td className="p-3 text-center text-gray-600 text-sm whitespace-nowrap">
                         {formatDate(config.startDate)}
                       </td>
-                      <td className="table-cell text-gray-600 text-sm">
+                      <td className="p-3 text-center text-gray-600 text-sm whitespace-nowrap">
                         {formatDate(config.endDate)}
                       </td>
-                      <td className="table-cell">
+                      <td className="p-3 text-center">
                         {config.isActive ? (
-                          <span className="badge bg-green-100 text-green-800 flex items-center space-x-1 w-fit">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
                             <CheckCircle className="w-3 h-3" />
-                            <span>Hoạt động</span>
+                            Hoạt động
                           </span>
                         ) : (
-                          <span className="badge bg-gray-100 text-gray-600 flex items-center space-x-1 w-fit">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
                             <XCircle className="w-3 h-3" />
-                            <span>Ngừng hoạt động</span>
+                            Ngừng hoạt động
                           </span>
                         )}
                       </td>
-                      <td className="table-cell">
-                        <div className="flex items-center space-x-2">
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleEdit(config)}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
