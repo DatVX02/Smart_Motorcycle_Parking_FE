@@ -66,7 +66,9 @@ function LoyaltyConfigModal({ config, lots, onClose, onSave }) {
     try {
       await onSave(payload);
     } catch (err) {
-      setError(err?.response?.data?.message || "Có lỗi xảy ra, vui lòng thử lại.");
+      setError(
+        err?.response?.data?.message || "Có lỗi xảy ra, vui lòng thử lại.",
+      );
     } finally {
       setLoading(false);
     }
@@ -77,7 +79,9 @@ function LoyaltyConfigModal({ config, lots, onClose, onSave }) {
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg my-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">
-            {isEdit ? "Chỉnh sửa cấu hình điểm thưởng" : "Thêm cấu hình điểm thưởng"}
+            {isEdit
+              ? "Chỉnh sửa cấu hình điểm thưởng"
+              : "Thêm cấu hình điểm thưởng"}
           </h2>
           <button
             onClick={onClose}
@@ -119,21 +123,23 @@ function LoyaltyConfigModal({ config, lots, onClose, onSave }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Điểm / 1.000 VND <span className="text-red-500">*</span>
+                Điểm / 1.000 VNĐ <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={formData.pointsPer1000Vnd}
-                onChange={(e) => handleChange("pointsPer1000Vnd", e.target.value)}
+                onChange={(e) =>
+                  handleChange("pointsPer1000Vnd", e.target.value)
+                }
                 className="input"
                 required
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                VND / Điểm <span className="text-red-500">*</span>
+                VNĐ / Điểm <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -149,7 +155,7 @@ function LoyaltyConfigModal({ config, lots, onClose, onSave }) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Giá trị vé tháng (VND) <span className="text-red-500">*</span>
+              Giá trị vé tháng (VNĐ) <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
@@ -197,17 +203,28 @@ function LoyaltyConfigModal({ config, lots, onClose, onSave }) {
                 onChange={(e) => handleChange("isActive", e.target.checked)}
                 className="w-4 h-4 text-primary-600 border-gray-300 rounded"
               />
-              <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
+              <label
+                htmlFor="isActive"
+                className="text-sm font-medium text-gray-700"
+              >
                 Đang hoạt động
               </label>
             </div>
           )}
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={onClose} className="btn btn-secondary">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-secondary"
+            >
               Hủy
             </button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading}
+            >
               {loading ? (
                 <span className="flex items-center space-x-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -223,7 +240,7 @@ function LoyaltyConfigModal({ config, lots, onClose, onSave }) {
         </form>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 

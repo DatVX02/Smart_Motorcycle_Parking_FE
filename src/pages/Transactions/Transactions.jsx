@@ -115,7 +115,7 @@ const TX_TYPE_LABELS = {
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
-/* ─────────────────── Helpers ─────────────────── */
+/* Helpers */
 function formatCurrency(amount) {
   if (amount == null || amount === "") return "-";
   return `${Number(amount).toLocaleString("vi-VN")} đ`;
@@ -353,17 +353,15 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
 }
 
 /* Stat Card */
-function StatCard({ icon: Icon, bg, iconColor, label, value }) {
+function StatCard({ icon: Icon, iconColor, label, value }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex items-center gap-4">
-      <div
-        className={`w-12 h-12 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}
-      >
-        <Icon className={`w-6 h-6 ${iconColor}`} />
-      </div>
-      <div>
-        <p className="text-2xl font-bold text-gray-900 leading-none">{value}</p>
-        <p className="text-sm text-gray-500 mt-1">{label}</p>
+    <div className="bg-white rounded-3xl p-6 shadow border">
+      <div className="flex items-center gap-5">
+        <Icon className={`w-8 h-8 flex-shrink-0 ${iconColor}`} />
+        <div>
+          <p className="text-3xl font-bold">{value}</p>
+          <p className="text-gray-500">{label}</p>
+        </div>
       </div>
     </div>
   );
@@ -512,12 +510,12 @@ export default function Transactions() {
           Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className="bg-white rounded-2xl border border-gray-200 p-5 flex items-center gap-4 animate-pulse"
+              className="bg-white rounded-3xl border p-6 shadow flex items-center gap-5 animate-pulse"
             >
-              <div className="w-12 h-12 bg-gray-100 rounded-xl flex-shrink-0" />
+              <div className="w-8 h-8 bg-gray-100 rounded-full flex-shrink-0" />
               <div className="flex-1 space-y-2">
-                <div className="h-6 bg-gray-100 rounded w-14" />
-                <div className="h-3.5 bg-gray-100 rounded w-24" />
+                <div className="h-8 bg-gray-100 rounded w-16" />
+                <div className="h-4 bg-gray-100 rounded w-24" />
               </div>
             </div>
           ))
@@ -525,28 +523,24 @@ export default function Transactions() {
           <>
             <StatCard
               icon={Receipt}
-              bg="bg-blue-50"
               iconColor="text-blue-600"
               label="Tổng giao dịch"
               value={statTotal}
             />
             <StatCard
               icon={TrendingUp}
-              bg="bg-green-50"
               iconColor="text-green-600"
               label="Tổng doanh thu"
               value={statRevenue}
             />
             <StatCard
               icon={CheckCircle}
-              bg="bg-purple-50"
               iconColor="text-purple-600"
               label="Hoàn thành"
               value={statCompleted}
             />
             <StatCard
               icon={Clock}
-              bg="bg-orange-50"
               iconColor="text-orange-600"
               label="Chờ thanh toán"
               value={statPending}
