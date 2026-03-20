@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { format, parse } from "date-fns";
 import {
@@ -317,6 +317,8 @@ function CreateShiftModal({
   const shiftId =
     editingShift?.shiftId ?? editingShift?.ShiftId ?? editingShift?.id;
   const [tab, setTab] = useState(isEdit ? "single" : (initialTab ?? "single"));
+  const [editDate, setEditDate] = useState(date); // ngày có thể chỉnh khi sửa ca
+  const editDateInputRef = useRef(null);
   const [selectedPreset, setSelectedPreset] = useState(
     isEdit
       ? mapShiftTypeToPreset(editingShift?.shiftType ?? editingShift?.ShiftType)
@@ -482,6 +484,8 @@ function CreateShiftModal({
     );
   };
 
+  const activeDate = isEdit ? editDate : date;
+
   const handleSubmit = async () => {
     if (!staffId) {
       toast.error("Vui lòng chọn nhân viên");
@@ -490,7 +494,7 @@ function CreateShiftModal({
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
-    if (new Date(date + "T00:00:00") < tomorrow) {
+    if (new Date(activeDate + "T00:00:00") < tomorrow) {
       toast.error("Chỉ được chia lịch từ ngày mai trở đi");
       return;
     }
@@ -517,7 +521,7 @@ function CreateShiftModal({
     const payload = {
       staffId,
       lotId,
-      shiftDate: date,
+      shiftDate: activeDate,
       shiftType: (selectedPreset || "Morning").replace(" ", "_").toUpperCase(),
       startTime,
       endTime,
@@ -528,7 +532,7 @@ function CreateShiftModal({
     try {
       if (isEdit && shiftId) {
         await workShiftService.update(shiftId, payload);
-        toast.success(`Đã cập nhật ca cho ${staffName} ngày ${date}`);
+        toast.success(`Đã cập nhật ca cho ${staffName} ngày ${activeDate}`);
       } else if (tab === "single") {
         await workShiftService.create(payload);
         toast.success(`Đã tạo ca cho ${staffName} ngày ${date}`);
@@ -592,14 +596,14 @@ function CreateShiftModal({
 
   const displayDate = (() => {
     try {
-      return new Date(date + "T00:00:00").toLocaleDateString("vi-VN", {
+      return new Date(activeDate + "T00:00:00").toLocaleDateString("vi-VN", {
         weekday: "long",
         year: "numeric",
         month: "long",
         day: "numeric",
       });
     } catch {
-      return date;
+      return activeDate;
     }
   })();
 
@@ -681,20 +685,63 @@ function CreateShiftModal({
             </div>
           )}
 
-          {/* Date info */}
-          <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100/80">
-            <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-              <Calendar className="w-4 h-4 text-blue-600" />
+          {/* Date info — có thể chỉnh khi sửa ca */}
+          {isEdit ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const el = editDateInputRef.current;
+                  if (!el) return;
+                  if (typeof el.showPicker === "function") el.showPicker();
+                  else el.click();
+                }}
+                className="w-full flex items-center gap-3 p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 hover:border-blue-400 hover:shadow-sm transition-all text-left"
+              >
+                <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-blue-600/80 font-medium">
+                    Ngày làm việc
+                  </p>
+                  <p className="text-sm font-semibold text-slate-800 capitalize">
+                    {displayDate}
+                  </p>
+                </div>
+                <span className="text-xs text-blue-500 font-medium flex-shrink-0">
+                  Thay đổi ›
+                </span>
+              </button>
+              <input
+                ref={editDateInputRef}
+                type="date"
+                value={editDate}
+                min={(() => {
+                  const t = new Date();
+                  t.setDate(t.getDate() + 1);
+                  return t.toISOString().split("T")[0];
+                })()}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="sr-only"
+                aria-label="Ngày làm việc"
+              />
+            </>
+          ) : (
+            <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100/80">
+              <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                <Calendar className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs text-blue-600/80 font-medium">
+                  {tab === "single" ? "Ngày làm việc" : "Ngày bắt đầu"}
+                </p>
+                <p className="text-sm font-semibold text-slate-800 capitalize">
+                  {displayDate}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-blue-600/80 font-medium">
-                {tab === "single" ? "Ngày làm việc" : "Ngày bắt đầu"}
-              </p>
-              <p className="text-sm font-semibold text-slate-800 capitalize">
-                {displayDate}
-              </p>
-            </div>
-          </div>
+          )}
 
           {/* End date - bulk only */}
           {tab === "bulk" && (
@@ -840,10 +887,10 @@ function CreateShiftModal({
             </div>
           </div>
 
-          {/* Custom time */}
+          {/* Custom time — read-only display */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-slate-600 mb-1.5 block">
+              <label className="text-xs font-medium text-slate-500 mb-1.5 block">
                 Giờ bắt đầu
               </label>
               <div className="relative">
@@ -851,13 +898,14 @@ function CreateShiftModal({
                 <input
                   type="time"
                   value={startTime}
-                  onChange={(e) => handleTimeChange("start", e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-shadow"
+                  readOnly
+                  tabIndex={-1}
+                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-600 cursor-default select-none pointer-events-none"
                 />
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 mb-1.5 block">
+              <label className="text-xs font-medium text-slate-500 mb-1.5 block">
                 Giờ kết thúc
               </label>
               <div className="relative">
@@ -865,8 +913,9 @@ function CreateShiftModal({
                 <input
                   type="time"
                   value={endTime}
-                  onChange={(e) => handleTimeChange("end", e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-shadow"
+                  readOnly
+                  tabIndex={-1}
+                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-600 cursor-default select-none pointer-events-none"
                 />
               </div>
             </div>

@@ -10,6 +10,10 @@ const workShiftService = {
     const params = {};
     if (options.pageSize != null) params.pageSize = options.pageSize;
     if (options.page != null) params.page = options.page;
+    if (options.month != null) params.month = options.month;
+    if (options.year != null) params.year = options.year;
+    if (options.startDate != null) params.startDate = options.startDate;
+    if (options.endDate != null) params.endDate = options.endDate;
     return apiClient
       .get(`/api/v1/work-shifts/lot/${lotId}`, { params })
       .then(unwrap);
@@ -37,6 +41,31 @@ const workShiftService = {
   processShiftChangeRequest: (payload) =>
     apiClient
       .post("/api/v1/work-shifts/shift-change-requests/process", payload)
+      .then(unwrap),
+
+  checkAnomalies: (params) =>
+    apiClient
+      .get("/api/v1/work-shifts/check-anomalies", { params })
+      .then(unwrap),
+  checkMultipleLotConflicts: (params) =>
+    apiClient
+      .get("/api/v1/work-shifts/check-multiple-lot-conflicts", { params })
+      .then(unwrap),
+  checkOverstaffedLots: (params) =>
+    apiClient
+      .get("/api/v1/work-shifts/check-overstaffed-lots", { params })
+      .then(unwrap),
+  checkUnbalancedWorkload: (params) =>
+    apiClient
+      .get("/api/v1/work-shifts/check-unbalanced-workload", { params })
+      .then(unwrap),
+  checkUnscheduledDays: (params) =>
+    apiClient
+      .get("/api/v1/work-shifts/check-unscheduled-days", { params })
+      .then(unwrap),
+  checkEmptyShifts: (params) =>
+    apiClient
+      .get("/api/v1/work-shifts/check-empty-shifts", { params })
       .then(unwrap),
 };
 
