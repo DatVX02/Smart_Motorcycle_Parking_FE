@@ -15,26 +15,26 @@ import toast from "react-hot-toast";
 import workShiftService from "../../services/workShiftService";
 
 const SHIFT_TYPE_LABELS = {
-  Morning: "Ca sáng", MORNING: "Ca sáng", morning: "Ca sáng",
-  Afternoon: "Ca chiều", AFTERNOON: "Ca chiều", afternoon: "Ca chiều",
-  Night: "Ca đêm", NIGHT: "Ca đêm", night: "Ca đêm",
-  FullDay: "Cả ngày", FULL_DAY: "Cả ngày", full_day: "Cả ngày",
+  Morning: "Ca sáng",
+  MORNING: "Ca sáng",
+  morning: "Ca sáng",
+  Afternoon: "Ca chiều",
+  AFTERNOON: "Ca chiều",
+  afternoon: "Ca chiều",
+  Night: "Ca đêm",
+  NIGHT: "Ca đêm",
+  night: "Ca đêm",
+  FullDay: "Cả ngày",
+  FULL_DAY: "Cả ngày",
+  full_day: "Cả ngày",
 };
 
-/**
- * Parse thông tin từ message text của notification SHIFT_CHANGE_REQUEST
- * Ví dụ message:
- *   "Nhân viên Đạt Võ Sư yêu cầu thay đổi lịch làm việc:\n
- *    Bãi xe: Bãi xe Sân bay Tân Sơn Nhất\n
- *    Ca hiện tại: MORNING - 16/03/2026 (6:30 AM - 2:30 PM)\n
- *    Lý do: đổi lịch\n
- *    Ngày đề xuất: 30/03/2026\n
- *    Ca đề xuất: đổi ca\n
- *    Ghi chú: hehe"
- */
 function parseShiftChangeMessage(message = "") {
   const result = {};
-  const lines = message.split("\n").map((l) => l.trim()).filter(Boolean);
+  const lines = message
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
 
   // Trích tên nhân viên từ dòng đầu: "Nhân viên X yêu cầu..."
   const nameMatch = (lines[0] ?? "").match(/^Nhân viên (.+?) yêu cầu/);
@@ -53,7 +53,10 @@ function parseShiftChangeMessage(message = "") {
       const dashIdx = val.indexOf(" - ");
       if (dashIdx !== -1) {
         result.currentShiftType = val.substring(0, dashIdx).trim();
-        result.currentShiftDate = val.substring(dashIdx + 3).split(" ")[0]?.trim();
+        result.currentShiftDate = val
+          .substring(dashIdx + 3)
+          .split(" ")[0]
+          ?.trim();
       }
     } else if (key === "Lý do") {
       result.reason = val;
@@ -113,11 +116,14 @@ function ProcessRequestModal({
       await workShiftService.processShiftChangeRequest({
         notificationId,
         decision,
-        newShiftId: decision === "Approved" ? newShiftId || undefined : undefined,
+        newShiftId:
+          decision === "Approved" ? newShiftId || undefined : undefined,
         adminNote: adminNote.trim() || undefined,
       });
       toast.success(
-        decision === "Approved" ? "Đã duyệt yêu cầu đổi ca" : "Đã từ chối yêu cầu"
+        decision === "Approved"
+          ? "Đã duyệt yêu cầu đổi ca"
+          : "Đã từ chối yêu cầu",
       );
       onSuccess();
       onClose();
@@ -135,7 +141,10 @@ function ProcessRequestModal({
 
   const parsed = parseShiftChangeMessage(request?.message ?? "");
   const staffName =
-    parsed.staffName ?? request?.staffName ?? request?.staff?.fullName ?? "Nhân viên";
+    parsed.staffName ??
+    request?.staffName ??
+    request?.staff?.fullName ??
+    "Nhân viên";
   const proposedDate = parsed.proposedDate ?? request?.proposedDate ?? "";
   const proposedShiftType =
     parsed.proposedShiftType ?? request?.proposedShiftType ?? "";
@@ -144,9 +153,7 @@ function ProcessRequestModal({
     <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">
-            Xử lý yêu cầu đổi ca
-          </h3>
+          <h3 className="font-semibold text-gray-900">Xử lý yêu cầu đổi ca</h3>
           <p className="text-sm text-gray-500 mt-0.5">{staffName}</p>
         </div>
 
@@ -196,7 +203,7 @@ function ProcessRequestModal({
                   const date = (s.shiftDate ?? s.workDate ?? "").split("T")[0];
                   const type = s.shiftType ?? s.ShiftType ?? "Morning";
                   const lot = parkingLots?.find(
-                    (l) => (l.id ?? l.lotId) === (s.lotId ?? s.LotId)
+                    (l) => (l.id ?? l.lotId) === (s.lotId ?? s.LotId),
                   );
                   const lotName = lot?.name ?? lot?.lotName ?? s.lotName ?? "";
                   return (
@@ -253,9 +260,13 @@ function ProcessRequestModal({
             ) : (
               <>
                 {decision === "Approved" ? (
-                  <><Check className="w-4 h-4" /> Duyệt</>
+                  <>
+                    <Check className="w-4 h-4" /> Duyệt
+                  </>
                 ) : (
-                  <><XCircle className="w-4 h-4" /> Từ chối</>
+                  <>
+                    <XCircle className="w-4 h-4" /> Từ chối
+                  </>
                 )}
               </>
             )}
@@ -263,15 +274,11 @@ function ProcessRequestModal({
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 
-function PendingShiftChangeRequestsModal({
-  parkingLots,
-  onClose,
-  onSuccess,
-}) {
+function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingRequest, setProcessingRequest] = useState(null);
@@ -292,10 +299,15 @@ function PendingShiftChangeRequestsModal({
               ? data.data.items
               : [];
       console.log("[PendingRequests] Parsed array:", arr);
-      if (arr.length > 0) console.log("[PendingRequests] First item keys:", Object.keys(arr[0]));
+      if (arr.length > 0)
+        console.log("[PendingRequests] First item keys:", Object.keys(arr[0]));
       setRequests(arr);
     } catch (err) {
-      console.error("[PendingRequests] Error:", err?.response?.status, err?.response?.data);
+      console.error(
+        "[PendingRequests] Error:",
+        err?.response?.status,
+        err?.response?.data,
+      );
       const msg =
         err?.response?.data?.message ??
         err?.response?.data?.title ??
@@ -326,7 +338,7 @@ function PendingShiftChangeRequestsModal({
             ? data
             : Array.isArray(data?.data)
               ? data.data
-              : data?.items ?? [];
+              : (data?.items ?? []);
           allRaw.push(...arr);
         }
         const tomorrow = new Date();
@@ -399,7 +411,9 @@ function PendingShiftChangeRequestsModal({
           ) : requests.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Clock className="w-12 h-12 text-gray-300 mb-3" />
-              <p className="font-medium text-gray-600">Không có yêu cầu chờ xử lý</p>
+              <p className="font-medium text-gray-600">
+                Không có yêu cầu chờ xử lý
+              </p>
               <p className="text-sm text-gray-400 mt-1">
                 Các yêu cầu đổi ca từ nhân viên sẽ hiển thị tại đây
               </p>
@@ -411,7 +425,10 @@ function PendingShiftChangeRequestsModal({
                 const parsed = parseShiftChangeMessage(req.message ?? "");
 
                 const staffName =
-                  parsed.staffName ?? req.staffName ?? req.fullName ?? "Nhân viên";
+                  parsed.staffName ??
+                  req.staffName ??
+                  req.fullName ??
+                  "Nhân viên";
                 const staffId = req.staffId ?? idx;
                 const currentDate = parsed.currentShiftDate ?? ""; // "16/03/2026"
                 const currentShiftType = parsed.currentShiftType ?? "Morning";
@@ -432,7 +449,9 @@ function PendingShiftChangeRequestsModal({
                         {getInitials(staffName)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900">{staffName}</p>
+                        <p className="font-semibold text-gray-900">
+                          {staffName}
+                        </p>
                         <div className="mt-2 space-y-1 text-xs text-gray-600">
                           <p className="flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -440,11 +459,14 @@ function PendingShiftChangeRequestsModal({
                             <span className="font-medium">
                               {currentDate || "—"}
                             </span>{" "}
-                            · {SHIFT_TYPE_LABELS[currentShiftType] ?? currentShiftType}
+                            ·{" "}
+                            {SHIFT_TYPE_LABELS[currentShiftType] ??
+                              currentShiftType}
                             {lotName && (
                               <>
                                 {" "}
-                                · <MapPin className="w-3 h-3 inline" /> {lotName}
+                                · <MapPin className="w-3 h-3 inline" />{" "}
+                                {lotName}
                               </>
                             )}
                           </p>
@@ -455,7 +477,12 @@ function PendingShiftChangeRequestsModal({
                               {proposedDate || "—"}
                             </span>
                             {proposedShiftType && (
-                              <span> · {SHIFT_TYPE_LABELS[proposedShiftType] ?? proposedShiftType}</span>
+                              <span>
+                                {" "}
+                                ·{" "}
+                                {SHIFT_TYPE_LABELS[proposedShiftType] ??
+                                  proposedShiftType}
+                              </span>
                             )}
                           </p>
                           {additionalNote && (
@@ -493,7 +520,7 @@ function PendingShiftChangeRequestsModal({
         />
       )}
     </div>,
-    document.body
+    document.body,
   );
 }
 

@@ -131,10 +131,6 @@ function Accounts() {
           />
         </div>
 
-        {/* <div className="text-sm text-gray-400">
-          {filteredAccounts.length} kết quả
-        </div> */}
-
         {/* Table */}
         <div className="bg-white shadow rounded-lg overflow-x-auto mt-4">
           <table className="w-full text-sm text-center">
