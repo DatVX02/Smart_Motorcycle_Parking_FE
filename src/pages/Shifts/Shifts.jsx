@@ -235,12 +235,11 @@ function renderEventContent(eventInfo) {
         )}
       </div>
       {dot && (
-        <div
-          className="flex-shrink-0 mt-0.5"
-          title={dot.label}
-        >
+        <div className="flex-shrink-0 mt-0.5" title={dot.label}>
           {dot.icon ? (
-            <span className="text-[10px] font-bold leading-none opacity-90">{dot.icon}</span>
+            <span className="text-[10px] font-bold leading-none opacity-90">
+              {dot.icon}
+            </span>
           ) : (
             <div
               className="w-2 h-2 rounded-full ring-1 ring-white"
@@ -258,11 +257,18 @@ function ShiftTooltip({ tooltip }) {
   const { x, y, shift } = tooltip;
   const shiftType = (shift?.shiftType ?? "").toUpperCase();
   const statusKey = (shift?.shiftStatus ?? shift?.status ?? "").toUpperCase();
-  const barColor = SHIFT_COLORS[shiftType] ?? STATUS_COLORS[statusKey] ?? "#6B7280";
+  const barColor =
+    SHIFT_COLORS[shiftType] ?? STATUS_COLORS[statusKey] ?? "#6B7280";
 
   const name = shift?.staffName ?? shift?.StaffName ?? "Nhân viên";
-  const phone = shift?.phone ?? shift?.phoneContact ?? shift?.staffPhone ?? shift?.contactPhone ?? null;
-  const position = shift?.position ?? shift?.dutyPosition ?? shift?.workPosition ?? null;
+  const phone =
+    shift?.phone ??
+    shift?.phoneContact ??
+    shift?.staffPhone ??
+    shift?.contactPhone ??
+    null;
+  const position =
+    shift?.position ?? shift?.dutyPosition ?? shift?.workPosition ?? null;
   const notes = shift?.notes ?? shift?.note ?? shift?.description ?? null;
   const startTime = (shift?.startTime ?? "").slice(0, 5);
   const endTime = (shift?.endTime ?? "").slice(0, 5);
@@ -300,7 +306,9 @@ function ShiftTooltip({ tooltip }) {
             {(startTime || endTime) && (
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                <span className="font-medium">{startTime} – {endTime}</span>
+                <span className="font-medium">
+                  {startTime} – {endTime}
+                </span>
               </div>
             )}
             {lotName && (
@@ -312,7 +320,9 @@ function ShiftTooltip({ tooltip }) {
             {position && (
               <div className="flex items-center gap-1.5">
                 <MapPin className="w-3 h-3 text-blue-400 flex-shrink-0" />
-                <span className="truncate text-blue-600 font-medium">{position}</span>
+                <span className="truncate text-blue-600 font-medium">
+                  {position}
+                </span>
               </div>
             )}
             {phone && (
@@ -324,7 +334,9 @@ function ShiftTooltip({ tooltip }) {
             {notes && (
               <div className="flex items-start gap-1.5 pt-1.5 mt-0.5 border-t border-gray-100">
                 <StickyNote className="w-3 h-3 text-amber-400 flex-shrink-0 mt-0.5" />
-                <span className="text-gray-500 line-clamp-3 leading-relaxed">{notes}</span>
+                <span className="text-gray-500 line-clamp-3 leading-relaxed">
+                  {notes}
+                </span>
               </div>
             )}
           </div>
@@ -341,12 +353,14 @@ function ShiftTooltip({ tooltip }) {
             >
               {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? "—"}
             </span>
-            <span className="text-[10px] text-gray-400 ml-auto">Nhấn để xem chi tiết</span>
+            <span className="text-[10px] text-gray-400 ml-auto">
+              Nhấn để xem chi tiết
+            </span>
           </div>
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 
@@ -361,6 +375,11 @@ function Shifts() {
   const [viewMode, setViewMode] = useState("tab");
   const [gridCols, setGridCols] = useState(2);
   const [activeTabLotId, setActiveTabLotId] = useState("");
+
+  const [viewedMonth, setViewedMonth] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
 
   const [activeStaff, setActiveStaff] = useState(null);
   const [createModal, setCreateModal] = useState(null);
@@ -398,41 +417,6 @@ function Shifts() {
   useEffect(() => {
     if (parkingLots.length > 0) loadAllShifts(parkingLots);
   }, [parkingLots, refreshKey]);
-
-  // Tự động xóa ca trực đã qua (ngày < hôm nay) khi load trang
-  const cleanupPastShiftsRef = useRef(false);
-  useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
-    const allShifts = Object.values(shiftsByLot).flat();
-    const pastShifts = allShifts.filter((s) => {
-      const date = (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0];
-      return date && date < today;
-    });
-    if (pastShifts.length === 0) return;
-    if (cleanupPastShiftsRef.current) return;
-
-    cleanupPastShiftsRef.current = true;
-    const ids = pastShifts
-      .map((s) => s.shiftId ?? s.ShiftId ?? s.id)
-      .filter(Boolean);
-    const BATCH_SIZE = 10;
-    (async () => {
-      try {
-        for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-          const batch = ids.slice(i, i + BATCH_SIZE);
-          await Promise.all(batch.map((id) => workShiftService.delete(id)));
-        }
-        toast.success(`Đã xóa ${ids.length} ca trực đã qua`);
-        setRefreshKey((k) => k + 1);
-      } catch (err) {
-        toast.error(
-          err?.response?.data?.message ?? err?.message ?? "Xóa ca cũ thất bại",
-        );
-      } finally {
-        cleanupPastShiftsRef.current = false;
-      }
-    })();
-  }, [shiftsByLot]);
 
   const loadStaff = async () => {
     setStaffLoading(true);
@@ -592,6 +576,11 @@ function Shifts() {
     });
   };
 
+  const handleDatesSet = useCallback((arg) => {
+    const d = arg.view.currentStart;
+    setViewedMonth({ year: d.getFullYear(), month: d.getMonth() });
+  }, []);
+
   const handleEventClick = (info) => {
     const shift = info.event.extendedProps.shift;
     if (!shift) return;
@@ -738,15 +727,81 @@ function Shifts() {
   }, [selectedRange, activeStaffForSidebar, allShiftsArray]);
 
   const today = new Date().toISOString().split("T")[0];
+
+  // Kiểm tra một ngày có thuộc tháng đang xem trên calendar không
+  const isInViewedMonth = useCallback(
+    (dateStr) => {
+      if (!dateStr) return false;
+      const d = new Date(dateStr.split("T")[0] + "T00:00:00");
+      return (
+        d.getFullYear() === viewedMonth.year &&
+        d.getMonth() === viewedMonth.month
+      );
+    },
+    [viewedMonth],
+  );
+
+  // Shifts của 1 lot đã lọc theo tháng đang xem
+  const lotShiftsInMonth = useCallback(
+    (lotId) =>
+      (shiftsByLot[lotId] ?? []).filter((s) => {
+        if (inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")))
+          return false;
+        return isInViewedMonth(s.shiftDate ?? s.workDate ?? s.date ?? "");
+      }),
+    [shiftsByLot, inactiveStaffIds, isInViewedMonth],
+  );
+
   const todayShifts = allShiftsArray.filter(
     (s) => (s.shiftDate ?? "").split("T")[0] === today,
   );
-  const scheduledCount = allShiftsArray.filter(
-    (s) => (s.shiftStatus ?? "").toUpperCase() === "SCHEDULED",
-  ).length;
-  const inProgressCount = allShiftsArray.filter(
-    (s) => (s.shiftStatus ?? "").toUpperCase() === "IN_PROGRESS",
-  ).length;
+
+  const todayShiftsByLot = useMemo(
+    () =>
+      parkingLots.map((lot) => ({
+        name: lot.name,
+        count: (shiftsByLot[lot.id] ?? []).filter((s) => {
+          if (inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")))
+            return false;
+          return (s.shiftDate ?? s.workDate ?? "").split("T")[0] === today;
+        }).length,
+      })),
+    [parkingLots, shiftsByLot, inactiveStaffIds, today],
+  );
+
+  const scheduledByLot = useMemo(
+    () =>
+      parkingLots.map((lot) => ({
+        name: lot.name,
+        count: lotShiftsInMonth(lot.id).filter(
+          (s) => (s.shiftStatus ?? "").toUpperCase() === "SCHEDULED",
+        ).length,
+      })),
+    [parkingLots, lotShiftsInMonth],
+  );
+
+  const inProgressByLot = useMemo(
+    () =>
+      parkingLots.map((lot) => ({
+        name: lot.name,
+        count: lotShiftsInMonth(lot.id).filter(
+          (s) => (s.shiftStatus ?? "").toUpperCase() === "IN_PROGRESS",
+        ).length,
+      })),
+    [parkingLots, lotShiftsInMonth],
+  );
+
+  const totalByLot = useMemo(
+    () =>
+      parkingLots.map((lot) => ({
+        name: lot.name,
+        count: lotShiftsInMonth(lot.id).length,
+      })),
+    [parkingLots, lotShiftsInMonth],
+  );
+
+  const scheduledCount = scheduledByLot.reduce((s, l) => s + l.count, 0);
+  const inProgressCount = inProgressByLot.reduce((s, l) => s + l.count, 0);
 
   const gridLayoutClass =
     {
@@ -804,29 +859,149 @@ function Shifts() {
       <div className="absolute inset-0 flex flex-col min-h-0 gap-0 bg-gray-50/80">
         {/* ── Top bar: Thống kê + Công cụ ── */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-2.5 bg-white border-b border-gray-100 flex-shrink-0 z-10 shadow-sm">
-          {/* Stats (trái) */}
-          <div className="flex flex-wrap gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700">
-              <Calendar className="w-4 h-4" />
+          {/* Stats */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Ca hôm nay */}
+            <div className="group relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 cursor-default select-none">
+              <Calendar className="w-4 h-4 flex-shrink-0" />
               <span className="text-xs font-medium">Ca hôm nay:</span>
-              <span className="text-sm font-bold">{todayShifts.length}</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 text-gray-700">
-              <Clock className="w-4 h-4" />
-              <span className="text-xs font-medium">Ca đã lên lịch:</span>
-              <span className="text-sm font-bold">{scheduledCount}</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700">
-              <AlertCircle className="w-4 h-4" />
-              <span className="text-xs font-medium">Ca đang trực:</span>
-              <span className="text-sm font-bold">{inProgressCount}</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet-50 text-violet-700">
-              <Users className="w-4 h-4" />
-              <span className="text-xs font-medium">Tổng ca trực:</span>
-              <span className="text-sm font-bold">{allShiftsArray.length}</span>
+              <span className="text-sm font-bold">{todayShifts.length} ca</span>
+              {todayShiftsByLot.filter((l) => l.count > 0).length > 0 && (
+                <div className="absolute top-full left-0 mt-1.5 z-50 hidden group-hover:block w-max min-w-[200px] max-w-[320px]">
+                  <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
+                    <div className="px-3 py-2 bg-blue-50 border-b border-blue-100">
+                      <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">
+                        Chi tiết theo bãi
+                      </span>
+                    </div>
+                    <div className="py-1">
+                      {todayShiftsByLot
+                        .filter((l) => l.count > 0)
+                        .map((lot) => (
+                          <div
+                            key={lot.name}
+                            className="flex items-center justify-between gap-6 px-3 py-1.5 hover:bg-gray-50"
+                          >
+                            <span className="text-xs text-gray-600">
+                              {lot.name}
+                            </span>
+                            <span className="text-xs font-bold text-blue-600 flex-shrink-0">
+                              {lot.count} ca
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Ca đã lên lịch */}
+            <div className="group relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 text-gray-700 cursor-default select-none">
+              <Clock className="w-4 h-4 flex-shrink-0" />
+              <span className="text-xs font-medium">Ca đã lên lịch:</span>
+              <span className="text-sm font-bold">{scheduledCount} ca</span>
+              {scheduledByLot.filter((l) => l.count > 0).length > 0 && (
+                <div className="absolute top-full left-0 mt-1.5 z-50 hidden group-hover:block w-max min-w-[200px] max-w-[320px]">
+                  <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                      <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                        Chi tiết theo bãi
+                      </span>
+                    </div>
+                    <div className="py-1">
+                      {scheduledByLot
+                        .filter((l) => l.count > 0)
+                        .map((lot) => (
+                          <div
+                            key={lot.name}
+                            className="flex items-center justify-between gap-6 px-3 py-1.5 hover:bg-gray-50"
+                          >
+                            <span className="text-xs text-gray-600">
+                              {lot.name}
+                            </span>
+                            <span className="text-xs font-bold text-gray-700 flex-shrink-0">
+                              {lot.count} ca
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Ca đang trực */}
+            <div className="group relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 cursor-default select-none">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="text-xs font-medium">Ca đang trực:</span>
+              <span className="text-sm font-bold">{inProgressCount} ca</span>
+              {inProgressByLot.filter((l) => l.count > 0).length > 0 && (
+                <div className="absolute top-full left-0 mt-1.5 z-50 hidden group-hover:block w-max min-w-[200px] max-w-[320px]">
+                  <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
+                    <div className="px-3 py-2 bg-emerald-50 border-b border-emerald-100">
+                      <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">
+                        Chi tiết theo bãi
+                      </span>
+                    </div>
+                    <div className="py-1">
+                      {inProgressByLot
+                        .filter((l) => l.count > 0)
+                        .map((lot) => (
+                          <div
+                            key={lot.name}
+                            className="flex items-center justify-between gap-6 px-3 py-1.5 hover:bg-gray-50"
+                          >
+                            <span className="text-xs text-gray-600">
+                              {lot.name}
+                            </span>
+                            <span className="text-xs font-bold text-emerald-600 flex-shrink-0">
+                              {lot.count} ca
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tổng ca trực */}
+            <div className="group relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet-50 text-violet-700 cursor-default select-none">
+              <Users className="w-4 h-4 flex-shrink-0" />
+              <span className="text-xs font-medium">Tổng ca trực:</span>
+              <span className="text-sm font-bold">
+                {totalByLot.reduce((s, l) => s + l.count, 0)} ca / tháng
+              </span>
+              {totalByLot.filter((l) => l.count > 0).length > 0 && (
+                <div className="absolute top-full left-0 mt-1.5 z-50 hidden group-hover:block w-max min-w-[200px] max-w-[320px]">
+                  <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
+                    <div className="px-3 py-2 bg-violet-50 border-b border-violet-100">
+                      <span className="text-[11px] font-semibold text-violet-600 uppercase tracking-wide">
+                        Chi tiết theo bãi
+                      </span>
+                    </div>
+                    <div className="py-1">
+                      {totalByLot
+                        .filter((l) => l.count > 0)
+                        .map((lot) => (
+                          <div
+                            key={lot.name}
+                            className="flex items-center justify-between gap-6 px-3 py-1.5 hover:bg-gray-50"
+                          >
+                            <span className="text-xs text-gray-600">
+                              {lot.name}
+                            </span>
+                            <span className="text-xs font-bold text-violet-600 flex-shrink-0">
+                              {lot.count} ca / tháng
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Công cụ (phải) */}
@@ -1008,23 +1183,6 @@ function Shifts() {
                     }`}
                   >
                     {lot.name}
-                    <span
-                      className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                        activeTabLotId === lot.id
-                          ? "bg-blue-50 text-blue-600"
-                          : "bg-gray-200 text-gray-500"
-                      }`}
-                    >
-                      {
-                        (shiftsByLot[lot.id] || []).filter(
-                          (s) =>
-                            !inactiveStaffIds.has(
-                              String(s.staffId ?? s.StaffId ?? ""),
-                            ),
-                        ).length
-                      }{" "}
-                      ca
-                    </span>
                   </button>
                 ))}
               </div>
@@ -1079,8 +1237,23 @@ function Shifts() {
               {visibleLots.map((lot) => {
                 const rawLotShifts = shiftsByLot[lot.id] || [];
                 const lotShifts = rawLotShifts.filter((s) => {
-                  if (inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? ""))) return false;
-                  if (filterShiftType && (s.shiftType ?? s.ShiftType ?? "").toUpperCase() !== filterShiftType) return false;
+                  if (
+                    inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? ""))
+                  )
+                    return false;
+                  if (
+                    filterShiftType &&
+                    (s.shiftType ?? s.ShiftType ?? "").toUpperCase() !==
+                      filterShiftType
+                  )
+                    return false;
+                  const shiftDate = (
+                    s.shiftDate ??
+                    s.workDate ??
+                    s.date ??
+                    ""
+                  ).split("T")[0];
+                  if (shiftDate && shiftDate < todayStr) return false;
                   return true;
                 });
                 const calendarEvents = lotShifts.map(toCalendarEvent);
@@ -1174,6 +1347,7 @@ function Shifts() {
                             "cursor-pointer",
                           ];
                         }}
+                        datesSet={handleDatesSet}
                         dateClick={(info) => handleDateClick(info, lot.id)}
                         height="100%"
                         dayMaxEvents={3}
