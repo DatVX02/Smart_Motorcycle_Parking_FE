@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Search, User, GripVertical, ChevronRight, Phone } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { Search, User, GripVertical, Info, Phone, Mail } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -31,6 +32,46 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
+const ROLE_LABELS = {
+  STAFF: "Nhân viên",
+  Staff: "Nhân viên",
+  staff: "Nhân viên",
+  ADMIN: "Admin",
+  Admin: "Admin",
+  admin: "Admin",
+};
+
+function StaffInfoTooltip({ email, phone, anchorRect }) {
+  if (!anchorRect || (!email && !phone)) return null;
+
+  const top = anchorRect.bottom + 6;
+  const left = anchorRect.right - 200;
+
+  return createPortal(
+    <div
+      className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-52 pointer-events-none"
+      style={{ top, left }}
+    >
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+        Thông tin liên hệ
+      </p>
+      {email && (
+        <div className="flex items-center gap-2">
+          <Mail className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+          <span className="text-xs text-gray-700 truncate">{email}</span>
+        </div>
+      )}
+      {phone && (
+        <div className={`flex items-center gap-2 ${email ? "mt-1.5" : ""}`}>
+          <Phone className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+          <span className="text-xs text-gray-700">{phone}</span>
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 function DraggableStaffCard({ staff }) {
   const staffId = staff.staffId ?? staff.id ?? "";
   const name = staff.fullName ?? staff.name ?? "Nhân viên";
@@ -39,6 +80,12 @@ function DraggableStaffCard({ staff }) {
   const phone = staff.phoneContact ?? staff.phone ?? staff.phoneNumber ?? "";
   const avatarUrl =
     staff.faceImageUrl ?? staff.avatarUrl ?? staff.imageUrl ?? "";
+
+  const roleLabel =
+    ROLE_LABELS[role] ?? ROLE_LABELS[role?.toUpperCase()] ?? role;
+
+  const [tooltipRect, setTooltipRect] = useState(null);
+  const infoRef = useRef(null);
 
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -53,16 +100,28 @@ function DraggableStaffCard({ staff }) {
     zIndex: isDragging ? 50 : "auto",
   };
 
+  const handleInfoEnter = useCallback(() => {
+    if (infoRef.current) {
+      setTooltipRect(infoRef.current.getBoundingClientRect());
+    }
+  }, []);
+
+  const handleInfoLeave = useCallback(() => {
+    setTooltipRect(null);
+  }, []);
+
+  const hasContact = email || phone;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...listeners}
       {...attributes}
-      className="group flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm
+      className="group flex items-center gap-2.5 px-3 py-2 bg-white rounded-xl border border-gray-100 shadow-sm
         hover:shadow-md hover:border-blue-200 transition-all select-none cursor-grab active:cursor-grabbing"
     >
-      {/* Drag handle icon – visual indicator only */}
+      {/* Drag handle */}
       <div
         className="text-gray-300 group-hover:text-blue-400 transition-colors flex-shrink-0"
         title="Kéo vào lịch để gán ca"
@@ -75,7 +134,7 @@ function DraggableStaffCard({ staff }) {
         <img
           src={avatarUrl}
           alt={name}
-          className="w-9 h-9 rounded-full object-cover flex-shrink-0 border border-gray-100"
+          className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-100"
           onError={(e) => {
             e.target.onerror = null;
             e.target.src = "/avatar_comingsoon.png";
@@ -83,31 +142,41 @@ function DraggableStaffCard({ staff }) {
         />
       ) : (
         <div
-          className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${getAvatarColor(staffId)}`}
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${getAvatarColor(staffId)}`}
         >
           {getInitials(name)}
         </div>
       )}
 
-      {/* Info */}
+      {/* Name + role only */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-800 truncate leading-tight">
           {name}
         </p>
-        <p className="text-xs text-gray-500 truncate leading-tight mt-0.5">
-          {email || role}
+        <p className="text-xs text-gray-400 truncate leading-tight mt-0.5">
+          {roleLabel}
         </p>
-        {phone && (
-          <div className="flex items-center gap-1 mt-0.5">
-            <Phone className="w-3 h-3 text-gray-400 flex-shrink-0" />
-            <p className="text-xs text-gray-400 truncate leading-tight">
-              {phone}
-            </p>
-          </div>
-        )}
       </div>
 
-      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-400 transition-colors flex-shrink-0" />
+      {/* Info icon – hover to show contact popup */}
+      {hasContact && (
+        <div
+          ref={infoRef}
+          className="flex-shrink-0"
+          onMouseEnter={handleInfoEnter}
+          onMouseLeave={handleInfoLeave}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <div className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 group-hover:text-blue-400 transition-colors">
+            <Info className="w-3.5 h-3.5" />
+          </div>
+          <StaffInfoTooltip
+            email={email}
+            phone={phone}
+            anchorRect={tooltipRect}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -181,7 +250,7 @@ function StaffSidebar({ staff, loading, onRetry, filteredByRange }) {
           Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="h-[60px] bg-gray-100 rounded-xl animate-pulse"
+              className="h-[52px] bg-gray-100 rounded-xl animate-pulse"
             />
           ))
         ) : staff.length === 0 ? (
