@@ -209,14 +209,14 @@ function StaffSidebar({ staff, loading, onRetry, filteredByRange }) {
             Tổng nhân viên
           </span>
           <span
-            className={`ml-auto text-sm font-medium px-2.5 py-1 rounded-lg ${
+            className={`ml-auto text-sm font-medium px-2.5 py-1 rounded-lg whitespace-nowrap ${
               filteredByRange
                 ? "bg-blue-100 text-blue-700"
                 : "bg-gray-100 text-gray-500"
             }`}
             title={filteredByRange ? "Đang lọc theo khoảng ngày đã chọn" : ""}
           >
-            {staff.length}
+            {staff.length} nhân viên
           </span>
         </div>
         {filteredByRange && (
