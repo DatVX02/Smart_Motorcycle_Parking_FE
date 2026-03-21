@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ParkingCircle, MapPin, Plus, DoorOpen, Camera } from "lucide-react";
+import { ParkingCircle, MapPin, Plus, DoorOpen, Camera, Search, ArrowUpDown } from "lucide-react";
 import { EyeTwoTone, EditTwoTone, DeleteTwoTone } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import ParkingLotModal from "./ParkingLotModal";
@@ -27,6 +27,8 @@ function ParkingLots() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [confirm, setConfirm] = useState({ open: false, lot: null });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState("default");
 
   const { spotsMap, occupancyMap, hubStatus, adminJoined, connectionId } =
     useAdminHub();
@@ -72,27 +74,31 @@ function ParkingLots() {
       const data = await parkingLotService.getAllParkingLots();
       const parkingLotsArray = Array.isArray(data) ? data : [];
 
-      // 2 request tổng: parking-lots + iot-devices
+      // Fetch song song: IoT devices + gates của từng bãi
       const allDevices = await iotDeviceService.getAll().catch(() => []);
 
-      // Group thiết bị & đếm cổng duy nhất theo lotId client-side
+      const gateCountByLot = {};
+      await Promise.all(
+        parkingLotsArray.map(async (lot) => {
+          const lotId = lot.lotId ?? lot.id;
+          const gates = await gateService.getByLot(lotId).catch(() => []);
+          gateCountByLot[lotId] = Array.isArray(gates) ? gates.length : 0;
+        }),
+      );
+
+      // Đếm thiết bị theo lotId từ danh sách IoT devices
       const deviceCountByLot = {};
-      const gateSetByLot = {};
       allDevices.forEach((d) => {
         const lid = d.lotId ?? d.parkingLotId;
         if (!lid) return;
         deviceCountByLot[lid] = (deviceCountByLot[lid] ?? 0) + 1;
-        if (d.gateId) {
-          if (!gateSetByLot[lid]) gateSetByLot[lid] = new Set();
-          gateSetByLot[lid].add(d.gateId);
-        }
       });
 
       const transformedData = parkingLotsArray.map((lot) => {
         const lotId = lot.lotId ?? lot.id;
         return {
           ...transformParkingLot(lot),
-          gates: gateSetByLot[lotId]?.size ?? 0,
+          gates: gateCountByLot[lotId] ?? 0,
           cameras: deviceCountByLot[lotId] ?? 0,
         };
       });
@@ -233,6 +239,20 @@ function ParkingLots() {
     setShowDetailModal(true);
   };
 
+  // Filter + sort
+  const filteredLots = parkingLots
+    .filter((lot) =>
+      lot.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+    .sort((a, b) => {
+      const rateA = a.totalSpots > 0 ? (a.occupiedSpots / a.totalSpots) * 100 : 0;
+      const rateB = b.totalSpots > 0 ? (b.occupiedSpots / b.totalSpots) * 100 : 0;
+      if (sortBy === "occ_desc") return rateB - rateA;
+      if (sortBy === "occ_asc") return rateA - rateB;
+      if (sortBy === "name_az") return a.name.localeCompare(b.name, "vi");
+      return 0;
+    });
+
   // Calculate statistics
   const totalLots = parkingLots.length;
   const totalSpots = parkingLots.reduce(
@@ -257,47 +277,89 @@ function ParkingLots() {
     <div className="space-y-10">
       {/* Overview Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <ParkingCircle className="w-8 h-8 text-blue-600" />
-            <div>
-              <p className="text-3xl font-bold">{totalLots}</p>
-              <p className="text-gray-500">Tổng bãi đỗ</p>
+        {[
+          {
+            label: "Tổng bãi đỗ",
+            value: totalLots,
+            unit: "bãi",
+            Icon: ParkingCircle,
+            iconBg: "bg-blue-50",
+            iconColor: "text-blue-600",
+            valueColor: "text-gray-900",
+          },
+          {
+            label: "Tổng chỗ đỗ",
+            value: totalSpots,
+            unit: "chỗ",
+            Icon: MapPin,
+            iconBg: "bg-indigo-50",
+            iconColor: "text-indigo-600",
+            valueColor: "text-gray-900",
+          },
+          {
+            label: "Đang sử dụng",
+            value: totalOccupied,
+            unit: "xe",
+            Icon: ParkingCircle,
+            iconBg: "bg-green-50",
+            iconColor: "text-green-600",
+            valueColor: "text-green-600",
+          },
+          {
+            label: "Còn trống",
+            value: totalAvailable,
+            unit: "chỗ",
+            Icon: ParkingCircle,
+            iconBg: "bg-gray-100",
+            iconColor: "text-gray-500",
+            valueColor: "text-gray-700",
+          },
+        ].map(({ label, value, unit, Icon, iconBg, iconColor, valueColor }) => (
+          <div key={label} className="bg-white rounded-3xl px-7 py-6 shadow border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 mb-2">{label}</p>
+                <p className={`text-3xl font-bold ${valueColor}`}>
+                  {value}
+                  <span className="text-base font-medium text-gray-400 ml-1.5">{unit}</span>
+                </p>
+              </div>
+              <div className={`w-14 h-14 rounded-full ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                <Icon className={`w-7 h-7 ${iconColor}`} />
+              </div>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <MapPin className="w-8 h-8 text-blue-600" />
-            <div>
-              <p className="text-3xl font-bold">{totalSpots}</p>
-              <p className="text-gray-500">Tổng chỗ đỗ</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <ParkingCircle className="w-8 h-8 text-green-600" />
-            <div>
-              <p className="text-3xl font-bold text-green-600">
-                {totalOccupied}
-              </p>
-              <p className="text-gray-500">Đang sử dụng</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <ParkingCircle className="w-8 h-8 text-gray-600" />
-            <div>
-              <p className="text-3xl font-bold text-gray-600">
-                {totalAvailable}
-              </p>
-              <p className="text-gray-500">Còn trống</p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
+
+      {/* Search & Sort Bar */}
+      {parkingLots.length > 0 && (
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Tìm theo tên bãi xe..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+            />
+          </div>
+          <div className="relative">
+            <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-300 appearance-none cursor-pointer"
+            >
+              <option value="default">Mặc định</option>
+              <option value="occ_desc">Lấp đầy cao nhất</option>
+              <option value="occ_asc">Lấp đầy thấp nhất</option>
+              <option value="name_az">Tên A → Z</option>
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Parking Lots Grid */}
       {parkingLots.length === 0 ? (
@@ -317,9 +379,16 @@ function ParkingLots() {
             </Button>
           </CardContent>
         </Card>
+      ) : filteredLots.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center py-12 text-center">
+            <Search className="w-10 h-10 text-gray-300 mb-3" />
+            <p className="text-gray-500 text-sm">Không tìm thấy bãi xe nào khớp với "{searchQuery}"</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {parkingLots.map((lot) => {
+          {filteredLots.map((lot) => {
             const rtAvailable = spotsMap[lot.id];
             const availableSpots =
               typeof rtAvailable === "number"
@@ -336,6 +405,21 @@ function ParkingLots() {
               typeof rtAvailable === "number"
                 ? Math.max(0, lot.totalSpots - rtAvailable)
                 : lot.occupiedSpots;
+
+            const isCritical = occupancyRate >= 90;
+            const isWarning = occupancyRate >= 70 && occupancyRate < 90;
+
+            const barColor = isCritical
+              ? "bg-red-500"
+              : isWarning
+                ? "bg-amber-400"
+                : "bg-green-500";
+            const rateColor = isCritical
+              ? "text-red-600"
+              : isWarning
+                ? "text-amber-600"
+                : "text-green-600";
+
             const statusMap = {
               active: { label: "Hoạt động", variant: "success" },
               inactive: { label: "Không hoạt động", variant: "destructive" },
@@ -345,31 +429,40 @@ function ParkingLots() {
               lot.status?.toLowerCase()
             ] ?? { label: lot.status ?? "—", variant: "secondary" };
 
+
             return (
               <Card
                 key={lot.id}
-                className="flex flex-col hover:shadow-lg transition-shadow duration-200"
+                className={`flex flex-col transition-all duration-200 hover:shadow-lg ${
+                  isCritical
+                    ? "ring-2 ring-red-400 shadow-red-100 shadow-md"
+                    : ""
+                }`}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 flex-shrink-0 bg-primary-50 border border-primary-100 rounded-xl flex items-center justify-center">
-                        <ParkingCircle className="w-5 h-5 text-primary-600" />
+                      <div className={`w-11 h-11 flex-shrink-0 rounded-xl flex items-center justify-center border ${
+                        isCritical
+                          ? "bg-red-50 border-red-100"
+                          : "bg-primary-50 border-primary-100"
+                      }`}>
+                        <ParkingCircle className={`w-5 h-5 ${isCritical ? "text-red-500" : "text-primary-600"}`} />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold text-gray-900 leading-tight truncate">
+                        <h3
+                          className="font-semibold text-gray-900 leading-tight truncate"
+                          title={lot.name}
+                        >
                           {lot.name}
                         </h3>
                         <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
                           <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="truncate">{lot.location}</span>
+                          <span className="truncate" title={lot.location}>{lot.location}</span>
                         </div>
                       </div>
                     </div>
-                    <Badge
-                      variant={statusVariant}
-                      className="flex-shrink-0 mt-0.5"
-                    >
+                    <Badge variant={statusVariant} className="flex-shrink-0 mt-0.5">
                       {statusLabel}
                     </Badge>
                   </div>
@@ -380,84 +473,58 @@ function ParkingLots() {
                   <div>
                     <div className="flex justify-between text-xs mb-1.5">
                       <span className="text-gray-500">Tỷ lệ lấp đầy</span>
-                      <span
-                        className={`font-semibold ${
-                          occupancyRate > 80
-                            ? "text-red-600"
-                            : occupancyRate > 50
-                              ? "text-orange-600"
-                              : "text-green-600"
-                        }`}
-                      >
+                      <span className={`font-semibold ${rateColor}`}>
                         {occupancyRate.toFixed(1)}%
+                        {isCritical && (
+                          <span className="ml-1 text-red-500">⚠</span>
+                        )}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div className="w-full bg-gray-200 border border-gray-300 rounded-full h-3">
                       <div
-                        className={`h-2 rounded-full transition-all ${
-                          occupancyRate > 80
-                            ? "bg-red-500"
-                            : occupancyRate > 50
-                              ? "bg-orange-500"
-                              : "bg-green-500"
-                        }`}
-                        style={{ width: `${Math.min(occupancyRate, 100)}%` }}
+                        className={`h-3 rounded-full transition-all ${barColor}`}
+                        style={{
+                          width: `${Math.min(occupancyRate, 100)}%`,
+                          minWidth: occupancyRate > 0 ? "6px" : "0",
+                        }}
                       />
                     </div>
                   </div>
 
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      {
-                        val: lot.totalSpots,
-                        label: "Tổng chỗ",
-                        color: "text-gray-900",
-                      },
-                      {
-                        val: availableSpots,
-                        label: "Còn trống",
-                        color: "text-green-600",
-                      },
-                      {
-                        val: occupiedSpots,
-                        label: "Đang dùng",
-                        color: "text-orange-600",
-                      },
-                      {
-                        val: lot.gates,
-                        label: "Số cổng",
-                        color: "text-blue-600",
-                        Icon: DoorOpen,
-                      },
-                      {
-                        val: lot.cameras,
-                        label: "Thiết bị",
-                        color: "text-purple-600",
-                        Icon: Camera,
-                      },
-                    ].map(({ val, label, color, Icon }) => (
-                      <div
-                        key={label}
-                        className="bg-gray-50 rounded-lg p-3 flex items-center gap-2"
-                      >
-                        {Icon && (
-                          <Icon
-                            className={`w-4 h-4 flex-shrink-0 ${color} opacity-70`}
-                          />
-                        )}
-                        <div>
-                          <p
-                            className={`text-xl font-bold leading-none ${color}`}
-                          >
-                            {val ?? 0}
-                          </p>
-                          <p className="text-[11px] text-gray-500 mt-0.5">
-                            {label}
-                          </p>
+                  {/* Stats: Cụm Sức chứa */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Sức chứa</p>
+                    <div className="flex divide-x divide-gray-200">
+                      {[
+                        { val: lot.totalSpots, label: "Tổng chỗ", color: "text-gray-900" },
+                        { val: occupiedSpots, label: "Đang dùng", color: "text-orange-600" },
+                        { val: availableSpots, label: "Còn trống", color: "text-green-600" },
+                      ].map(({ val, label, color }, i) => (
+                        <div key={label} className={`flex-1 text-center ${i > 0 ? "pl-3" : ""} ${i < 2 ? "pr-3" : ""}`}>
+                          <p className="text-[10px] text-gray-400 mb-1">{label}</p>
+                          <p className={`text-xl font-bold leading-none ${color}`}>{val ?? 0}</p>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Stats: Cụm Phần cứng */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Phần cứng</p>
+                    <div className="flex divide-x divide-gray-200">
+                      {[
+                        { val: lot.gates, label: "Số cổng", color: "text-blue-600", Icon: DoorOpen },
+                        { val: lot.cameras, label: "Thiết bị", color: "text-purple-600", Icon: Camera },
+                      ].map(({ val, label, color, Icon }, i) => (
+                        <div key={label} className={`flex-1 flex items-center gap-2 ${i > 0 ? "pl-4" : ""} ${i < 1 ? "pr-4" : ""}`}>
+                          <Icon className={`w-4 h-4 flex-shrink-0 ${color} opacity-70`} />
+                          <div>
+                            <p className="text-[10px] text-gray-400 mb-0.5">{label}</p>
+                            <p className={`text-xl font-bold leading-none ${color}`}>{val ?? 0}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </CardContent>
 
@@ -481,11 +548,11 @@ function ParkingLots() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    className="ml-1 text-red-500 hover:text-red-700 hover:bg-red-50"
                     title="Xóa"
                     onClick={() => handleDelete(lot)}
                   >
-                    <DeleteTwoTone twoToneColor="#2563eb" />
+                    <DeleteTwoTone twoToneColor="#ef4444" />
                   </Button>
                 </CardFooter>
               </Card>
