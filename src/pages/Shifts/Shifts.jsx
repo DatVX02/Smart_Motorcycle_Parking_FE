@@ -547,6 +547,118 @@ const SHIFT_TYPE_OPTIONS = [
   { value: "FULL_DAY", label: "Cả ngày", dot: "#10B981" },
 ];
 
+function StaffFilterDropdown({ staff, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef(null);
+  const close = useCallback(() => setOpen(false), []);
+  useClickOutside(ref, close);
+
+  const selected = staff.find(
+    (s) => String(s.staffId ?? s.id) === String(value),
+  );
+
+  const filtered = staff.filter((s) => {
+    const name = (s.fullName ?? s.name ?? "").toLowerCase();
+    const q = search.toLowerCase();
+    return !q || name.includes(q);
+  });
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-2 bg-white border rounded-lg px-3 py-1.5 shadow-sm transition-all hover:shadow-md ${open ? "border-violet-400 ring-1 ring-violet-100" : value ? "border-violet-300 bg-violet-50" : "border-gray-200 hover:border-gray-400"}`}
+      >
+        <Users className="w-3.5 h-3.5 text-violet-500 flex-shrink-0" />
+        <span
+          className={`text-xs font-semibold max-w-[140px] truncate ${value ? "text-violet-700" : "text-gray-800"}`}
+        >
+          {selected ? (selected.fullName ?? selected.name) : "Tất cả NV"}
+        </span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute top-[calc(100%+6px)] left-0 z-[200] bg-white border border-gray-200 rounded-xl shadow-2xl py-1.5 min-w-[220px] max-w-[280px] overflow-hidden">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-3 pb-1.5 pt-0.5">
+            Lọc theo nhân viên
+          </p>
+          {/* Search */}
+          <div className="px-3 pb-1.5">
+            <input
+              type="text"
+              placeholder="Tìm nhân viên..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent placeholder:text-gray-400 bg-gray-50"
+            />
+          </div>
+          <div className="max-h-[260px] overflow-y-auto">
+            {/* Tất cả nhân viên */}
+            <button
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+                setSearch("");
+              }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${!value ? "bg-violet-50" : "hover:bg-gray-50"}`}
+            >
+              <div
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${!value ? "bg-violet-500" : "bg-gray-300"}`}
+              />
+              <span
+                className={`text-xs font-medium flex-1 ${!value ? "text-violet-700 font-semibold" : "text-gray-700"}`}
+              >
+                Tất cả nhân viên
+              </span>
+              {!value && (
+                <CheckCircle2 className="w-3.5 h-3.5 text-violet-500 flex-shrink-0" />
+              )}
+            </button>
+            {filtered.map((s) => {
+              const id = String(s.staffId ?? s.id);
+              const isActive = String(value) === id;
+              const name = s.fullName ?? s.name ?? "Nhân viên";
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    onChange(id);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${isActive ? "bg-violet-50" : "hover:bg-gray-50"}`}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? "bg-violet-500" : "bg-gray-300"}`}
+                  />
+                  <span
+                    className={`text-xs font-medium truncate flex-1 ${isActive ? "text-violet-700 font-semibold" : "text-gray-700"}`}
+                  >
+                    {name}
+                  </span>
+                  {isActive && (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-violet-500 flex-shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+            {filtered.length === 0 && (
+              <p className="px-3 py-3 text-xs text-gray-400 text-center">
+                Không tìm thấy
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ShiftTypeDropdown({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -641,6 +753,7 @@ function Shifts() {
   const [selectedShiftIds, setSelectedShiftIds] = useState(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [filterShiftType, setFilterShiftType] = useState("");
+  const [filterStaffId, setFilterStaffId] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [tooltip, setTooltip] = useState(null);
@@ -1278,6 +1391,13 @@ function Shifts() {
               onChange={setFilterShiftType}
             />
 
+            {/* Nhân viên */}
+            <StaffFilterDropdown
+              staff={activeStaffForSidebar}
+              value={filterStaffId}
+              onChange={setFilterStaffId}
+            />
+
             {/* Khoảng ngày */}
             <div
               className={`flex items-center gap-1.5 bg-white border rounded-lg px-2.5 py-1.5 shadow-sm transition-colors cursor-pointer ${filterDateFrom || filterDateTo ? "border-blue-300 ring-1 ring-blue-100" : "border-gray-200 hover:border-gray-300"}`}
@@ -1328,7 +1448,6 @@ function Shifts() {
                 title="Dạng 1 bãi (Tab)"
               >
                 <SquareDashedBottom className="w-3.5 h-3.5" />
-                <span>Tab</span>
               </button>
               <button
                 onClick={() => setViewMode("grid")}
@@ -1336,7 +1455,6 @@ function Shifts() {
                 title="Dạng lưới tất cả bãi"
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Grid</span>
               </button>
             </div>
 
@@ -1553,6 +1671,11 @@ function Shifts() {
                     filterShiftType &&
                     (s.shiftType ?? s.ShiftType ?? "").toUpperCase() !==
                       filterShiftType
+                  )
+                    return false;
+                  if (
+                    filterStaffId &&
+                    String(s.staffId ?? s.StaffId ?? "") !== filterStaffId
                   )
                     return false;
                   const shiftDate = (

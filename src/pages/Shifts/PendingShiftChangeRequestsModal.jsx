@@ -65,6 +65,19 @@ function parseShiftChangeMessage(message = "") {
   return result;
 }
 
+// Chuyển "dd/MM/yyyy" → "yyyy-MM-dd"; nếu đã là ISO thì giữ nguyên
+function toIsoDate(dateStr = "") {
+  if (!dateStr) return "";
+  // dd/MM/yyyy
+  const viMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (viMatch) {
+    const [, d, m, y] = viMatch;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  // yyyy-MM-dd hoặc ISO đầy đủ
+  return dateStr.split("T")[0];
+}
+
 function getAvatarColor(id = "") {
   const colors = [
     "bg-blue-500",
@@ -87,17 +100,18 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
-/* ── Modal phụ khi Duyệt (cần chọn ca mới) ── */
-function ApproveModal({
-  request,
-  parkingLots,
-  availableShifts,
-  onClose,
-  onSuccess,
-}) {
-  const [newShiftId, setNewShiftId] = useState("");
+/* ── Modal phụ khi Duyệt ── */
+function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
+  const [selectedShiftId, setSelectedShiftId] = useState("");
   const [adminNote, setAdminNote] = useState("");
   const [loading, setLoading] = useState(false);
+  const [shiftsOnDate, setShiftsOnDate] = useState([]);
+  const [loadingShifts, setLoadingShifts] = useState(true);
+  const [currentShiftId, setCurrentShiftId] = useState(
+    String(
+      request?.shiftId ?? request?.workShiftId ?? request?.currentShiftId ?? "",
+    ),
+  );
 
   const notificationId =
     request?.notificationId ?? request?.id ?? request?.notification?.id;
@@ -107,21 +121,187 @@ function ApproveModal({
     request?.staffName ??
     request?.staff?.fullName ??
     "Nhân viên";
-  const proposedDate = parsed.proposedDate ?? request?.proposedDate ?? "";
+  const staffId = request?.staffId ?? "";
+  const proposedDateRaw = parsed.proposedDate ?? request?.proposedDate ?? "";
+  const proposedDateIso = toIsoDate(proposedDateRaw);
   const proposedShiftType =
     parsed.proposedShiftType ?? request?.proposedShiftType ?? "";
+  const currentDate = parsed.currentShiftDate ?? "";
+  const currentDateIso = toIsoDate(currentDate);
+  const currentShiftType = parsed.currentShiftType ?? "";
+  const lotName = parsed.lotName ?? "";
+  const reason = parsed.reason ?? parsed.note ?? "";
+
+  const displayProposedDate = proposedDateIso
+    ? new Date(proposedDateIso + "T00:00:00").toLocaleDateString("vi-VN", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : "—";
+
+  // Nếu request không có shiftId sẵn → tìm từ API theo staffId + ngày hiện tại
+  useEffect(() => {
+    if (currentShiftId || !staffId || !currentDateIso) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await workShiftService.getByStaff(staffId);
+        const arr = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.data)
+            ? data.data
+            : (data?.items ?? data?.data?.items ?? []);
+        const match = arr.find(
+          (s) =>
+            (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0] ===
+            currentDateIso,
+        );
+        if (process.env.NODE_ENV === "development") {
+          console.log("[ApproveModal] getByStaff result:", arr);
+          console.log("[ApproveModal] currentDateIso:", currentDateIso, "matched:", match);
+        }
+        if (!cancelled && match) {
+          setCurrentShiftId(
+            String(
+              match.shiftId ??
+                match.ShiftId ??
+                match.workShiftId ??
+                match.WorkShiftId ??
+                match.id ??
+                "",
+            ),
+          );
+        }
+      } catch {
+        // silent
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [staffId, currentDateIso, currentShiftId]);
+
+  // Load các ca trực trên ngày đề xuất từ tất cả bãi xe
+  useEffect(() => {
+    if (!proposedDateIso) {
+      setLoadingShifts(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingShifts(true);
+      try {
+        const lots = parkingLots ?? [];
+        const allShifts = [];
+        for (const lot of lots) {
+          const id = lot.id ?? lot.lotId;
+          if (!id) continue;
+          const data = await workShiftService.getByLot(id, {
+            startDate: proposedDateIso,
+            endDate: proposedDateIso,
+          });
+          const arr = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.data)
+              ? data.data
+              : (data?.items ?? data?.data?.items ?? []);
+          if (process.env.NODE_ENV === "development") {
+            console.log(
+              `[ApproveModal] getByLot(${id}) shifts:`,
+              arr.map((s) => ({
+                shiftId: s.shiftId,
+                ShiftId: s.ShiftId,
+                workShiftId: s.workShiftId,
+                id: s.id,
+                staffName: s.staffName,
+                shiftDate: s.shiftDate ?? s.workDate ?? s.date,
+                shiftType: s.shiftType,
+              })),
+            );
+          }
+          const filtered = arr.filter((s) => {
+            const d = (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0];
+            if (d !== proposedDateIso) return false;
+            // Loại trừ ca của chính nhân viên đang yêu cầu đổi
+            if (
+              staffId &&
+              String(s.staffId ?? s.StaffId ?? "") === String(staffId)
+            )
+              return false;
+            return true;
+          });
+          filtered.forEach((s) => {
+            s._lotName = lot.name ?? lot.lotName ?? "";
+            s._lotId = id;
+          });
+          allShifts.push(...filtered);
+        }
+        if (!cancelled) setShiftsOnDate(allShifts);
+      } catch {
+        if (!cancelled) setShiftsOnDate([]);
+      } finally {
+        if (!cancelled) setLoadingShifts(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [proposedDateIso, parkingLots]);
 
   const handleSubmit = async () => {
     if (!notificationId) return;
+    if (selectedShiftId && !currentShiftId) {
+      toast.error(
+        "Không xác định được ca hiện tại của nhân viên. Vui lòng thử lại.",
+      );
+      return;
+    }
     setLoading(true);
     try {
+      if (selectedShiftId && currentShiftId) {
+        // Có chọn ca để đổi → hoán đổi 2 ca với nhau
+        if (process.env.NODE_ENV === "development") {
+          console.log("[adminSwapShifts] payload:", {
+            shiftId1: currentShiftId,
+            shiftId2: selectedShiftId,
+          });
+          console.log(
+            "[adminSwapShifts] all available shifts:",
+            shiftsOnDate.map((s) => ({
+              shiftId: s.shiftId,
+              ShiftId: s.ShiftId,
+              workShiftId: s.workShiftId,
+              id: s.id,
+              staffName: s.staffName,
+            })),
+          );
+        }
+        await workShiftService.adminSwapShifts({
+          shiftId1: currentShiftId,
+          shiftId2: selectedShiftId,
+        });
+      } else if (currentShiftId && proposedDateIso) {
+        // Không có ca để đổi → chỉ chuyển ngày ca hiện tại sang ngày đề xuất
+        await workShiftService.update(currentShiftId, {
+          shiftDate: proposedDateIso,
+        });
+      }
+
+      // Cập nhật trạng thái notification
       await workShiftService.processShiftChangeRequest({
         notificationId,
         decision: "Approved",
-        newShiftId: newShiftId || undefined,
+        newShiftId: selectedShiftId || undefined,
         adminNote: adminNote.trim() || undefined,
       });
-      toast.success("Đã duyệt yêu cầu đổi ca");
+
+      toast.success(
+        selectedShiftId
+          ? "Đã duyệt và hoán đổi ca trực thành công"
+          : "Đã duyệt – ca đã được chuyển sang ngày đề xuất",
+      );
       onSuccess();
     } catch (err) {
       toast.error(
@@ -135,63 +315,227 @@ function ApproveModal({
     }
   };
 
+  const hasShifts = shiftsOnDate.length > 0;
+
+  const SHIFT_COLORS_MAP = {
+    MORNING: {
+      bg: "bg-blue-50",
+      border: "border-blue-200",
+      text: "text-blue-700",
+      ring: "ring-blue-400",
+      dot: "bg-blue-500",
+    },
+    AFTERNOON: {
+      bg: "bg-amber-50",
+      border: "border-amber-200",
+      text: "text-amber-700",
+      ring: "ring-amber-400",
+      dot: "bg-amber-500",
+    },
+    NIGHT: {
+      bg: "bg-violet-50",
+      border: "border-violet-200",
+      text: "text-violet-700",
+      ring: "ring-violet-400",
+      dot: "bg-violet-500",
+    },
+    FULL_DAY: {
+      bg: "bg-emerald-50",
+      border: "border-emerald-200",
+      text: "text-emerald-700",
+      ring: "ring-emerald-400",
+      dot: "bg-emerald-500",
+    },
+  };
+
   return createPortal(
-    <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden my-auto">
+        {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-          <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center">
-            <Check className="w-4 h-4 text-emerald-600" />
+          <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Check className="w-4.5 h-4.5 text-emerald-600" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-gray-900">
               Duyệt yêu cầu đổi ca
             </h3>
-            <p className="text-xs text-gray-500 mt-0.5">{staffName}</p>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{staffName}</p>
           </div>
           <button
             onClick={onClose}
-            className="ml-auto p-1.5 hover:bg-gray-100 rounded-lg"
+            className="p-1.5 hover:bg-gray-100 rounded-lg flex-shrink-0"
           >
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
+          {/* Tóm tắt yêu cầu */}
+          <div className="bg-gray-50 rounded-xl p-3.5 space-y-2 text-xs">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+              Thông tin yêu cầu
+            </p>
+            <div className="flex items-center gap-2 text-gray-700">
+              <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <span className="text-gray-500">Ca hiện tại:</span>
+              <span className="font-semibold">{currentDate || "—"}</span>
+              {currentShiftType && (
+                <span className="px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">
+                  {SHIFT_TYPE_LABELS[currentShiftType] ?? currentShiftType}
+                </span>
+              )}
+              {lotName && (
+                <>
+                  <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                  <span className="truncate text-gray-600">{lotName}</span>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-gray-700">
+              <Clock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+              <span className="text-gray-500">Đề xuất đổi sang:</span>
+              <span className="font-semibold text-amber-700">
+                {proposedDateRaw || "—"}
+              </span>
+              {proposedShiftType && (
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+                  {SHIFT_TYPE_LABELS[proposedShiftType] ?? proposedShiftType}
+                </span>
+              )}
+            </div>
+            {reason && (
+              <div className="flex items-start gap-2 pt-1.5 border-t border-gray-200 mt-1.5 text-gray-600">
+                <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+                <span className="italic">{reason}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Danh sách ca trên ngày đề xuất */}
           <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5" />
-              Chọn ca mới để đổi
-            </label>
-            <select
-              value={newShiftId}
-              onChange={(e) => setNewShiftId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-            >
-              <option value="">-- Chọn ca (tùy chọn) --</option>
-              {(availableShifts ?? []).map((s) => {
-                const id = s.shiftId ?? s.ShiftId ?? s.id;
-                const date = (s.shiftDate ?? s.workDate ?? "").split("T")[0];
-                const type = s.shiftType ?? s.ShiftType ?? "Morning";
-                const lot = parkingLots?.find(
-                  (l) => (l.id ?? l.lotId) === (s.lotId ?? s.LotId),
-                );
-                const lotName = lot?.name ?? lot?.lotName ?? s.lotName ?? "";
-                return (
-                  <option key={id} value={id}>
-                    {date} · {SHIFT_TYPE_LABELS[type] ?? type} · {lotName}
-                  </option>
-                );
-              })}
-            </select>
-            {(proposedDate || proposedShiftType) && (
-              <p className="text-xs text-gray-500 mt-1">
-                Nhân viên đề xuất:{" "}
-                <span className="font-medium">{proposedDate}</span>{" "}
-                {SHIFT_TYPE_LABELS[proposedShiftType] ?? proposedShiftType}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                Ca có sẵn vào{" "}
+                <span className="text-emerald-700 capitalize">
+                  {displayProposedDate}
+                </span>
+              </p>
+              {loadingShifts && (
+                <RefreshCw className="w-3.5 h-3.5 text-gray-400 animate-spin" />
+              )}
+            </div>
+
+            {loadingShifts ? (
+              <div className="space-y-2">
+                {[1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-14 bg-gray-100 rounded-xl animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : !hasShifts ? (
+              <div className="rounded-xl border-2 border-dashed border-amber-200 bg-amber-50 p-4 text-center">
+                <p className="text-sm font-semibold text-amber-700">
+                  Không có ca nào vào ngày này
+                </p>
+                <p className="text-xs text-amber-600 mt-1">
+                  Khi bấm Xác nhận, ca hiện tại của nhân viên sẽ được
+                  <br />
+                  <span className="font-semibold">
+                    chuyển sang ngày đề xuất
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                {shiftsOnDate.map((s) => {
+                  const id = String(
+                    s.shiftId ??
+                      s.ShiftId ??
+                      s.workShiftId ??
+                      s.WorkShiftId ??
+                      s.id ??
+                      "",
+                  );
+                  const type = (
+                    s.shiftType ??
+                    s.ShiftType ??
+                    "MORNING"
+                  ).toUpperCase();
+                  const colors =
+                    SHIFT_COLORS_MAP[type] ?? SHIFT_COLORS_MAP.MORNING;
+                  const start = (s.startTime ?? "").slice(0, 5);
+                  const end = (s.endTime ?? "").slice(0, 5);
+                  const sName = s.staffName ?? s.StaffName ?? "Nhân viên";
+                  const sLot = s._lotName ?? s.lotName ?? "";
+                  const isSelected = selectedShiftId === id;
+
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setSelectedShiftId(isSelected ? "" : id)}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl border-2 transition-all text-left ${
+                        isSelected
+                          ? `${colors.bg} ${colors.border} ring-2 ${colors.ring}`
+                          : "bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {/* Dot màu loại ca */}
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isSelected ? colors.dot : "bg-gray-300"}`}
+                      />
+
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`text-xs font-semibold truncate ${isSelected ? colors.text : "text-gray-800"}`}
+                        >
+                          {sName}
+                        </p>
+                        <p className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1.5">
+                          {start && end && (
+                            <span>
+                              {start} – {end}
+                            </span>
+                          )}
+                          {sLot && (
+                            <>
+                              <span className="text-gray-300">·</span>
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">{sLot}</span>
+                            </>
+                          )}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${isSelected ? `${colors.bg} ${colors.text}` : "bg-gray-100 text-gray-500"}`}
+                      >
+                        {SHIFT_TYPE_LABELS[type] ?? type}
+                      </span>
+
+                      {isSelected && (
+                        <CheckCircle2
+                          className={`w-4 h-4 flex-shrink-0 ${colors.text}`}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {hasShifts && !selectedShiftId && (
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                Chọn ca để hoán đổi, hoặc bỏ qua để chỉ chuyển ngày ca của nhân
+                viên.
               </p>
             )}
           </div>
 
+          {/* Ghi chú */}
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
               <FileText className="w-3.5 h-3.5" /> Ghi chú gửi nhân viên
@@ -206,23 +550,27 @@ function ApproveModal({
           </div>
         </div>
 
+        {/* Footer */}
         <div className="flex gap-3 px-5 py-4 border-t border-gray-100 bg-gray-50">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 border border-gray-200 bg-white rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            className="flex-1 py-2.5 border border-gray-200 bg-white rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
           >
             Hủy
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            disabled={loading || loadingShifts}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
           >
             {loading ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
             ) : (
               <>
-                <Check className="w-4 h-4" /> Xác nhận duyệt
+                <Check className="w-4 h-4" />
+                {hasShifts && selectedShiftId
+                  ? "Hoán đổi ca"
+                  : "Xác nhận duyệt"}
               </>
             )}
           </button>
@@ -234,14 +582,7 @@ function ApproveModal({
 }
 
 /* ── Card từng yêu cầu ── */
-function RequestCard({
-  req,
-  idx,
-  parkingLots,
-  availableShifts,
-  cardState,
-  onProcessed,
-}) {
+function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
   const [localState, setLocalState] = useState(cardState ?? null); // null | "rejecting" | "approved" | "rejected"
   const [rejectNote, setRejectNote] = useState("");
   const [loading, setLoading] = useState(false);
@@ -429,7 +770,6 @@ function RequestCard({
         <ApproveModal
           request={req}
           parkingLots={parkingLots}
-          availableShifts={availableShifts}
           onClose={() => setShowApproveModal(false)}
           onSuccess={handleApproveSuccess}
         />
@@ -450,7 +790,6 @@ const FILTER_TABS = [
 function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [availableShifts, setAvailableShifts] = useState([]);
   const [cardStates, setCardStates] = useState({}); // { [id]: "approved" | "rejected" }
   const [activeFilter, setActiveFilter] = useState("all");
 
@@ -484,55 +823,6 @@ function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
   useEffect(() => {
     loadPending();
   }, []);
-
-  // Load available shifts for approve modal
-  useEffect(() => {
-    if (requests.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const lots = parkingLots ?? [];
-        const allRaw = [];
-        for (const lot of lots) {
-          const id = lot.id ?? lot.lotId;
-          if (!id) continue;
-          const data = await workShiftService.getByLot(id, {});
-          const arr = Array.isArray(data)
-            ? data
-            : Array.isArray(data?.data)
-              ? data.data
-              : (data?.items ?? []);
-          allRaw.push(...arr);
-        }
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(0, 0, 0, 0);
-        const slotKey = (s) => {
-          const date = (s.shiftDate ?? s.workDate ?? "").split("T")[0];
-          const lotId = s.lotId ?? s.LotId ?? "";
-          const type = s.shiftType ?? s.ShiftType ?? "Morning";
-          return `${lotId}|${date}|${type}`;
-        };
-        const countBySlot = {};
-        for (const s of allRaw) {
-          const date = (s.shiftDate ?? s.workDate ?? "").split("T")[0];
-          if (!date || new Date(date + "T00:00:00") < tomorrow) continue;
-          const key = slotKey(s);
-          if (!countBySlot[key]) countBySlot[key] = { count: 0, shift: s };
-          countBySlot[key].count += 1;
-        }
-        const available = Object.values(countBySlot)
-          .filter((x) => x.count < 4)
-          .map((x) => x.shift);
-        if (!cancelled) setAvailableShifts(available);
-      } catch {
-        if (!cancelled) setAvailableShifts([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [requests, parkingLots]);
 
   const handleProcessed = (id, status) => {
     setCardStates((prev) => ({ ...prev, [id]: status }));
@@ -658,7 +948,6 @@ function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
                   req={req}
                   idx={idx}
                   parkingLots={parkingLots}
-                  availableShifts={availableShifts}
                   cardState={cardStates[getReqId(req)] ?? null}
                   onProcessed={handleProcessed}
                 />

@@ -42,6 +42,8 @@ const workShiftService = {
     apiClient
       .post("/api/v1/work-shifts/shift-change-requests/process", payload)
       .then(unwrap),
+  adminSwapShifts: (payload) =>
+    apiClient.post("/api/v1/staff/admin-swap-shifts", payload).then(unwrap),
 
   checkAnomalies: (params) =>
     apiClient
