@@ -584,6 +584,7 @@ export default function Transactions() {
               iconColor="text-blue-600"
               label="Tổng giao dịch"
               value={statTotal}
+              valueSuffix="Giao dịch"
             />
             <StatCard
               icon={TrendingUp}

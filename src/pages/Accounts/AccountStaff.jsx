@@ -275,38 +275,55 @@ function AccountStaff() {
 
   return (
     <div className="space-y-10">
+      {/* Statistics — Tiêu đề trên, số + đơn vị dưới */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <Users className="w-8 h-8 text-blue-600" />
-
-            <div>
-              <p className="text-3xl font-bold">{accounts.length}</p>
-              <p className="text-gray-500">Tổng nhân viên</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <UserCheck className="w-8 h-8 text-green-600" />
-
-            <div>
-              <p className="text-3xl font-bold text-green-600">{activeCount}</p>
-              <p className="text-gray-500">Đang hoạt động</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <UserX className="w-8 h-8 text-gray-600" />
-
-            <div>
-              <p className="text-3xl font-bold text-gray-600">
-                {inactiveCount}
+        <div className="bg-white rounded-3xl p-6 shadow border">
+          <div className="flex items-center gap-4">
+            <Users className="w-8 h-8 flex-shrink-0 text-blue-600" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-600 mb-1">
+                Tổng nhân viên
               </p>
-              <p className="text-gray-500">Ngưng hoạt động</p>
+              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                {accounts.length}
+                <span className="text-base font-medium text-gray-600">
+                  Nhân viên
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-green-500/30 rounded-3xl p-6 shadow border">
+          <div className="flex items-center gap-4">
+            <UserCheck className="w-8 h-8 flex-shrink-0 text-green-600" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-600 mb-1">
+                Đang hoạt động
+              </p>
+              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                {activeCount}
+                <span className="text-base font-medium text-gray-600">
+                  Nhân viên
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-500/30 rounded-3xl p-6 shadow border">
+          <div className="flex items-center gap-4">
+            <UserX className="w-8 h-8 flex-shrink-0 text-gray-600" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-600 mb-1">
+                Ngưng hoạt động
+              </p>
+              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                {inactiveCount}
+                <span className="text-base font-medium text-gray-600">
+                  Nhân viên
+                </span>
+              </p>
             </div>
           </div>
         </div>
