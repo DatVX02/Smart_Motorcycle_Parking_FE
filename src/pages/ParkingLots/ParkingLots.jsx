@@ -1,5 +1,13 @@
 import { useState, useEffect } from "react";
-import { ParkingCircle, MapPin, Plus, DoorOpen, Camera, Search, ArrowUpDown } from "lucide-react";
+import {
+  ParkingCircle,
+  MapPin,
+  Plus,
+  DoorOpen,
+  Camera,
+  Search,
+  ArrowUpDown,
+} from "lucide-react";
 import { EyeTwoTone, EditTwoTone, DeleteTwoTone } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import ParkingLotModal from "./ParkingLotModal";
@@ -241,12 +249,12 @@ function ParkingLots() {
 
   // Filter + sort
   const filteredLots = parkingLots
-    .filter((lot) =>
-      lot.name.toLowerCase().includes(searchQuery.toLowerCase()),
-    )
+    .filter((lot) => lot.name.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
-      const rateA = a.totalSpots > 0 ? (a.occupiedSpots / a.totalSpots) * 100 : 0;
-      const rateB = b.totalSpots > 0 ? (b.occupiedSpots / b.totalSpots) * 100 : 0;
+      const rateA =
+        a.totalSpots > 0 ? (a.occupiedSpots / a.totalSpots) * 100 : 0;
+      const rateB =
+        b.totalSpots > 0 ? (b.occupiedSpots / b.totalSpots) * 100 : 0;
       if (sortBy === "occ_desc") return rateB - rateA;
       if (sortBy === "occ_asc") return rateA - rateB;
       if (sortBy === "name_az") return a.name.localeCompare(b.name, "vi");
@@ -275,57 +283,60 @@ function ParkingLots() {
 
   return (
     <div className="space-y-10">
-      {/* Overview Stats */}
+      {/* Statistics — Tiêu đề trên, số + đơn vị dưới (giống màn hình Giao dịch) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           {
             label: "Tổng bãi đỗ",
             value: totalLots,
-            unit: "bãi",
+            unit: "Bãi",
             Icon: ParkingCircle,
-            iconBg: "bg-blue-50",
             iconColor: "text-blue-600",
-            valueColor: "text-gray-900",
+            bgTint: "bg-white",
           },
           {
             label: "Tổng chỗ đỗ",
             value: totalSpots,
-            unit: "chỗ",
+            unit: "Chỗ",
             Icon: MapPin,
-            iconBg: "bg-indigo-50",
-            iconColor: "text-indigo-600",
-            valueColor: "text-gray-900",
+            iconColor: "text-green-600",
+            bgTint: "bg-white",
           },
           {
             label: "Đang sử dụng",
             value: totalOccupied,
-            unit: "xe",
-            Icon: ParkingCircle,
-            iconBg: "bg-green-50",
+            unit: "Xe",
+            Icon: DoorOpen,
             iconColor: "text-green-600",
-            valueColor: "text-green-600",
+            bgTint: "bg-green-500/30",
           },
           {
             label: "Còn trống",
             value: totalAvailable,
-            unit: "chỗ",
+            unit: "Chỗ",
             Icon: ParkingCircle,
-            iconBg: "bg-gray-100",
-            iconColor: "text-gray-500",
-            valueColor: "text-gray-700",
+            iconColor: "text-orange-600",
+            bgTint: "bg-amber-500/30",
           },
-        ].map(({ label, value, unit, Icon, iconBg, iconColor, valueColor }) => (
-          <div key={label} className="bg-white rounded-3xl px-7 py-6 shadow border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500 mb-2">{label}</p>
-                <p className={`text-3xl font-bold ${valueColor}`}>
-                  {value}
-                  <span className="text-base font-medium text-gray-400 ml-1.5">{unit}</span>
+        ].map(({ label, value, unit, Icon, iconColor, bgTint }) => (
+          <div
+            key={label}
+            className={`rounded-3xl p-6 shadow border ${bgTint}`}
+          >
+            <div className="flex items-start gap-3">
+              <Icon
+                className={`w-8 h-8 flex-shrink-0 ${iconColor}`}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  {label}
                 </p>
-              </div>
-              <div className={`w-14 h-14 rounded-full ${iconBg} flex items-center justify-center flex-shrink-0`}>
-                <Icon className={`w-7 h-7 ${iconColor}`} />
+                <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                  {value}
+                  <span className="text-base font-medium text-gray-600">
+                    {unit}
+                  </span>
+                </p>
               </div>
             </div>
           </div>
@@ -383,7 +394,9 @@ function ParkingLots() {
         <Card>
           <CardContent className="flex flex-col items-center py-12 text-center">
             <Search className="w-10 h-10 text-gray-300 mb-3" />
-            <p className="text-gray-500 text-sm">Không tìm thấy bãi xe nào khớp với "{searchQuery}"</p>
+            <p className="text-gray-500 text-sm">
+              Không tìm thấy bãi xe nào khớp với "{searchQuery}"
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -429,7 +442,6 @@ function ParkingLots() {
               lot.status?.toLowerCase()
             ] ?? { label: lot.status ?? "—", variant: "secondary" };
 
-
             return (
               <Card
                 key={lot.id}
@@ -442,12 +454,16 @@ function ParkingLots() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-11 h-11 flex-shrink-0 rounded-xl flex items-center justify-center border ${
-                        isCritical
-                          ? "bg-red-50 border-red-100"
-                          : "bg-primary-50 border-primary-100"
-                      }`}>
-                        <ParkingCircle className={`w-5 h-5 ${isCritical ? "text-red-500" : "text-primary-600"}`} />
+                      <div
+                        className={`w-11 h-11 flex-shrink-0 rounded-xl flex items-center justify-center border ${
+                          isCritical
+                            ? "bg-red-50 border-red-100"
+                            : "bg-primary-50 border-primary-100"
+                        }`}
+                      >
+                        <ParkingCircle
+                          className={`w-5 h-5 ${isCritical ? "text-red-500" : "text-primary-600"}`}
+                        />
                       </div>
                       <div className="min-w-0">
                         <h3
@@ -458,11 +474,16 @@ function ParkingLots() {
                         </h3>
                         <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
                           <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="truncate" title={lot.location}>{lot.location}</span>
+                          <span className="truncate" title={lot.location}>
+                            {lot.location}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <Badge variant={statusVariant} className="flex-shrink-0 mt-0.5">
+                    <Badge
+                      variant={statusVariant}
+                      className="flex-shrink-0 mt-0.5"
+                    >
                       {statusLabel}
                     </Badge>
                   </div>
@@ -493,16 +514,39 @@ function ParkingLots() {
 
                   {/* Stats: Cụm Sức chứa */}
                   <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Sức chứa</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                      Sức chứa
+                    </p>
                     <div className="flex divide-x divide-gray-200">
                       {[
-                        { val: lot.totalSpots, label: "Tổng chỗ", color: "text-gray-900" },
-                        { val: occupiedSpots, label: "Đang dùng", color: "text-orange-600" },
-                        { val: availableSpots, label: "Còn trống", color: "text-green-600" },
+                        {
+                          val: lot.totalSpots,
+                          label: "Tổng chỗ",
+                          color: "text-gray-900",
+                        },
+                        {
+                          val: occupiedSpots,
+                          label: "Đang dùng",
+                          color: "text-orange-600",
+                        },
+                        {
+                          val: availableSpots,
+                          label: "Còn trống",
+                          color: "text-green-600",
+                        },
                       ].map(({ val, label, color }, i) => (
-                        <div key={label} className={`flex-1 text-center ${i > 0 ? "pl-3" : ""} ${i < 2 ? "pr-3" : ""}`}>
-                          <p className="text-[10px] text-gray-400 mb-1">{label}</p>
-                          <p className={`text-xl font-bold leading-none ${color}`}>{val ?? 0}</p>
+                        <div
+                          key={label}
+                          className={`flex-1 text-center ${i > 0 ? "pl-3" : ""} ${i < 2 ? "pr-3" : ""}`}
+                        >
+                          <p className="text-[10px] text-gray-400 mb-1">
+                            {label}
+                          </p>
+                          <p
+                            className={`text-xl font-bold leading-none ${color}`}
+                          >
+                            {val ?? 0}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -510,17 +554,40 @@ function ParkingLots() {
 
                   {/* Stats: Cụm Phần cứng */}
                   <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Phần cứng</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                      Phần cứng
+                    </p>
                     <div className="flex divide-x divide-gray-200">
                       {[
-                        { val: lot.gates, label: "Số cổng", color: "text-blue-600", Icon: DoorOpen },
-                        { val: lot.cameras, label: "Thiết bị", color: "text-purple-600", Icon: Camera },
+                        {
+                          val: lot.gates,
+                          label: "Số cổng",
+                          color: "text-blue-600",
+                          Icon: DoorOpen,
+                        },
+                        {
+                          val: lot.cameras,
+                          label: "Thiết bị",
+                          color: "text-purple-600",
+                          Icon: Camera,
+                        },
                       ].map(({ val, label, color, Icon }, i) => (
-                        <div key={label} className={`flex-1 flex items-center gap-2 ${i > 0 ? "pl-4" : ""} ${i < 1 ? "pr-4" : ""}`}>
-                          <Icon className={`w-4 h-4 flex-shrink-0 ${color} opacity-70`} />
+                        <div
+                          key={label}
+                          className={`flex-1 flex items-center gap-2 ${i > 0 ? "pl-4" : ""} ${i < 1 ? "pr-4" : ""}`}
+                        >
+                          <Icon
+                            className={`w-4 h-4 flex-shrink-0 ${color} opacity-70`}
+                          />
                           <div>
-                            <p className="text-[10px] text-gray-400 mb-0.5">{label}</p>
-                            <p className={`text-xl font-bold leading-none ${color}`}>{val ?? 0}</p>
+                            <p className="text-[10px] text-gray-400 mb-0.5">
+                              {label}
+                            </p>
+                            <p
+                              className={`text-xl font-bold leading-none ${color}`}
+                            >
+                              {val ?? 0}
+                            </p>
                           </div>
                         </div>
                       ))}
