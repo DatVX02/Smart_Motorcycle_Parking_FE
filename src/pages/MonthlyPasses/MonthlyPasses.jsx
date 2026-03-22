@@ -10,6 +10,8 @@ import {
   Trash2,
   PowerOff,
   Power,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import monthlyPassService from "../../services/monthlyPassService";
@@ -23,7 +25,7 @@ function MonthlyPasses() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPkg, setEditingPkg] = useState(null);
-  const [filterLotId, setFilterLotId] = useState("");
+  const [expandedLotIds, setExpandedLotIds] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState({
     open: false,
     pkg: null,
@@ -107,9 +109,14 @@ function MonthlyPasses() {
     }
   };
 
-  const filteredPackages = filterLotId
-    ? packages.filter((p) => (p._lotId ?? p.lotId) === filterLotId)
-    : packages;
+  const toggleLotExpand = (lotId) => {
+    setExpandedLotIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(lotId)) next.delete(lotId);
+      else next.add(lotId);
+      return next;
+    });
+  };
 
   const formatPrice = (val) => {
     const n = parseInt(val, 10);
@@ -117,7 +124,7 @@ function MonthlyPasses() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       {/* Action buttons */}
       <div className="flex justify-end items-center">
         <button
@@ -129,69 +136,76 @@ function MonthlyPasses() {
         </button>
       </div>
 
-      {/* Stats - giống trang quản lý bãi đỗ */}
+      {/* Thẻ thống kê — style giống Quản lý bãi xe */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <Ticket className="w-8 h-8 text-blue-600" />
-            <div>
-              <p className="text-3xl font-bold text-gray-900">
-                {packages.length}
-              </p>
-              <p className="text-gray-500">Tổng gói vé tháng</p>
+        {[
+          {
+            label: "Tổng gói vé tháng",
+            value: packages.length,
+            unit: "Gói",
+            Icon: Ticket,
+            iconColor: "text-blue-600",
+            bgTint: "bg-white",
+          },
+          {
+            label: "Bãi có gói vé",
+            value: new Set(packages.map((p) => p._lotId ?? p.lotId)).size,
+            unit: "Bãi",
+            Icon: MapPin,
+            iconColor: "text-blue-600",
+            bgTint: "bg-blue-500/30",
+          },
+          {
+            label: "Gói đang hoạt động",
+            value: packages.filter((p) => p.isActive !== false).length,
+            unit: "Gói",
+            Icon: Package,
+            iconColor: "text-green-600",
+            bgTint: "bg-green-500/30",
+          },
+        ].map(({ label, value, unit, Icon, iconColor, bgTint }) => (
+          <div
+            key={label}
+            className={`rounded-3xl p-6 shadow border ${bgTint}`}
+          >
+            <div className="flex items-start gap-3">
+              <Icon className={`w-8 h-8 flex-shrink-0 ${iconColor}`} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  {label}
+                </p>
+                <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                  {value}
+                  <span className="text-base font-medium text-gray-600">
+                    {unit}
+                  </span>
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <MapPin className="w-8 h-8 text-blue-600" />
-            <div>
-              <p className="text-3xl font-bold text-gray-900">
-                {new Set(packages.map((p) => p._lotId ?? p.lotId)).size}
-              </p>
-              <p className="text-gray-500">Bãi có gói vé</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <Package className="w-8 h-8 text-green-600" />
-            <div>
-              <p className="text-3xl font-bold text-green-600">
-                {packages.filter((p) => p.isActive !== false).length}
-              </p>
-              <p className="text-gray-500">Gói đang hoạt động</p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Filter */}
-      {parkingLots.length > 0 && (
-        <div className="flex items-center gap-2">
-          <select
-            value={filterLotId}
-            onChange={(e) => setFilterLotId(e.target.value)}
-            className="px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 bg-white"
-          >
-            <option value="">Tất cả bãi xe</option>
-            {parkingLots.map((lot) => (
-              <option key={lot.id ?? lot.lotId} value={lot.id ?? lot.lotId}>
-                {lot.name ?? lot.lotName}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Package list */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      {/* Danh sách bãi xe — click để dropdown các gói vé tháng */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-500">
             <RefreshCw className="w-10 h-10 animate-spin mb-3" />
             <p>Đang tải danh sách gói vé tháng...</p>
           </div>
-        ) : filteredPackages.length === 0 ? (
+        ) : parkingLots.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-5">
+              <MapPin className="w-10 h-10 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              Chưa có bãi xe
+            </h3>
+            <p className="text-gray-500 text-sm">
+              Thêm bãi xe trước khi tạo gói vé tháng
+            </p>
+          </div>
+        ) : packages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-5">
               <Ticket className="w-10 h-10 text-gray-400" />
@@ -211,93 +225,149 @@ function MonthlyPasses() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 p-6">
-            {filteredPackages.map((pkg, index) => (
-              <div
-                key={
-                  pkg.id ??
-                  pkg.packageId ??
-                  `pkg-${pkg._lotId ?? pkg.lotId ?? "lot"}-${index}`
-                }
-                className="group bg-white rounded-lg border border-gray-200 p-5 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-500/10 hover:border-blue-500 hover:scale-[1.02]"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <span
-                    className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-semibold ${
-                      pkg.isActive !== false
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-200 text-gray-600"
-                    }`}
+          <div className="divide-y divide-gray-100">
+            {parkingLots
+              .filter((lot) =>
+                packages.some(
+                  (p) => (p._lotId ?? p.lotId) === (lot.id ?? lot.lotId)
+                )
+              )
+              .map((lot) => {
+              const lotId = lot.id ?? lot.lotId;
+              const lotPackages = packages.filter(
+                (p) => (p._lotId ?? p.lotId) === lotId
+              );
+              const isExpanded = expandedLotIds.has(lotId);
+              const lotName = lot.name ?? lot.lotName;
+
+              return (
+                <div key={lotId} className="bg-white">
+                  {/* Header bãi xe — click để expand/collapse */}
+                  <button
+                    type="button"
+                    onClick={() => toggleLotExpand(lotId)}
+                    className="w-full flex items-center gap-3 px-6 py-4 text-left hover:bg-gray-50 transition-colors"
                   >
-                    {pkg.isActive !== false ? "Đang bán" : "Tạm dừng"}
-                  </span>
-                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handleToggleActive(pkg)}
-                      disabled={togglingId === (pkg?.id ?? pkg?.packageId)}
-                      className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
-                        pkg.isActive !== false
-                          ? "text-amber-600 hover:bg-amber-50"
-                          : "text-emerald-600 hover:bg-emerald-50"
-                      }`}
-                      title={
-                        pkg.isActive !== false
-                          ? "Vô hiệu hóa gói"
-                          : "Kích hoạt gói"
-                      }
-                    >
-                      {togglingId === (pkg?.id ?? pkg?.packageId) ? (
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                      ) : pkg.isActive !== false ? (
-                        <PowerOff className="w-5 h-5" />
+                    {isExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                    )}
+                    <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-semibold text-gray-900">
+                        {lotName}
+                      </span>
+                      <span className="ml-2 text-sm text-gray-500">
+                        ({lotPackages.length} gói vé)
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Dropdown: danh sách gói vé tháng */}
+                  {isExpanded && (
+                    <div className="bg-gray-50/50 border-t border-gray-100 px-6 py-5">
+                      {lotPackages.length === 0 ? (
+                        <p className="text-gray-500 text-sm py-2">
+                          Chưa có gói vé tháng cho bãi này
+                        </p>
                       ) : (
-                        <Power className="w-5 h-5" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                          {lotPackages.map((pkg, index) => (
+                            <div
+                              key={
+                                pkg.id ??
+                                pkg.packageId ??
+                                `pkg-${lotId}-${index}`
+                              }
+                              className="group bg-white rounded-xl border border-gray-200 p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-blue-200"
+                            >
+                              <div className="flex items-start justify-between mb-4">
+                                <span
+                                  className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-semibold ${
+                                    pkg.isActive !== false
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-gray-200 text-gray-600"
+                                  }`}
+                                >
+                                  {pkg.isActive !== false
+                                    ? "Đang bán"
+                                    : "Tạm dừng"}
+                                </span>
+                                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => handleToggleActive(pkg)}
+                                    disabled={
+                                      togglingId ===
+                                      (pkg?.id ?? pkg?.packageId)
+                                    }
+                                    className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                                      pkg.isActive !== false
+                                        ? "text-amber-600 hover:bg-amber-50"
+                                        : "text-emerald-600 hover:bg-emerald-50"
+                                    }`}
+                                    title={
+                                      pkg.isActive !== false
+                                        ? "Vô hiệu hóa gói"
+                                        : "Kích hoạt gói"
+                                    }
+                                  >
+                                    {togglingId ===
+                                    (pkg?.id ?? pkg?.packageId) ? (
+                                      <RefreshCw className="w-5 h-5 animate-spin" />
+                                    ) : pkg.isActive !== false ? (
+                                      <PowerOff className="w-5 h-5" />
+                                    ) : (
+                                      <Power className="w-5 h-5" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingPkg(pkg)}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Sửa"
+                                  >
+                                    <Edit className="w-5 h-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(pkg)}
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Xóa"
+                                  >
+                                    <Trash2 className="w-5 h-5" />
+                                  </button>
+                                </div>
+                              </div>
+                              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                {pkg.packageName ?? pkg.name ?? "Gói vé tháng"}
+                              </h3>
+                              {pkg.description && (
+                                <p className="text-base text-gray-600 mb-4 line-clamp-2">
+                                  {pkg.description}
+                                </p>
+                              )}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2.5 text-gray-600">
+                                  <Calendar className="w-5 h-5 text-gray-500" />
+                                  <span className="text-base font-semibold">
+                                    {pkg.monthCount ?? 1} tháng
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-2xl font-bold text-green-600">
+                                    {formatPrice(pkg.price)}
+                                  </p>
+                                  <p className="text-sm text-gray-500">/ gói</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                    </button>
-                    <button
-                      onClick={() => setEditingPkg(pkg)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Sửa"
-                    >
-                      <Edit className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(pkg)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Xóa"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
+                    </div>
+                  )}
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  {pkg.packageName ?? pkg.name ?? "Gói vé tháng"}
-                </h3>
-                <p className="text-base text-gray-500 mb-3 flex items-center gap-2">
-                  <MapPin className="w-4 h-4 flex-shrink-0" />
-                  {pkg._lotName ?? "—"}
-                </p>
-                {pkg.description && (
-                  <p className="text-base text-gray-600 mb-4 line-clamp-2">
-                    {pkg.description}
-                  </p>
-                )}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5 text-gray-600">
-                    <Calendar className="w-5 h-5 text-gray-500" />
-                    <span className="text-base font-semibold">
-                      {pkg.monthCount ?? 1} tháng
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-green-600">
-                      {formatPrice(pkg.price)}
-                    </p>
-                    <p className="text-sm text-gray-500">/ gói</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

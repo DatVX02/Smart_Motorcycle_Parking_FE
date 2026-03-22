@@ -119,48 +119,53 @@ export default function Dashboard() {
     ...deviceEvents,
   ].slice(0, 50);
 
+  const faultyCount = mergedDeviceEvents.filter(e => {
+    const status = (e.status ?? e.eventStatus ?? "").toString().toLowerCase();
+    return status !== "online";
+  }).length;
+
   const stats = [
     {
       title: "Tổng chỗ trống",
       value: totalAvailableSpots || "0",
       icon: Bike,
-      color: "bg-blue-500"
+      color: "bg-blue-500",
+      bgTint: "white",
+      iconColor: "text-blue-600",
     },
     {
       title: "Tỉ lệ lấp đầy TB",
       value: avgOccupancy + "%",
       icon: TrendingUp,
-      color: "bg-green-500"
+      color: "bg-green-500",
+      bgTint: "green",
+      iconColor: "text-green-600",
     },
     {
       title: "Thiết bị lỗi",
-      value: mergedDeviceEvents.filter(e => {
-        const status = (e.status ?? e.eventStatus ?? "").toString().toLowerCase();
-        return status !== "online";
-      }).length,
+      value: faultyCount,
       icon: AlertTriangle,
-      color: "bg-orange-500"
-    }
+      color: "bg-orange-500",
+      bgTint: "amber",
+      iconColor: "text-orange-600",
+    },
   ];
 
   return (
-
-
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
+    <div className="space-y-10">
+      {/* Thẻ thống kê — style giống Quản lý bãi xe */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
-
       </div>
 
       {lots.length > 0 && (
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h2 className="text-xl font-semibold mb-4">
+        <div className="bg-white p-6 rounded-2xl shadow border border-gray-100">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
             Chi tiết chỗ trống theo từng bãi
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {lots.map(lot => {
               const rtAvailable = spotsMap[lot.lotId];
               const available =
@@ -183,33 +188,34 @@ export default function Dashboard() {
                     if (!total) return 0;
                     return (occupied / total) * 100;
                   })();
+              const totalSpots = lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0;
+              const occupied = Math.max(0, totalSpots - available);
 
               return (
                 <div
-                  key={lot.lotId}
-                  className="border rounded-lg p-4 flex flex-col gap-1"
+                  key={lot.lotId ?? lot.id}
+                  className="rounded-2xl border border-gray-200 p-5 shadow-sm bg-white hover:shadow-md transition-shadow"
                 >
-                  <div className="font-semibold">{lot.lotName}</div>
-                  <div className="text-sm text-gray-600">
-                    Tổng chỗ:{" "}
-                    {lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    Đang dùng:{" "}
-                    {Math.max(
-                      0,
-                      (lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0) -
-                      available,
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-900">
-                    Chỗ trống: <span className="font-medium">{available}</span>
-                  </div>
-                  <div className="text-sm text-gray-900">
-                    Lấp đầy:{" "}
-                    <span className="font-medium">
-                      {occPct.toFixed(1)}%
-                    </span>
+                  <div className="font-semibold text-gray-900 mb-3">{lot.lotName}</div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Tổng chỗ</span>
+                      <span className="font-medium text-gray-900">{totalSpots}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Đang dùng</span>
+                      <span className="font-medium text-orange-600">{occupied}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Chỗ trống</span>
+                      <span className="font-medium text-green-600">{available}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-gray-100">
+                      <span className="text-gray-500">Lấp đầy</span>
+                      <span className="font-semibold text-gray-900">
+                        {occPct.toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
@@ -268,9 +274,8 @@ export default function Dashboard() {
 
       </div> */}
 
-      <div className="bg-white p-6 rounded-xl shadow">
-
-        <h2 className="text-xl font-semibold mb-4">
+      <div className="bg-white p-6 rounded-2xl shadow border border-gray-100">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
           Hoạt động gần đây
         </h2>
 
@@ -301,9 +306,8 @@ export default function Dashboard() {
 
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow">
-
-        <h2 className="text-xl font-semibold mb-4">
+      <div className="bg-white p-6 rounded-2xl shadow border border-gray-100">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
           Cảnh báo thiết bị
         </h2>
 
