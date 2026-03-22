@@ -14,7 +14,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { DatePicker, ConfigProvider } from "antd";
+import dayjs from "dayjs";
+import viVN from "antd/es/locale/vi_VN";
+import "dayjs/locale/vi";
 import transactionService from "../../services/transactionService";
+import parkingLotService from "../../services/parkingLotService";
+
+dayjs.locale("vi");
 
 /* Constants */
 const PAYMENT_STATUS_MAP = {
@@ -117,7 +124,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 /* Helpers */
 function formatCurrency(amount) {
   if (amount == null || amount === "") return "-";
-  return `${Number(amount).toLocaleString("vi-VN")} đ`;
+  return `${Number(amount).toLocaleString("vi-VN")} VNĐ`;
 }
 
 function formatDateTime(value) {
@@ -131,6 +138,13 @@ function formatDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** Chuyển ngày thành tham số API: YYYY-MM-DDTHH:mm */
+function toApiDateParam(dateStr, endOfDay = false) {
+  if (!dateStr) return "";
+  const t = endOfDay ? "23:59" : "00:00";
+  return `${dateStr}T${t}`;
 }
 
 function getStatusInfo(tx) {
@@ -352,14 +366,29 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
 }
 
 /* Stat Card */
-function StatCard({ icon: Icon, iconColor, label, value }) {
+function StatCard({
+  icon: Icon,
+  iconColor,
+  label,
+  value,
+  valueSuffix,
+  bgTint,
+}) {
+  const bgClass = bgTint ?? "bg-white";
   return (
-    <div className="bg-white rounded-3xl p-6 shadow border">
-      <div className="flex items-center gap-5">
+    <div className={`rounded-3xl p-6 shadow border ${bgClass}`}>
+      <div className="flex items-start gap-3">
         <Icon className={`w-8 h-8 flex-shrink-0 ${iconColor}`} />
-        <div>
-          <p className="text-3xl font-bold">{value}</p>
-          <p className="text-gray-500">{label}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
+          <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+            {value}
+            {valueSuffix && (
+              <span className="text-base font-medium text-gray-600">
+                {valueSuffix}
+              </span>
+            )}
+          </p>
         </div>
       </div>
     </div>
@@ -378,14 +407,31 @@ export default function Transactions() {
   const [paymentStatus, setPaymentStatus] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [transactionType, setTransactionType] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [lotId, setLotId] = useState("");
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
+  const [parkingLots, setParkingLots] = useState([]);
 
   // Pagination (client-side)
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const [detailId, setDetailId] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    parkingLotService
+      .getAllParkingLots()
+      .then((data) => {
+        if (!cancelled) setParkingLots(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setParkingLots([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const totalCount = allTransactions.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -399,13 +445,21 @@ export default function Transactions() {
     setLoading(true);
     setStatsLoading(true);
     try {
+      const fromDateParam = fromDate
+        ? toApiDateParam(fromDate.format("YYYY-MM-DD"), false)
+        : "";
+      const toDateParam = toDate
+        ? toApiDateParam(toDate.format("YYYY-MM-DD"), true)
+        : "";
+
       const params = { pageSize: 9999 }; // lấy hết để phân trang client-side
       if (search) params.search = search;
       if (paymentStatus) params.paymentStatus = paymentStatus;
       if (paymentMethod) params.paymentMethod = paymentMethod;
       if (transactionType) params.transactionType = transactionType;
-      if (fromDate) params.fromDate = fromDate;
-      if (toDate) params.toDate = toDate;
+      if (lotId) params.lotId = lotId;
+      if (fromDateParam) params.fromDate = fromDateParam;
+      if (toDateParam) params.toDate = toDateParam;
 
       const data = await transactionService.getAll(params);
 
@@ -428,6 +482,14 @@ export default function Transactions() {
         if (filtered.length !== items.length) items = filtered;
       }
 
+      if (lotId) {
+        const filtered = items.filter((tx) => {
+          const id = tx.lotId ?? tx.parkingLotId ?? "";
+          return String(id) === String(lotId);
+        });
+        if (filtered.length !== items.length) items = filtered;
+      }
+
       setAllTransactions(items);
       setPageNumber(1); // reset về trang 1 khi filter thay đổi
 
@@ -436,17 +498,20 @@ export default function Transactions() {
         (s, tx) => s + Number(tx.amount ?? tx.totalAmount ?? 0),
         0,
       );
+      const statusLower = (tx) =>
+        (tx.paymentStatus ?? tx.status ?? "").toLowerCase();
       setStatistics({
         totalTransactions: items.length,
         totalRevenue,
         completedTransactions: items.filter(
-          (tx) =>
-            (tx.paymentStatus ?? tx.status ?? "").toLowerCase() === "completed",
+          (tx) => statusLower(tx) === "completed",
         ).length,
-        pendingTransactions: items.filter(
-          (tx) =>
-            (tx.paymentStatus ?? tx.status ?? "").toLowerCase() === "pending",
-        ).length,
+        pendingTransactions: items.filter((tx) => statusLower(tx) === "pending")
+          .length,
+        failedOrCancelledTransactions: items.filter((tx) => {
+          const s = statusLower(tx);
+          return s === "failed" || s === "cancelled";
+        }).length,
       });
     } catch {
       toast.error("Không thể tải danh sách giao dịch");
@@ -455,7 +520,15 @@ export default function Transactions() {
       setLoading(false);
       setStatsLoading(false);
     }
-  }, [search, paymentStatus, paymentMethod, transactionType, fromDate, toDate]);
+  }, [
+    search,
+    paymentStatus,
+    paymentMethod,
+    transactionType,
+    lotId,
+    fromDate,
+    toDate,
+  ]);
 
   useEffect(() => {
     loadTransactions();
@@ -466,17 +539,20 @@ export default function Transactions() {
     setPaymentStatus("");
     setPaymentMethod("");
     setTransactionType("");
-    setFromDate("");
-    setToDate("");
+    setLotId("");
+    setFromDate(null);
+    setToDate(null);
     setPageNumber(1);
-    setStatistics(null);
   };
 
   /* Stat values */
   const statTotal = statistics?.totalTransactions ?? totalCount;
-  const statRevenue = formatCurrency(statistics?.totalRevenue ?? 0);
+  const statRevenueNumber = Number(
+    statistics?.totalRevenue ?? 0,
+  ).toLocaleString("vi-VN");
   const statCompleted = statistics?.completedTransactions ?? 0;
   const statPending = statistics?.pendingTransactions ?? 0;
+  const statFailedOrCancelled = statistics?.failedOrCancelledTransactions ?? 0;
 
   /* Pagination numbers */
   const pageNums = (() => {
@@ -487,12 +563,12 @@ export default function Transactions() {
   return (
     <div className="space-y-5">
       {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {statsLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
+          Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="bg-white rounded-3xl border p-6 shadow flex items-center gap-5 animate-pulse"
+              className="bg-white rounded-3xl border p-6 shadow flex items-center gap-3 animate-pulse"
             >
               <div className="w-8 h-8 bg-gray-100 rounded-full flex-shrink-0" />
               <div className="flex-1 space-y-2">
@@ -513,26 +589,42 @@ export default function Transactions() {
               icon={TrendingUp}
               iconColor="text-green-600"
               label="Tổng doanh thu"
-              value={statRevenue}
+              value={statRevenueNumber}
+              valueSuffix="VNĐ"
             />
             <StatCard
               icon={CheckCircle}
-              iconColor="text-purple-600"
+              iconColor="text-green-600"
               label="Hoàn thành"
               value={statCompleted}
+              valueSuffix="Giao dịch"
+              bgTint="bg-green-500/30"
             />
             <StatCard
               icon={Clock}
               iconColor="text-orange-600"
               label="Chờ thanh toán"
               value={statPending}
+              valueSuffix="Giao dịch"
+              bgTint="bg-amber-500/30"
+            />
+            <StatCard
+              icon={XCircle}
+              iconColor="text-red-600"
+              label="Thất bại / Đã hủy"
+              value={statFailedOrCancelled}
+              valueSuffix="Giao dịch"
+              bgTint="bg-red-500/30"
             />
           </>
         )}
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
+      <div
+        lang="vi"
+        className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4"
+      >
         {/* Row 1: Search */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -549,7 +641,7 @@ export default function Transactions() {
         </div>
 
         {/* Row 2: Dropdowns */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
               Trạng thái
@@ -614,38 +706,73 @@ export default function Transactions() {
               <option value="reward">Thưởng điểm</option>
             </select>
           </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">Bãi xe</label>
+            <select
+              value={lotId}
+              onChange={(e) => {
+                setLotId(e.target.value);
+                setPageNumber(1);
+              }}
+              className="input text-sm"
+            >
+              <option value="">Tất cả bãi</option>
+              {parkingLots.map((lot) => {
+                const id = lot.id ?? lot.lotId;
+                const name = lot.name ?? lot.lotName ?? id;
+                return (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
         </div>
 
         {/* Row 3: Date range + Reset */}
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-            <label className="text-xs font-medium text-gray-500">Từ ngày</label>
-            <input
-              type="datetime-local"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="input text-sm"
-            />
+        <ConfigProvider locale={viVN}>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+              <label className="text-xs font-medium text-gray-500">
+                Từ ngày
+              </label>
+              <DatePicker
+                value={fromDate}
+                onChange={(d) => {
+                  setFromDate(d);
+                  setPageNumber(1);
+                }}
+                format="DD/MM/YY"
+                placeholder="dd/mm/yy"
+                className="w-full [&.ant-picker]:rounded-lg [&.ant-picker]:border-gray-300 [&.ant-picker]:text-sm [&.ant-picker]:h-9"
+              />
+            </div>
+            <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+              <label className="text-xs font-medium text-gray-500">
+                Đến ngày
+              </label>
+              <DatePicker
+                value={toDate}
+                onChange={(d) => {
+                  setToDate(d);
+                  setPageNumber(1);
+                }}
+                format="DD/MM/YY"
+                placeholder="dd/mm/yy"
+                className="w-full [&.ant-picker]:rounded-lg [&.ant-picker]:border-gray-300 [&.ant-picker]:text-sm [&.ant-picker]:h-9"
+              />
+            </div>
+            <button
+              onClick={handleReset}
+              className="btn btn-secondary text-sm flex items-center gap-1.5 shrink-0"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Xóa bộ lọc
+            </button>
           </div>
-          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-            <label className="text-xs font-medium text-gray-500">
-              Đến ngày
-            </label>
-            <input
-              type="datetime-local"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="input text-sm"
-            />
-          </div>
-          <button
-            onClick={handleReset}
-            className="btn btn-secondary text-sm flex items-center gap-1.5 shrink-0"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Xóa bộ lọc
-          </button>
-        </div>
+        </ConfigProvider>
       </div>
 
       {/* Table card */}
@@ -716,7 +843,10 @@ export default function Transactions() {
                       </td>
                       {/* Biển số */}
                       <td className="p-3 text-center font-semibold text-gray-900">
-                        {tx.licensePlate ?? tx.vehicleLicensePlate ?? tx.plate ?? "—"}
+                        {tx.licensePlate ??
+                          tx.vehicleLicensePlate ??
+                          tx.plate ??
+                          "—"}
                       </td>
                       {/* Người dùng */}
                       <td className="p-3 text-center text-gray-600 max-w-[140px] truncate">
@@ -725,11 +855,15 @@ export default function Transactions() {
                       {/* Loại GD */}
                       <td className="p-3 text-center text-gray-500">
                         {TX_TYPE_LABELS[tx.transactionType ?? tx.type ?? ""] ??
-                          tx.transactionType ?? tx.type ?? "—"}
+                          tx.transactionType ??
+                          tx.type ??
+                          "—"}
                       </td>
                       {/* Thời gian vào */}
                       <td className="p-3 text-center text-gray-500 whitespace-nowrap">
-                        {formatDateTime(tx.entryTime ?? tx.checkInTime ?? tx.createdAt)}
+                        {formatDateTime(
+                          tx.entryTime ?? tx.checkInTime ?? tx.createdAt,
+                        )}
                       </td>
                       {/* Thời gian ra */}
                       <td className="p-3 text-center text-gray-500 whitespace-nowrap">
