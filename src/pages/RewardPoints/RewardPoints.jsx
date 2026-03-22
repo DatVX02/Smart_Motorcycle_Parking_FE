@@ -7,9 +7,17 @@ import {
   Trash2,
   CheckCircle,
   XCircle,
-  RefreshCw,
   Loader2,
+  AlertCircle,
+  Search,
+  RefreshCw,
 } from "lucide-react";
+import { DatePicker, ConfigProvider } from "antd";
+import dayjs from "dayjs";
+import viVN from "antd/es/locale/vi_VN";
+import "dayjs/locale/vi";
+
+dayjs.locale("vi");
 import LoyaltyConfigModal from "./LoyaltyConfigModal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import loyaltyConfigService from "../../services/loyaltyConfigService";
@@ -35,6 +43,9 @@ function RewardPoints() {
   const [loading, setLoading] = useState(false);
   const [filterIsActive, setFilterIsActive] = useState("");
   const [filterLotId, setFilterLotId] = useState("");
+  const [filterSearch, setFilterSearch] = useState("");
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
 
   const [showModal, setShowModal] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState(null);
@@ -149,7 +160,42 @@ function RewardPoints() {
     }
   };
 
-  const activeCount = configs.filter((c) => c.isActive).length;
+  /* Lọc client-side theo search và khoảng thời gian */
+  const displayedConfigs = (() => {
+    let list = [...configs];
+    if (filterSearch.trim()) {
+      const q = filterSearch.trim().toLowerCase();
+      list = list.filter((c) => {
+        const name = (c.lotName || getLotName(c.lotId) || "").toLowerCase();
+        return name.includes(q);
+      });
+    }
+    if (fromDate || toDate) {
+      const from = fromDate ? fromDate.startOf("day").toDate() : null;
+      const to = toDate ? toDate.endOf("day").toDate() : null;
+      list = list.filter((c) => {
+        const start = c.startDate ? new Date(c.startDate) : null;
+        const end = c.endDate ? new Date(c.endDate) : null;
+        if (!start && !end) return true;
+        const configStart = start || new Date(0);
+        const configEnd = end || new Date(9999, 11, 31);
+        if (from && configEnd < from) return false;
+        if (to && configStart > to) return false;
+        return true;
+      });
+    }
+    return list;
+  })();
+
+  const activeCount = displayedConfigs.filter((c) => c.isActive).length;
+
+  const handleResetFilters = () => {
+    setFilterSearch("");
+    setFilterLotId("");
+    setFilterIsActive("");
+    setFromDate(null);
+    setToDate(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -164,32 +210,53 @@ function RewardPoints() {
         </div>
       )}
 
-      {/* Statistics */}
+      {/* Statistics — Tiêu đề trên, số + đơn vị dưới, icon & text gần nhau */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <Settings className="w-8 h-8 text-blue-600" />
-            <div>
-              <p className="text-3xl font-bold">{configs.length}</p>
-              <p className="text-gray-500">Tổng cấu hình</p>
+        <div className="bg-white rounded-3xl p-6 shadow border">
+          <div className="flex items-center gap-4">
+            <Settings className="w-8 h-8 flex-shrink-0 text-blue-600" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-600 mb-1">
+                Tổng cấu hình
+              </p>
+              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                {displayedConfigs.length}
+                <span className="text-base font-medium text-gray-600">
+                  Cấu hình
+                </span>
+              </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-            <div>
-              <p className="text-3xl font-bold text-green-600">{activeCount}</p>
-              <p className="text-gray-500">Đang hoạt động</p>
+        <div className="bg-green-500/30 rounded-3xl p-6 shadow border">
+          <div className="flex items-center gap-4">
+            <CheckCircle className="w-8 h-8 flex-shrink-0 text-green-600" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-600 mb-1">
+                Đang hoạt động
+              </p>
+              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                {activeCount}
+                <span className="text-base font-medium text-gray-600">
+                  Cấu hình
+                </span>
+              </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-3xl p-8 shadow border">
-          <div className="flex items-center gap-5">
-            <Award className="w-8 h-8 text-yellow-500" />
-            <div>
-              <p className="text-3xl font-bold">{lots.length}</p>
-              <p className="text-gray-500">Bãi đỗ xe</p>
+        <div className="bg-amber-500/30 rounded-3xl p-6 shadow border">
+          <div className="flex items-center gap-4">
+            <Award className="w-8 h-8 flex-shrink-0 text-yellow-500" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-600 mb-1">
+                Tổng bãi xe
+              </p>
+              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                {lots.length}
+                <span className="text-base font-medium text-gray-600">
+                  Bãi xe
+                </span>
+              </p>
             </div>
           </div>
         </div>
@@ -213,32 +280,89 @@ function RewardPoints() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <select
-            value={filterLotId}
-            onChange={(e) => setFilterLotId(e.target.value)}
-            className="input sm:w-52"
-          >
-            <option value="">Tất cả bãi xe</option>
-            {lots.map((lot) => {
-              const id = getLotId(lot);
-              return (
-                <option key={id} value={id}>
-                  {getLotLabel(lot)}
-                </option>
-              );
-            })}
-          </select>
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Tìm theo tên bãi xe..."
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              className="input pl-10 w-full text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-end">
+            <div className="flex flex-col gap-1 min-w-0">
+              <label className="text-xs font-medium text-gray-500">
+                Bãi xe
+              </label>
+              <select
+                value={filterLotId}
+                onChange={(e) => setFilterLotId(e.target.value)}
+                className="input text-sm w-full"
+              >
+                <option value="">Tất cả bãi xe</option>
+                {lots.map((lot) => {
+                  const id = getLotId(lot);
+                  return (
+                    <option key={id} value={id}>
+                      {getLotLabel(lot)}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
 
-          <select
-            value={filterIsActive}
-            onChange={(e) => setFilterIsActive(e.target.value)}
-            className="input sm:w-44"
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="true">Đang hoạt động</option>
-            <option value="false">Không hoạt động</option>
-          </select>
+            <div className="flex flex-col gap-1 min-w-0">
+              <label className="text-xs font-medium text-gray-500">
+                Trạng thái
+              </label>
+              <select
+                value={filterIsActive}
+                onChange={(e) => setFilterIsActive(e.target.value)}
+                className="input text-sm w-full"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="true">Đang hoạt động</option>
+                <option value="false">Không hoạt động</option>
+              </select>
+            </div>
+
+            <ConfigProvider locale={viVN}>
+              <div className="flex flex-col gap-1 min-w-0">
+                <label className="text-xs font-medium text-gray-500">
+                  Từ ngày
+                </label>
+                <DatePicker
+                  value={fromDate}
+                  onChange={setFromDate}
+                  format="DD/MM/YY"
+                  placeholder="dd/mm/yy"
+                  className="w-150 text-sm [&.ant-picker]:rounded-lg [&.ant-picker]:border-gray-300 [&.ant-picker]:w-full [&.ant-picker]:min-w-0"
+                />
+              </div>
+              <div className="flex flex-col gap-1 min-w-0">
+                <label className="text-xs font-medium text-gray-500">
+                  Đến ngày
+                </label>
+                <DatePicker
+                  value={toDate}
+                  onChange={setToDate}
+                  format="DD/MM/YY"
+                  placeholder="dd/mm/yy"
+                  className="w-full text-sm [&.ant-picker]:rounded-lg [&.ant-picker]:border-gray-300 [&.ant-picker]:w-full [&.ant-picker]:min-w-0"
+                />
+              </div>
+            </ConfigProvider>
+
+            <button
+              onClick={handleResetFilters}
+              className="btn btn-secondary text-sm flex items-center gap-1.5 col-span-2 lg:col-span-1 justify-center lg:justify-start"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Xóa bộ lọc
+            </button>
+          </div>
         </div>
       </div>
 
@@ -250,12 +374,18 @@ function RewardPoints() {
               <Loader2 className="w-6 h-6 animate-spin mr-2" />
               <span>Đang tải...</span>
             </div>
-          ) : configs.length === 0 ? (
+          ) : displayedConfigs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400">
               <Award className="w-12 h-12 mb-3" />
-              <p className="text-base font-medium">Chưa có cấu hình nào</p>
+              <p className="text-base font-medium">
+                {configs.length === 0
+                  ? "Chưa có cấu hình nào"
+                  : "Không tìm thấy cấu hình phù hợp với bộ lọc"}
+              </p>
               <p className="text-sm">
-                Nhấn &quot;Thêm mới&quot; để tạo cấu hình điểm thưởng đầu tiên.
+                {configs.length === 0
+                  ? 'Nhấn "Thêm mới" để tạo cấu hình điểm thưởng đầu tiên.'
+                  : "Thử điều chỉnh hoặc xóa bộ lọc để xem thêm kết quả."}
               </p>
             </div>
           ) : (
@@ -264,9 +394,18 @@ function RewardPoints() {
                 <tr>
                   <th className="table-header-cell">STT</th>
                   <th className="table-header-cell">Bãi đỗ xe</th>
-                  <th className="table-header-cell">Điểm / 1.000 VNĐ</th>
-                  <th className="table-header-cell">VNĐ / Điểm</th>
-                  <th className="table-header-cell">Giá trị vé tháng (VNĐ)</th>
+                  <th className="table-header-cell !text-right">
+                    <span className="block">Tỷ lệ tích điểm</span>
+                    <span className="block text-xs font-normal text-gray-500">
+                      (/1.000đ)
+                    </span>
+                  </th>
+                  <th className="table-header-cell !text-right">
+                    <span className="block">Giá trị quy đổi</span>
+                    <span className="block text-xs font-normal text-gray-500">
+                      (1 điểm = … VNĐ)
+                    </span>
+                  </th>
                   <th className="table-header-cell">Ngày bắt đầu</th>
                   <th className="table-header-cell">Ngày kết thúc</th>
                   <th className="table-header-cell">Trạng thái</th>
@@ -274,7 +413,7 @@ function RewardPoints() {
                 </tr>
               </thead>
               <tbody className="table-body">
-                {configs.map((config, idx) => {
+                {displayedConfigs.map((config, idx) => {
                   const id = config.id || config.configId;
                   return (
                     <tr key={id} className="hover:bg-gray-50">
@@ -284,17 +423,14 @@ function RewardPoints() {
                       <td className="p-3 text-center font-medium text-gray-900">
                         {config.lotName || getLotName(config.lotId)}
                       </td>
-                      <td className="p-3 text-center text-gray-700">
-                        <div className="flex items-center justify-center gap-1">
-                          <Award className="w-4 h-4 text-yellow-500" />
+                      <td className="p-3 text-right text-gray-700">
+                        <div className="flex items-center justify-end gap-1">
+                          <Award className="w-4 h-4 text-yellow-500 flex-shrink-0" />
                           <span>{formatNumber(config.pointsPer1000vnd)}</span>
                         </div>
                       </td>
-                      <td className="p-3 text-center text-gray-700">
+                      <td className="p-3 text-right text-gray-700">
                         {formatNumber(config.vndPerPoint)}
-                      </td>
-                      <td className="p-3 text-center text-gray-700">
-                        {formatNumber(config.monthlyPassValue)}
                       </td>
                       <td className="p-3 text-center text-gray-600 text-sm whitespace-nowrap">
                         {formatDate(config.startDate)}
@@ -347,6 +483,7 @@ function RewardPoints() {
         <LoyaltyConfigModal
           config={selectedConfig}
           lots={lots}
+          existingConfigs={configs}
           onClose={() => setShowModal(false)}
           onSave={handleSave}
         />
@@ -360,8 +497,8 @@ function RewardPoints() {
         title="Xóa cấu hình điểm thưởng"
         description={
           confirmDelete.config
-            ? `Bạn có chắc muốn xóa cấu hình của bãi "${getLotName(confirmDelete.config?.lotId)}" không? Hành động này không thể hoàn tác.`
-            : "Bạn có chắc muốn xóa cấu hình này không?"
+            ? `Bạn có chắc chắn muốn xóa cấu hình của bãi "${getLotName(confirmDelete.config?.lotId)}" không? Việc này sẽ ảnh hưởng đến việc tích điểm hiện tại. Hành động không thể hoàn tác.`
+            : "Bạn có chắc chắn muốn xóa cấu hình này không? Việc này sẽ ảnh hưởng đến việc tích điểm hiện tại. Hành động không thể hoàn tác."
         }
         confirmLabel="Xóa"
         loading={deleteLoading}
