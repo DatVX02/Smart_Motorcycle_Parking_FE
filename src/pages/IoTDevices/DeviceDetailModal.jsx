@@ -8,6 +8,8 @@ import {
   Wifi,
   WifiOff,
   AlertTriangle,
+  AlertCircle,
+  Construction,
   Monitor,
   MapPin,
   Tag,
@@ -15,9 +17,12 @@ import {
   Layers,
   Clock,
   Network,
+  PowerOff,
+  DoorOpen,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import iotDeviceService from "../../services/iotDeviceService";
+import gateService from "../../services/gateService";
 
 const CONN_STATUS = {
   ONLINE: {
@@ -35,6 +40,21 @@ const CONN_STATUS = {
     label: "Cảnh báo",
     cls: "bg-yellow-100 text-yellow-700",
     Icon: AlertTriangle,
+  },
+  INACTIVE: {
+    label: "Ngừng hoạt động",
+    cls: "bg-gray-100 text-gray-600",
+    Icon: PowerOff,
+  },
+  BROKEN: {
+    label: "Hư hỏng",
+    cls: "bg-red-100 text-red-700",
+    Icon: AlertCircle,
+  },
+  MAINTENANCE: {
+    label: "Bảo trì",
+    cls: "bg-amber-100 text-amber-700",
+    Icon: Construction,
   },
 };
 
@@ -86,6 +106,7 @@ function InfoRow({
 
 function DeviceDetailModal({ device, onClose }) {
   const [detail, setDetail] = useState(null);
+  const [gateInfo, setGateInfo] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const deviceId = device?.id ?? device?.deviceId;
@@ -95,12 +116,23 @@ function DeviceDetailModal({ device, onClose }) {
     const fetch = async () => {
       try {
         setLoading(true);
+        setGateInfo(null);
         const data = await iotDeviceService.getDetail(deviceId);
         setDetail(data);
+
+        const gateId = data?.gateId ?? data?.gate_id ?? device?.gateId;
+        if (gateId) {
+          try {
+            const gate = await gateService.getById(gateId);
+            setGateInfo(gate);
+          } catch {
+            // Fallback: dùng gateName từ device nếu API cổng lỗi
+            setGateInfo(data?.gateName ? { gateName: data.gateName } : null);
+          }
+        }
       } catch (err) {
         console.error("Error loading device detail:", err);
         toast.error("Không thể tải chi tiết thiết bị");
-        // Fall back to card data
         setDetail(device);
       } finally {
         setLoading(false);
@@ -118,7 +150,7 @@ function DeviceDetailModal({ device, onClose }) {
 
   return createPortal(
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg my-auto">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl my-auto">
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -174,65 +206,78 @@ function DeviceDetailModal({ device, onClose }) {
               </div>
             </div>
 
-            {/* Info grid */}
-            <div className="space-y-0 rounded-xl border border-gray-100 divide-y divide-gray-50 px-2">
-              <InfoRow
-                icon={Hash}
-                label="Mã thiết bị"
-                value={d.deviceCode || d.code}
-                mono
-              />
-              <InfoRow
-                icon={Tag}
-                label="Tên thiết bị"
-                value={d.deviceName || d.name}
-              />
-              <InfoRow
-                icon={Layers}
-                label="Loại thiết bị"
-                value={dtype.label}
-              />
-              <InfoRow icon={Monitor} label="Model" value={d.model} />
-              <InfoRow
-                icon={Network}
-                label="IP Address"
-                value={d.ipAddress || d.ip}
-                mono
-                highlight
-              />
-              <InfoRow
-                icon={Network}
-                label="MAC Address"
-                value={d.macAddress}
-                mono
-              />
-              <InfoRow icon={Cpu} label="Firmware" value={d.firmwareVersion} />
-              <InfoRow icon={MapPin} label="Cổng được gán" value={d.gateName} />
-              <InfoRow
-                icon={MapPin}
-                label="Bãi đỗ xe"
-                value={d.lotName || d.parkingLotName}
-              />
-              <InfoRow
-                icon={Clock}
-                label="Lần kiểm tra cuối"
-                value={
-                  d.lastHeartbeat || d.lastSeen
-                    ? new Date(d.lastHeartbeat || d.lastSeen).toLocaleString(
-                        "vi-VN",
-                      )
-                    : null
-                }
-              />
-              <InfoRow
-                icon={Clock}
-                label="Ngày thêm vào"
-                value={
-                  d.createdAt
-                    ? new Date(d.createdAt).toLocaleString("vi-VN")
-                    : null
-                }
-              />
+            {/* Info grid - 2 cột trên màn rộng */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 rounded-xl border border-gray-100 p-4">
+              <div className="space-y-0 divide-y divide-gray-50 lg:border-r lg:border-gray-100 lg:pr-6">
+                <InfoRow
+                  icon={Hash}
+                  label="Mã thiết bị"
+                  value={d.deviceCode || d.code}
+                  mono
+                />
+                <InfoRow
+                  icon={Tag}
+                  label="Tên thiết bị"
+                  value={d.deviceName || d.name}
+                />
+                <InfoRow
+                  icon={Layers}
+                  label="Loại thiết bị"
+                  value={dtype.label}
+                />
+                <InfoRow icon={Monitor} label="Model" value={d.model} />
+                <InfoRow
+                  icon={Network}
+                  label="IP Address"
+                  value={d.ipAddress || d.ip}
+                  mono
+                  highlight
+                />
+              </div>
+              <div className="space-y-0 divide-y divide-gray-50 lg:pl-2">
+                <InfoRow
+                  icon={Network}
+                  label="MAC Address"
+                  value={d.macAddress}
+                  mono
+                />
+                <InfoRow icon={Cpu} label="Firmware" value={d.firmwareVersion} />
+                <InfoRow
+                  icon={DoorOpen}
+                  label="Cổng"
+                  value={
+                    gateInfo?.gateName ??
+                    gateInfo?.name ??
+                    d.gateName ??
+                    d.gate_name
+                  }
+                />
+                <InfoRow
+                  icon={MapPin}
+                  label="Bãi đỗ xe"
+                  value={d.lotName || d.parkingLotName}
+                />
+                <InfoRow
+                  icon={Clock}
+                  label="Lần kiểm tra cuối"
+                  value={
+                    d.lastHeartbeat || d.lastSeen
+                      ? new Date(d.lastHeartbeat || d.lastSeen).toLocaleString(
+                          "vi-VN",
+                        )
+                      : null
+                  }
+                />
+                <InfoRow
+                  icon={Clock}
+                  label="Ngày thêm vào"
+                  value={
+                    d.createdAt
+                      ? new Date(d.createdAt).toLocaleString("vi-VN")
+                      : null
+                  }
+                />
+              </div>
             </div>
           </div>
         )}

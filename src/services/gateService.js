@@ -4,6 +4,15 @@ const BASE = "/api/v1/gates";
 const unwrap = (res) => res?.data?.data ?? res?.data;
 
 const gateService = {
+  /** GET /api/v1/gates - Lấy tất cả cổng */
+  getAll: async () => {
+    const res = await apiClient.get(BASE);
+    const raw = unwrap(res);
+    if (raw?.items && Array.isArray(raw.items)) return raw.items;
+    if (Array.isArray(raw)) return raw;
+    return [];
+  },
+
   /** GET /api/v1/gates/lot/{lotId} */
   getByLot: async (lotId) => {
     const res = await apiClient.get(`${BASE}/lot/${lotId}`);
