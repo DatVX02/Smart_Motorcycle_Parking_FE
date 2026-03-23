@@ -7,6 +7,9 @@ import {
   Camera,
   Search,
   ArrowUpDown,
+  Power,
+  PowerOff,
+  Loader2,
 } from "lucide-react";
 import { EyeTwoTone, EditTwoTone, DeleteTwoTone } from "@ant-design/icons";
 import toast from "react-hot-toast";
@@ -37,6 +40,7 @@ function ParkingLots() {
   const [confirm, setConfirm] = useState({ open: false, lot: null });
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("default");
+  const [togglingLotId, setTogglingLotId] = useState(null);
 
   const { spotsMap, occupancyMap, hubStatus, adminJoined, connectionId } =
     useAdminHub();
@@ -247,6 +251,41 @@ function ParkingLots() {
     setShowDetailModal(true);
   };
 
+  const handleToggleStatus = async (lot, occupiedSpotsCount) => {
+    const isCurrentlyActive =
+      (lot.status ?? "active").toLowerCase() !== "inactive";
+    const newStatus = isCurrentlyActive ? "inactive" : "active";
+
+    if (newStatus === "inactive" && occupiedSpotsCount > 0) {
+      toast.error(
+        "Không thể ngừng hoạt động khi còn xe đang đỗ. Vui lòng đợi tất cả xe ra hết.",
+        { duration: 5000 },
+      );
+      return;
+    }
+
+    setTogglingLotId(lot.id);
+    try {
+      await parkingLotService.updateParkingLot(lot.id, { status: newStatus });
+      toast.success(
+        newStatus === "active"
+          ? `Đã bật hoạt động bãi "${lot.name}"`
+          : `Đã ngừng hoạt động bãi "${lot.name}"`,
+      );
+      setParkingLots((prev) =>
+        prev.map((l) => (l.id === lot.id ? { ...l, status: newStatus } : l)),
+      );
+    } catch (err) {
+      const msg =
+        err.response?.data?.message ||
+        err.response?.data?.title ||
+        "Không thể chuyển trạng thái bãi đỗ.";
+      toast.error(msg, { duration: 5000 });
+    } finally {
+      setTogglingLotId(null);
+    }
+  };
+
   // Filter + sort
   const filteredLots = parkingLots
     .filter((lot) => lot.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -324,9 +363,7 @@ function ParkingLots() {
             className={`rounded-3xl p-6 shadow border ${bgTint}`}
           >
             <div className="flex items-start gap-3">
-              <Icon
-                className={`w-8 h-8 flex-shrink-0 ${iconColor}`}
-              />
+              <Icon className={`w-8 h-8 flex-shrink-0 ${iconColor}`} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   {label}
@@ -343,32 +380,40 @@ function ParkingLots() {
         ))}
       </div>
 
-      {/* Search & Sort Bar */}
+      {/* Search & Sort Bar + Thêm bãi đỗ */}
       {parkingLots.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Tìm theo tên bãi xe..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-            />
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="relative flex-1 min-w-0 sm:max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Tìm theo tên bãi xe..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+              />
+            </div>
+            <div className="relative">
+              <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-300 appearance-none cursor-pointer"
+              >
+                <option value="default">Mặc định</option>
+                <option value="occ_desc">Lấp đầy cao nhất</option>
+                <option value="occ_asc">Lấp đầy thấp nhất</option>
+                <option value="name_az">Tên A → Z</option>
+              </select>
+            </div>
           </div>
-          <div className="relative">
-            <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-300 appearance-none cursor-pointer"
-            >
-              <option value="default">Mặc định</option>
-              <option value="occ_desc">Lấp đầy cao nhất</option>
-              <option value="occ_asc">Lấp đầy thấp nhất</option>
-              <option value="name_az">Tên A → Z</option>
-            </select>
-          </div>
+          <Button
+            onClick={handleAddNew}
+            className="gap-2 shrink-0 bg-primary-600 hover:bg-primary-700 text-white"
+          >
+            <Plus className="w-4 h-4" /> Thêm bãi đỗ
+          </Button>
         </div>
       )}
 
@@ -435,12 +480,19 @@ function ParkingLots() {
 
             const statusMap = {
               active: { label: "Hoạt động", variant: "success" },
-              inactive: { label: "Không hoạt động", variant: "destructive" },
+              inactive: { label: "Ngừng hoạt động", variant: "secondary" },
               maintenance: { label: "Bảo trì", variant: "warning" },
             };
-            const { label: statusLabel, variant: statusVariant } = statusMap[
-              lot.status?.toLowerCase()
-            ] ?? { label: lot.status ?? "—", variant: "secondary" };
+            // Tự động: 100% lấp đầy (chỗ trống = 0) → Ngừng hoạt động; còn chỗ trống > 0 → Hoạt động
+            const isFull = availableSpots <= 0 || occupancyRate >= 100;
+            const displayStatus = isFull
+              ? { label: "Ngừng hoạt động", variant: "secondary" }
+              : (statusMap[lot.status?.toLowerCase()] ?? {
+                  label: lot.status ?? "Hoạt động",
+                  variant: "success",
+                });
+            const { label: statusLabel, variant: statusVariant } =
+              displayStatus;
 
             return (
               <Card
@@ -453,7 +505,7 @@ function ParkingLots() {
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-start gap-3 min-w-0">
                       <div
                         className={`w-11 h-11 flex-shrink-0 rounded-xl flex items-center justify-center border ${
                           isCritical
@@ -465,18 +517,13 @@ function ParkingLots() {
                           className={`w-5 h-5 ${isCritical ? "text-red-500" : "text-primary-600"}`}
                         />
                       </div>
-                      <div className="min-w-0">
-                        <h3
-                          className="font-semibold text-gray-900 leading-tight truncate"
-                          title={lot.name}
-                        >
+                      <div className="min-w-0 flex-1 break-words">
+                        <h3 className="font-semibold text-gray-900 leading-tight break-words">
                           {lot.name}
                         </h3>
-                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
-                          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="truncate" title={lot.location}>
-                            {lot.location}
-                          </span>
+                        <div className="flex items-start gap-1 text-xs text-gray-500 mt-0.5">
+                          <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                          <span className="break-words">{lot.location}</span>
                         </div>
                       </div>
                     </div>
@@ -496,9 +543,6 @@ function ParkingLots() {
                       <span className="text-gray-500">Tỷ lệ lấp đầy</span>
                       <span className={`font-semibold ${rateColor}`}>
                         {occupancyRate.toFixed(1)}%
-                        {isCritical && (
-                          <span className="ml-1 text-red-500">⚠</span>
-                        )}
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 border border-gray-300 rounded-full h-3">
@@ -603,6 +647,38 @@ function ParkingLots() {
                   >
                     <EyeTwoTone twoToneColor="#2563eb" /> Xem chi tiết
                   </Button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStatus(lot, occupiedSpots)}
+                    disabled={
+                      togglingLotId === lot.id ||
+                      (occupiedSpots > 0 &&
+                        (lot.status ?? "active").toLowerCase() !== "inactive")
+                    }
+                    title={
+                      (lot.status ?? "active").toLowerCase() === "inactive"
+                        ? "Bật hoạt động"
+                        : occupiedSpots > 0
+                          ? "Không thể ngừng khi còn xe đang đỗ"
+                          : "Ngừng hoạt động"
+                    }
+                    className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      (lot.status ?? "active").toLowerCase() === "inactive"
+                        ? "text-gray-400 hover:bg-green-50 hover:text-green-600"
+                        : occupiedSpots > 0
+                          ? "text-amber-500 cursor-not-allowed"
+                          : "text-green-600 hover:bg-green-50 hover:text-green-700"
+                    }`}
+                  >
+                    {togglingLotId === lot.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (lot.status ?? "active").toLowerCase() ===
+                      "inactive" ? (
+                      <Power className="w-4 h-4" />
+                    ) : (
+                      <PowerOff className="w-4 h-4" />
+                    )}
+                  </button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -615,7 +691,7 @@ function ParkingLots() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="ml-1 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
                     title="Xóa"
                     onClick={() => handleDelete(lot)}
                   >

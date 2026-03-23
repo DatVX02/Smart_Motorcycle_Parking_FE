@@ -12,6 +12,8 @@ import {
   Wifi,
   WifiOff,
   AlertTriangle,
+  AlertCircle,
+  Construction,
   X,
   Shield,
   Plus,
@@ -19,6 +21,7 @@ import {
   LogIn,
   LogOut,
   Loader2,
+  PowerOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -112,10 +115,13 @@ const getDType = (r) =>
   };
 
 const CONN_MAP = {
-  ONLINE: { label: "Online", variant: "success", Icon: Wifi },
-  OFFLINE: { label: "Offline", variant: "destructive", Icon: WifiOff },
+  ONLINE: { label: "Trực tuyến", variant: "success", Icon: Wifi },
+  OFFLINE: { label: "Ngoại tuyến", variant: "destructive", Icon: WifiOff },
   READY: { label: "Sẵn sàng", variant: "default", Icon: Wifi },
   WARNING: { label: "Cảnh báo", variant: "warning", Icon: AlertTriangle },
+  INACTIVE: { label: "Ngừng hoạt động", variant: "secondary", Icon: PowerOff },
+  BROKEN: { label: "Hư hỏng", variant: "destructive", Icon: AlertCircle },
+  MAINTENANCE: { label: "Bảo trì", variant: "warning", Icon: Construction },
 };
 const getConn = (r) =>
   CONN_MAP[String(r ?? "").toUpperCase()] ?? {
@@ -734,7 +740,13 @@ function ParkingLotDetailModal({ lot, onClose }) {
                                 </p>
                               </div>
                             ) : (
-                              <table className="w-full text-sm">
+                              <table className="w-full table-fixed text-sm">
+                                <colgroup>
+                                  <col style={{ width: "40%" }} />
+                                  <col style={{ width: "18%" }} />
+                                  <col style={{ width: "22%" }} />
+                                  <col style={{ width: "20%" }} />
+                                </colgroup>
                                 <thead>
                                   <tr className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold border-b border-gray-50">
                                     <th className="px-4 py-2 text-left">
@@ -863,15 +875,20 @@ function ParkingLotDetailModal({ lot, onClose }) {
                           s.entryTime ??
                           s.createdAt ??
                           s.checkInTime;
-                        const timeStr = rawTime
-                          ? new Date(rawTime).toLocaleTimeString("vi-VN", {
+                        const adjustedDate = rawTime
+                          ? new Date(
+                              new Date(rawTime).getTime() - 7 * 60 * 60 * 1000,
+                            )
+                          : null;
+                        const timeStr = adjustedDate
+                          ? adjustedDate.toLocaleTimeString("vi-VN", {
                               hour: "2-digit",
                               minute: "2-digit",
                               second: "2-digit",
                             })
                           : "—";
-                        const dateStr = rawTime
-                          ? new Date(rawTime).toLocaleDateString("vi-VN")
+                        const dateStr = adjustedDate
+                          ? adjustedDate.toLocaleDateString("vi-VN")
                           : "";
 
                         return (
