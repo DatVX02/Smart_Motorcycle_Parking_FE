@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import gateService from "../../services/gateService";
+import parkingLotService from "../../services/parkingLotService";
 
 const DEVICE_TYPE_OPTIONS = [
   { value: "LPR_CAMERA", label: "Camera LPR (Đọc biển số)" },
@@ -11,7 +13,8 @@ const getDefault = (device) => ({
   deviceCode: device?.deviceCode || device?.code || "",
   deviceName: device?.deviceName || device?.name || "",
   deviceType: device?.deviceType || "LPR_CAMERA",
-  gateName: device?.gateName || "",
+  gateId: device?.gateId ?? device?.gate_id ?? "",
+  gateName: device?.gateName || device?.gate_name || "",
   model: device?.model || "",
   ipAddress: device?.ipAddress || device?.ip || "",
   macAddress: device?.macAddress || "",
@@ -20,8 +23,60 @@ const getDefault = (device) => ({
 
 function DeviceModal({ device, onClose, onSave }) {
   const [formData, setFormData] = useState(() => getDefault(device));
+  const [gates, setGates] = useState([]);
+  const [gatesLoading, setGatesLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setFormData(getDefault(device));
+    setErrors({});
+  }, [device]);
+
+  useEffect(() => {
+    const loadGates = async () => {
+      setGatesLoading(true);
+      try {
+        const all = await gateService.getAll().catch(async () => {
+          const lots = await parkingLotService.getAllParkingLots().catch(() => []);
+          const results = await Promise.all(
+            (lots || []).map((lot) =>
+              gateService.getByLot(lot.id ?? lot.lotId).catch(() => [])
+            )
+          );
+          const seen = new Set();
+          return results.flat().filter((g) => {
+            const id = g.gateId ?? g.id;
+            if (id && seen.has(id)) return false;
+            if (id) seen.add(id);
+            return true;
+          });
+        });
+        setGates(Array.isArray(all) ? all : []);
+      } finally {
+        setGatesLoading(false);
+      }
+    };
+    loadGates();
+  }, []);
+
+  useEffect(() => {
+    const gateId = device?.gateId ?? device?.gate_id;
+    if (!gateId) return;
+    gateService
+      .getById(gateId)
+      .then((gate) => {
+        const name = gate?.gateName ?? gate?.name;
+        if (gate && name) {
+          setFormData((prev) => ({ ...prev, gateId, gateName: name }));
+          setGates((prev) => {
+            const exists = prev.some((g) => (g.gateId ?? g.id) === gateId);
+            return exists ? prev : [{ ...gate, gateId: gate.gateId ?? gate.id, gateName: name, name }, ...prev];
+          });
+        }
+      })
+      .catch(() => {});
+  }, [device?.gateId, device?.gate_id]);
 
   const set = (field, value) => {
     setFormData((p) => ({ ...p, [field]: value }));
@@ -66,6 +121,7 @@ function DeviceModal({ device, onClose, onSave }) {
         deviceCode: formData.deviceCode.trim() || undefined,
         deviceName: formData.deviceName.trim(),
         deviceType: formData.deviceType,
+        gateId: formData.gateId || undefined,
         gateName: formData.gateName.trim() || undefined,
         model: formData.model.trim(),
         ipAddress: formData.ipAddress.trim(),
@@ -160,7 +216,7 @@ function DeviceModal({ device, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Gate name */}
+          {/* Gate dropdown */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tên cổng gán
@@ -168,13 +224,33 @@ function DeviceModal({ device, onClose, onSave }) {
                 (tùy chọn)
               </span>
             </label>
-            <input
-              type="text"
-              value={formData.gateName}
-              onChange={(e) => set("gateName", e.target.value)}
+            <select
+              value={formData.gateId || ""}
+              onChange={(e) => {
+                const id = e.target.value;
+                const gate = gates.find((g) => (g.gateId ?? g.id) === id);
+                setFormData((p) => ({
+                  ...p,
+                  gateId: id || "",
+                  gateName: gate?.gateName ?? gate?.name ?? "",
+                }));
+              }}
               className="input"
-              placeholder="VD: Cổng Vào Tầng Hầm B1"
-            />
+              disabled={gatesLoading}
+            >
+              <option value="">
+                {gatesLoading ? "Đang tải cổng..." : "Chọn cổng"}
+              </option>
+              {gates.map((g) => {
+                const id = g.gateId ?? g.id;
+                const name = g.gateName ?? g.name ?? `Cổng ${id}`;
+                return (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           {/* Model + IP */}

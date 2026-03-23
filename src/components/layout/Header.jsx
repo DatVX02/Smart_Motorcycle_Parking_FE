@@ -25,7 +25,7 @@ const PAGE_TITLES = {
   "/accounts": { title: "Quản Lý Tài Khoản Khách Hàng" },
   "/accounts/staff": { title: "Quản Lý Tài Khoản Nhân Viên" },
   "/parking-lots": { title: "Quản Lý Bãi Đỗ Xe" },
-  "/transactions": { title: "Giao Dịch" },
+  "/transactions": { title: "Quản Lý Giao Dịch" },
   "/shifts": { title: "Quản Lý Lịch Bãi Xe" },
   "/system-logs": { title: "Nhật Ký Hệ Thống" },
   "/reward-points": { title: "Quản Lý Điểm Thưởng" },
