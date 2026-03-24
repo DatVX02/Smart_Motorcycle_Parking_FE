@@ -1064,7 +1064,7 @@ function Shifts() {
   );
 
   const handleRangeSelect = useCallback(
-    (selectInfo) => {
+    (selectInfo, calendarLotId) => {
       const tomorrowDate = new Date();
       tomorrowDate.setDate(tomorrowDate.getDate() + 1);
       tomorrowDate.setHours(0, 0, 0, 0);
@@ -1075,10 +1075,10 @@ function Shifts() {
       const startStr = selectInfo.startStr;
 
       if (isMultiDeleteMode) {
-        // Chế độ xóa nhiều: chọn tất cả ca trong khoảng ngày
-        const allShifts = Object.values(shiftsByLot).flat();
+        // Chỉ ca của đúng bãi đang kéo trên lịch (tránh lệch số so với ô hiển thị)
+        const shiftsInCalendar = shiftsByLot[calendarLotId] ?? [];
         const idsToAdd = new Set();
-        for (const shift of allShifts) {
+        for (const shift of shiftsInCalendar) {
           if (
             inactiveStaffIds.has(String(shift.staffId ?? shift.StaffId ?? ""))
           )
@@ -1090,9 +1090,8 @@ function Shifts() {
             ""
           ).split("T")[0];
           if (date && date >= startStr && date <= endStr) {
-            idsToAdd.add(
-              String(shift.shiftId ?? shift.ShiftId ?? shift.id ?? ""),
-            );
+            const sid = String(shift.shiftId ?? shift.ShiftId ?? shift.id ?? "");
+            if (sid) idsToAdd.add(sid);
           }
         }
         setSelectedShiftIds((prev) => new Set([...prev, ...idsToAdd]));
@@ -1791,7 +1790,9 @@ function Shifts() {
                         eventDisplay="block"
                         selectable={true}
                         selectMirror={true}
-                        select={handleRangeSelect}
+                        select={(selectInfo) =>
+                          handleRangeSelect(selectInfo, lot.id)
+                        }
                         selectAllow={(selectInfo) => {
                           if (isMultiDeleteMode) return true;
                           const tomorrow = new Date();

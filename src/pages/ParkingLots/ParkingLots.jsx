@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import ParkingLotModal from "./ParkingLotModal";
 import ParkingLotDetailModal from "./ParkingLotDetailModal";
 import parkingLotService from "../../services/parkingLotService";
+import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
 import { useAdminHub } from "../../hooks/useAdminHub";
 import gateService from "../../services/gateService";
 import iotDeviceService from "../../services/iotDeviceService";
@@ -200,8 +201,29 @@ function ParkingLots() {
         await parkingLotService.updateParkingLot(selectedLot.id, updatePayload);
         toast.success("Đã cập nhật bãi đỗ xe thành công");
       } else {
-        await parkingLotService.createParkingLot(formData);
+        const created = await parkingLotService.createParkingLot(formData);
         toast.success("Đã thêm bãi đỗ xe mới thành công");
+        const lotId = created?.lotId ?? created?.id;
+        if (lotId) {
+          try {
+            const detail = await parkingLotService.getParkingLotDetail(lotId);
+            const devices = detail?.devices ?? [];
+            for (const dev of devices) {
+              const devId = dev?.deviceId ?? dev?.id;
+              if (devId) {
+                await DeviceMaintenanceService.generateSchedule(devId);
+              }
+            }
+            if (devices.length > 0) {
+              toast.success(
+                `Đã tạo lịch bảo trì cho ${devices.length} thiết bị`,
+                { duration: 3000 },
+              );
+            }
+          } catch (err) {
+            console.warn("Tạo lịch bảo trì thất bại:", err);
+          }
+        }
       }
       setShowModal(false);
       setSelectedLot(null);

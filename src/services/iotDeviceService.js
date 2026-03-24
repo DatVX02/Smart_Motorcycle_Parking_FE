@@ -4,9 +4,11 @@ const BASE = "/api/v1/iot-devices";
 const unwrap = (res) => res?.data?.data ?? res?.data;
 
 const iotDeviceService = {
-  /** GET /api/v1/iot-devices */
-  getAll: async () => {
-    const res = await apiClient.get(BASE);
+  /** GET /api/v1/iot-devices - Lấy tất cả thiết bị (hỗ trợ pageSize để lấy hết) */
+  getAll: async (params = {}) => {
+    const reqParams = { ...params };
+    if (reqParams.pageSize == null) reqParams.pageSize = 9999;
+    const res = await apiClient.get(BASE, { params: reqParams });
     const raw = unwrap(res);
     if (raw?.items && Array.isArray(raw.items)) return raw.items;
     if (Array.isArray(raw)) return raw;

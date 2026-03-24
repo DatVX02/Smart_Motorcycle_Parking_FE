@@ -3,9 +3,12 @@ import apiClient from "../config/api";
 const API_URL = "/api/v1/maintenance";
 
 const DeviceMaintenanceService = {
-  //get all maintenance
-  getAll: async () => {
-    const res = await apiClient.get(API_URL);
+  //get all maintenance (pageSize lớn để lấy hết lịch bảo trì)
+  getAll: async (params = {}) => {
+    const reqParams = { ...params };
+    if (reqParams.pageSize == null) reqParams.pageSize = 9999;
+    if (reqParams.pageNumber == null) reqParams.pageNumber = 1;
+    const res = await apiClient.get(API_URL, { params: reqParams });
     return res.data;
   },
 
@@ -47,6 +50,14 @@ const DeviceMaintenanceService = {
   //get maintenance by device
   getByDevice: async (deviceId) => {
     const res = await apiClient.get(`${API_URL}/device/${deviceId}`);
+    return res.data;
+  },
+
+  /** POST /api/v1/maintenance/device/{deviceId}/generate-schedule - Tự động tạo lịch bảo trì */
+  generateSchedule: async (deviceId) => {
+    const res = await apiClient.post(
+      `${API_URL}/device/${deviceId}/generate-schedule`,
+    );
     return res.data;
   },
 
