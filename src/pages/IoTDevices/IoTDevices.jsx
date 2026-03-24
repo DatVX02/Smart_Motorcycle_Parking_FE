@@ -14,6 +14,8 @@ import {
   AlertCircle,
   Construction,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { EyeTwoTone, EditTwoTone } from "@ant-design/icons";
@@ -148,6 +150,11 @@ function IoTDevices() {
 
   const [filterType, setFilterType] = useState("all");
   const [filterLot, setFilterLot] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [pageOperational, setPageOperational] = useState(1);
+  const [pageNeedsAction, setPageNeedsAction] = useState(1);
+
+  const PAGE_SIZE = 6;
 
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
@@ -176,6 +183,20 @@ function IoTDevices() {
   useEffect(() => {
     fetchDevices();
   }, [fetchDevices]);
+
+  useEffect(() => {
+    setPageOperational(1);
+    setPageNeedsAction(1);
+  }, [filterType, filterLot, filterStatus]);
+
+  const matchesStatusFilter = (device) => {
+    if (filterStatus === "all") return true;
+    const s = String(device.connectionStatus ?? "").toUpperCase();
+    if (filterStatus === "BROKEN_MAINTENANCE") {
+      return s === "BROKEN" || s === "MAINTENANCE";
+    }
+    return s === filterStatus;
+  };
 
   const handleMaintenance = (device) => {
     setMaintenanceDevice(device);
@@ -258,7 +279,7 @@ function IoTDevices() {
       d.lotId === filterLot ||
       d.parkingLotId === filterLot;
 
-    return typeOk && lotOk;
+    return typeOk && lotOk && matchesStatusFilter(d);
   });
 
   const operationalDevices = filtered.filter((d) => {
@@ -274,6 +295,30 @@ function IoTDevices() {
     ),
   );
 
+  const totalPagesOp = Math.max(
+    1,
+    Math.ceil(operationalDevices.length / PAGE_SIZE),
+  );
+  const totalPagesNeeds = Math.max(
+    1,
+    Math.ceil(needsActionDevices.length / PAGE_SIZE),
+  );
+  const paginatedOperational = operationalDevices.slice(
+    (pageOperational - 1) * PAGE_SIZE,
+    pageOperational * PAGE_SIZE,
+  );
+  const paginatedNeedsAction = needsActionDevices.slice(
+    (pageNeedsAction - 1) * PAGE_SIZE,
+    pageNeedsAction * PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    if (pageOperational > totalPagesOp) setPageOperational(totalPagesOp);
+  }, [totalPagesOp, pageOperational]);
+  useEffect(() => {
+    if (pageNeedsAction > totalPagesNeeds) setPageNeedsAction(totalPagesNeeds);
+  }, [totalPagesNeeds, pageNeedsAction]);
+
   const totalCount = devices.length;
   const onlineCount = devices.filter(
     (d) => String(d.connectionStatus ?? "").toUpperCase() === "ONLINE",
@@ -287,13 +332,11 @@ function IoTDevices() {
   const inactiveCount = devices.filter(
     (d) => String(d.connectionStatus ?? "").toUpperCase() === "INACTIVE",
   ).length;
-  const brokenMaintenanceCount =
-    devices.filter(
-      (d) =>
-        ["BROKEN", "MAINTENANCE"].includes(
-          String(d.connectionStatus ?? "").toUpperCase(),
-        ),
-    ).length;
+  const brokenMaintenanceCount = devices.filter((d) =>
+    ["BROKEN", "MAINTENANCE"].includes(
+      String(d.connectionStatus ?? "").toUpperCase(),
+    ),
+  ).length;
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -396,6 +439,19 @@ function IoTDevices() {
             ))}
           </select>
 
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="input text-sm w-52"
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="ONLINE">Trực tuyến</option>
+            <option value="READY">Sẵn sàng</option>
+            <option value="OFFLINE">Ngoại tuyến</option>
+            <option value="INACTIVE">Ngừng hoạt động</option>
+            <option value="BROKEN_MAINTENANCE">Bảo trì / Hư hỏng</option>
+          </select>
+
           <button
             onClick={() => {
               setSelected(null);
@@ -427,7 +483,7 @@ function IoTDevices() {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-            {operationalDevices.map((device) => (
+            {paginatedOperational.map((device) => (
               <div
                 key={device.id ?? device.deviceId}
                 className="w-full max-w-[360px]"
@@ -462,6 +518,34 @@ function IoTDevices() {
               </div>
             )}
           </div>
+          {operationalDevices.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+              <span className="text-xs text-gray-500">
+                Trang {pageOperational}/{totalPagesOp} (
+                {operationalDevices.length} thiết bị)
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPageOperational((p) => Math.max(1, p - 1))}
+                  disabled={pageOperational <= 1}
+                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPageOperational((p) => Math.min(totalPagesOp, p + 1))
+                  }
+                  disabled={pageOperational >= totalPagesOp}
+                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right: Cột Cần xử lý (40%) - light warning background */}
@@ -480,7 +564,7 @@ function IoTDevices() {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-            {needsActionDevices.map((device) => (
+            {paginatedNeedsAction.map((device) => (
               <div
                 key={device.id ?? device.deviceId}
                 className="w-full max-w-[360px]"
@@ -515,6 +599,34 @@ function IoTDevices() {
               </div>
             )}
           </div>
+          {needsActionDevices.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-amber-200/40">
+              <span className="text-xs text-amber-700/80">
+                Trang {pageNeedsAction}/{totalPagesNeeds} (
+                {needsActionDevices.length} thiết bị)
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPageNeedsAction((p) => Math.max(1, p - 1))}
+                  disabled={pageNeedsAction <= 1}
+                  className="p-2 rounded-lg border border-amber-200/60 hover:bg-amber-50/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPageNeedsAction((p) => Math.min(totalPagesNeeds, p + 1))
+                  }
+                  disabled={pageNeedsAction >= totalPagesNeeds}
+                  className="p-2 rounded-lg border border-amber-200/60 hover:bg-amber-50/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

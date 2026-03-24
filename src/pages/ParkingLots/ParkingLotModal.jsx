@@ -17,7 +17,17 @@ import parkingLotService from "../../services/parkingLotService";
 import gateService from "../../services/gateService";
 import iotDeviceService from "../../services/iotDeviceService";
 import aiConfigService from "../../services/aiConfigService";
+import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
 import { getRandomDemoSample } from "./parkingLotDemoData";
+
+const createMaintenanceForDevice = async (deviceId) => {
+  if (!deviceId) return;
+  try {
+    await DeviceMaintenanceService.generateSchedule(deviceId);
+  } catch (err) {
+    console.warn("Tạo lịch bảo trì thất bại:", err);
+  }
+};
 
 const GATE_TYPE_OPTIONS = [
   { value: "entry", label: "Cổng vào" },
@@ -624,14 +634,20 @@ function ParkingLotModal({ lot, onClose, onSave }) {
             if (d.firmwareVersion.trim())
               devPayload.firmwareVersion = d.firmwareVersion.trim();
             console.log("POST device:", devPayload);
-            await iotDeviceService.create(devPayload).catch((err) => {
+            let createdDev;
+            try {
+              createdDev = await iotDeviceService.create(devPayload);
+            } catch (err) {
               const errData = err.response?.data;
               const msg = errData?.message ?? errData?.title ?? err.message;
               console.error("Tạo thiết bị thất bại:", errData);
               toast.error(
                 `Không thể tạo thiết bị "${d.deviceName || d.deviceCode}": ${msg}`,
               );
-            });
+              continue;
+            }
+            const devId = createdDev?.deviceId ?? createdDev?.id;
+            if (devId) await createMaintenanceForDevice(devId);
           }
         };
 

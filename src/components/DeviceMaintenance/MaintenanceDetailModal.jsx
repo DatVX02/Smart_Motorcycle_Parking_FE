@@ -101,7 +101,7 @@ const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated }) => {
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
 
-            <div className="bg-white rounded-2xl p-6 w-[500px] shadow-lg">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-[520px] shadow-lg">
 
                 <div className="flex justify-between mb-4">
 
@@ -115,7 +115,7 @@ const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated }) => {
 
                 </div>
 
-                <div className="space-y-2 text-sm">
+                <div className="space-y-3 text-sm">
                     <Row label="Tên bãi" value={deviceDetail?.lotName || "-"} />
                     <Row label="Tên thiết bị" value={maintenance.deviceName} />
 
@@ -138,10 +138,18 @@ const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated }) => {
                         label="Ngày thực hiện"
                         value={formatDate(maintenance.performedAt)}
                     />
-                    {maintenance.status !== "Cancelled" && (
+                    {maintenance.status !== "Cancelled" && maintenance.nextMaintenanceDate && (
                         <Row
                             label="Ngày bảo trì tiếp theo"
-                            value={format(maintenance.nextMaintenanceDate)}
+                            value={
+                                (() => {
+                                    const daysLeft = dayjs(maintenance.nextMaintenanceDate).diff(dayjs(), "day");
+                                    const dateStr = format(maintenance.nextMaintenanceDate);
+                                    if (daysLeft === 0) return <span><span className="text-amber-600 font-medium">Tới hạn bảo trì</span> ({dateStr})</span>;
+                                    if (daysLeft < 0) return <span><span className="text-red-600 font-medium">Quá hạn</span> ({dateStr})</span>;
+                                    return dateStr;
+                                })()
+                            }
                         />
                     )}
                     {/* <div className="flex justify-between items-center">
@@ -163,7 +171,7 @@ const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated }) => {
 
                     {deviceDetail && (
                         <>
-                            <hr className="my-2" />
+                            <hr className="my-4 border-gray-100" />
 
                             <Row label="Model" value={deviceDetail.model} />
 
@@ -187,9 +195,9 @@ const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated }) => {
 };
 
 const Row = ({ label, value }) => (
-    <div className="flex justify-between">
-        <span className="text-gray-400">{label}</span>
-        <span className="text-gray-800">{value}</span>
+    <div className="grid grid-cols-[130px_1fr] gap-4 items-start min-h-[24px]">
+        <span className="text-gray-500 shrink-0 pt-0.5">{label}</span>
+        <span className="text-gray-900 break-words">{value}</span>
     </div>
 );
 
