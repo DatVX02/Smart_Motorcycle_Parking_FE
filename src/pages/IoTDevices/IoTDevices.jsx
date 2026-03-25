@@ -16,10 +16,14 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Flag,
 } from "lucide-react";
 
 import { EyeTwoTone, EditTwoTone } from "@ant-design/icons";
 import toast from "react-hot-toast";
+import dayjs from "dayjs";
+
+import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
 
 function StatCard({
   icon: Icon,
@@ -52,7 +56,6 @@ function StatCard({
 
 import DeviceModal from "./DeviceModal";
 import DeviceDetailModal from "./DeviceDetailModal";
-import DeviceMaintenanceModal from "./DeviceMaintenanceModal";
 
 import iotDeviceService from "../../services/iotDeviceService";
 import parkingLotService from "../../services/parkingLotService";
@@ -135,6 +138,70 @@ const getDeviceType = (raw) => {
 const STATUS_OPERATIONAL = ["ONLINE", "OFFLINE", "READY", "WARNING"];
 const STATUS_NEEDS_ACTION = ["BROKEN", "MAINTENANCE", "INACTIVE"];
 
+/** Lịch đã kết thúc / huỷ — không dùng để cảnh báo cờ hay đếm hạn */
+function isClosedMaintenanceStatus(st) {
+  const s = String(st ?? "").trim();
+  if (!s) return false;
+  const u = s.toLowerCase();
+  return (
+    s === "Completed" ||
+    s === "Cancelled" ||
+    s === "Pending" ||
+    u === "completed" ||
+    u === "cancelled" ||
+    u === "pending"
+  );
+}
+
+/** Lịch còn cần xử lý (chưa đóng) — dùng để cờ cảnh báo & đồng bộ MAINTENANCE */
+function isOpenMaintenanceStatus(st) {
+  return !isClosedMaintenanceStatus(st);
+}
+
+/** Gộp nextMaintenanceDate sớm nhất theo deviceId, chỉ từ lịch chưa Completed/Cancelled */
+function buildNextMaintenanceByDeviceId(maintenanceItems) {
+  const map = {};
+  for (const m of maintenanceItems) {
+    if (!isOpenMaintenanceStatus(m?.status)) continue;
+    const raw = m?.nextMaintenanceDate;
+    if (!raw || String(raw).startsWith("0001")) continue;
+    const id = m.deviceId ?? m.device_id;
+    if (id == null) continue;
+    const key = String(id);
+    const d = dayjs(raw);
+    if (!d.isValid()) continue;
+    const prev = map[key];
+    if (!prev || d.isBefore(dayjs(prev))) map[key] = raw;
+  }
+  return map;
+}
+
+function deviceHasOpenMaintenance(maintenanceItems, deviceId) {
+  if (deviceId == null) return false;
+  const key = String(deviceId);
+  return maintenanceItems.some((m) => {
+    const mid = m.deviceId ?? m.device_id;
+    if (mid == null || String(mid) !== key) return false;
+    return isOpenMaintenanceStatus(m.status);
+  });
+}
+
+/** Có ít nhất một bản ghi lịch bảo trì cho thiết bị (dùng để tự bỏ MAINTENANCE khi lịch đã đóng hết) */
+function deviceHasAnyMaintenanceRecord(maintenanceItems, deviceId) {
+  if (deviceId == null) return false;
+  const key = String(deviceId);
+  return maintenanceItems.some((m) => {
+    const mid = m.deviceId ?? m.device_id;
+    return mid != null && String(mid) === key;
+  });
+}
+
+function maintenanceDueWithinWeek(nextDateISO) {
+  if (!nextDateISO || String(nextDateISO).startsWith("0001")) return false;
+  const daysLeft = dayjs(nextDateISO).diff(dayjs(), "day");
+  return daysLeft >= 0 && daysLeft <= 7;
+}
+
 function IoTDevices() {
   const [devices, setDevices] = useState([]);
   const [lots, setLots] = useState([]);
@@ -144,9 +211,6 @@ function IoTDevices() {
 
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-
-  const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
-  const [maintenanceDevice, setMaintenanceDevice] = useState(null);
 
   const [filterType, setFilterType] = useState("all");
   const [filterLot, setFilterLot] = useState("all");
@@ -162,17 +226,46 @@ function IoTDevices() {
     device: null,
   });
 
+  const [deviceNextMaintenance, setDeviceNextMaintenance] = useState({});
+
   const fetchDevices = useCallback(async () => {
     try {
       setLoading(true);
 
-      const [devData, lotData] = await Promise.all([
+      const [devData, lotData, maintRes] = await Promise.all([
         iotDeviceService.getAll(),
         parkingLotService.getAllParkingLots().catch(() => []),
+        DeviceMaintenanceService.getAll().catch(() => ({})),
       ]);
 
-      setDevices(Array.isArray(devData) ? devData : []);
       setLots(Array.isArray(lotData) ? lotData : []);
+
+      const rawItems =
+        maintRes?.data?.items || maintRes?.items || maintRes?.data;
+      const list = Array.isArray(rawItems) ? rawItems : [];
+      setDeviceNextMaintenance(buildNextMaintenanceByDeviceId(list));
+
+      let devicesToSet = Array.isArray(devData) ? devData : [];
+      const staleMaint = devicesToSet.filter((d) => {
+        const id = d.deviceId ?? d.id;
+        if (id == null) return false;
+        if (String(d.connectionStatus ?? "").toUpperCase() !== "MAINTENANCE")
+          return false;
+        if (!deviceHasAnyMaintenanceRecord(list, id)) return false;
+        return !deviceHasOpenMaintenance(list, id);
+      });
+      if (staleMaint.length > 0) {
+        await Promise.all(
+          staleMaint.map((d) =>
+            iotDeviceService
+              .update(d.deviceId ?? d.id, { connectionStatus: "READY" })
+              .catch(() => {}),
+          ),
+        );
+        const refreshed = await iotDeviceService.getAll();
+        devicesToSet = Array.isArray(refreshed) ? refreshed : [];
+      }
+      setDevices(devicesToSet);
     } catch {
       toast.error("Không thể tải danh sách thiết bị", { duration: 1000 });
     } finally {
@@ -199,8 +292,16 @@ function IoTDevices() {
   };
 
   const handleMaintenance = (device) => {
-    setMaintenanceDevice(device);
-    setShowMaintenanceModal(true);
+    const s = String(device.connectionStatus ?? "").toUpperCase();
+    if (s === "MAINTENANCE") {
+      toast("Thiết bị đang ở trạng thái bảo trì", { duration: 1500 });
+      return;
+    }
+    setConfirmDialog({
+      open: true,
+      type: "startMaintenance",
+      device,
+    });
   };
 
   const handleDelete = (device) => {
@@ -235,6 +336,15 @@ function IoTDevices() {
     });
   };
 
+  /** Thoát trạng thái bảo trì → Sẵn sàng (sau khi xong bảo trì tại chỗ hoặc không dùng trang lịch) */
+  const handleExitMaintenance = (device) => {
+    setConfirmDialog({
+      open: true,
+      type: "exitMaintenance",
+      device,
+    });
+  };
+
   const handleConfirmAction = async () => {
     const { type, device } = confirmDialog;
 
@@ -263,6 +373,25 @@ function IoTDevices() {
           connectionStatus: "READY",
         });
         toast.success("Đã bật lại thiết bị", { duration: 1000 });
+      }
+
+      if (type === "exitMaintenance") {
+        await iotDeviceService.update(device.id ?? device.deviceId, {
+          connectionStatus: "READY",
+        });
+        toast.success("Thiết bị đã được đưa về trạng thái sẵn sàng hoạt động", {
+          duration: 1000,
+        });
+      }
+
+      if (type === "startMaintenance") {
+        const deviceId = device.id ?? device.deviceId;
+        await iotDeviceService.update(deviceId, {
+          connectionStatus: "MAINTENANCE",
+        });
+        toast.success("Đã chuyển thiết bị sang trạng thái bảo trì", {
+          duration: 1000,
+        });
       }
 
       await fetchDevices();
@@ -493,6 +622,11 @@ function IoTDevices() {
                   getConnStatus={getConnStatus}
                   getDeviceType={getDeviceType}
                   isNeedsAction={false}
+                  maintenanceDueSoon={maintenanceDueWithinWeek(
+                    deviceNextMaintenance[
+                      String(device.deviceId ?? device.id ?? "")
+                    ],
+                  )}
                   onDetail={() => {
                     setSelected(device);
                     setShowDetailModal(true);
@@ -501,6 +635,7 @@ function IoTDevices() {
                   onMaintenance={handleMaintenance}
                   onActivate={handleActivate}
                   onDeactivate={handleDeactivate}
+                  onExitMaintenance={handleExitMaintenance}
                   onEdit={() => {
                     setSelected(device);
                     setShowModal(true);
@@ -574,6 +709,11 @@ function IoTDevices() {
                   getConnStatus={getConnStatus}
                   getDeviceType={getDeviceType}
                   isNeedsAction={true}
+                  maintenanceDueSoon={maintenanceDueWithinWeek(
+                    deviceNextMaintenance[
+                      String(device.deviceId ?? device.id ?? "")
+                    ],
+                  )}
                   onDetail={() => {
                     setSelected(device);
                     setShowDetailModal(true);
@@ -582,6 +722,7 @@ function IoTDevices() {
                   onMaintenance={handleMaintenance}
                   onActivate={handleActivate}
                   onDeactivate={handleDeactivate}
+                  onExitMaintenance={handleExitMaintenance}
                   onEdit={() => {
                     setSelected(device);
                     setShowModal(true);
@@ -645,13 +786,6 @@ function IoTDevices() {
         />
       )}
 
-      <DeviceMaintenanceModal
-        device={maintenanceDevice}
-        open={showMaintenanceModal}
-        onClose={() => setShowMaintenanceModal(false)}
-        onSuccess={fetchDevices}
-      />
-
       <ConfirmDialog
         open={confirmDialog.open}
         onClose={() => setConfirmDialog({ open: false })}
@@ -661,14 +795,22 @@ function IoTDevices() {
             ? "Ngừng hoạt động thiết bị"
             : confirmDialog.type === "activate"
               ? "Bật lại thiết bị"
-              : "Xác nhận"
+              : confirmDialog.type === "exitMaintenance"
+                ? "Cho thiết bị hoạt động lại"
+                : confirmDialog.type === "startMaintenance"
+                  ? "Chuyển sang bảo trì"
+                  : "Xác nhận"
         }
         description={
           confirmDialog.type === "deactivate"
             ? "Thiết bị sẽ chuyển sang trạng thái ngừng hoạt động. Bạn có chắc muốn tiếp tục?"
             : confirmDialog.type === "activate"
               ? "Thiết bị sẽ chuyển sang trạng thái hoạt động. Bạn có chắc muốn tiếp tục?"
-              : "Bạn có chắc muốn thực hiện thao tác này?"
+              : confirmDialog.type === "exitMaintenance"
+                ? "Thiết bị sẽ thoát trạng thái bảo trì và chuyển sang Sẵn sàng (vận hành lại). Bạn có chắc muốn tiếp tục?"
+                : confirmDialog.type === "startMaintenance"
+                  ? "Thiết bị sẽ chuyển sang trạng thái bảo trì và hiển thị trong cột Cần xử lý. Bạn có chắc muốn tiếp tục?"
+                  : "Bạn có chắc muốn thực hiện thao tác này?"
         }
         confirmLabel="Xác nhận"
         variant={
@@ -676,7 +818,11 @@ function IoTDevices() {
             ? "warning"
             : confirmDialog.type === "activate"
               ? "warning"
-              : "destructive"
+              : confirmDialog.type === "exitMaintenance"
+                ? "warning"
+                : confirmDialog.type === "startMaintenance"
+                  ? "warning"
+                  : "destructive"
         }
       />
     </div>
@@ -697,11 +843,13 @@ function DeviceCard({
   getConnStatus,
   getDeviceType,
   isNeedsAction = false,
+  maintenanceDueSoon = false,
   onDetail,
   onUnassign,
   onMaintenance,
   onActivate,
   onDeactivate,
+  onExitMaintenance,
   onEdit,
   onDelete,
 }) {
@@ -709,8 +857,9 @@ function DeviceCard({
   const dtype = getDeviceType(device.deviceType);
   const DevIcon = dtype.icon;
   const ConnIcon = conn.icon;
-  const isInactive =
-    String(device.connectionStatus ?? "").toUpperCase() === "INACTIVE";
+  const connUpper = String(device.connectionStatus ?? "").toUpperCase();
+  const isInactive = connUpper === "INACTIVE";
+  const isMaintenance = connUpper === "MAINTENANCE";
 
   return (
     <div className="bg-white rounded-3xl shadow border p-6 w-full min-w-0">
@@ -728,12 +877,23 @@ function DeviceCard({
             </span>
           </div>
         </div>
-        <span
-          className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full flex-shrink-0 whitespace-nowrap leading-none ${conn.color}`}
-        >
-          <ConnIcon className="w-3.5 h-3.5 flex-shrink-0" />
-          {conn.label}
-        </span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {maintenanceDueSoon && (
+            <span
+              className="inline-flex text-amber-600"
+              title="Sắp tới hạn bảo trì (trong 7 ngày)"
+              aria-label="Sắp tới hạn bảo trì trong 7 ngày"
+            >
+              <Flag className="w-5 h-5" strokeWidth={2} fill="currentColor" />
+            </span>
+          )}
+          <span
+            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full whitespace-nowrap leading-none ${conn.color}`}
+          >
+            <ConnIcon className="w-3.5 h-3.5 flex-shrink-0" />
+            {conn.label}
+          </span>
+        </div>
       </div>
       <div className="space-y-1 text-sm mb-4">
         {device.gateName && <Row label="Cổng" value={device.gateName} />}
@@ -763,8 +923,18 @@ function DeviceCard({
         >
           <Wrench className="w-4 h-4" />
         </button>
-        {isInactive ? (
+        {isMaintenance ? (
           <button
+            type="button"
+            onClick={() => onExitMaintenance(device)}
+            className="p-2 text-green-600 rounded-lg hover:bg-green-50"
+            title="Hoạt động lại sau bảo trì"
+          >
+            <Power className="w-4 h-4" />
+          </button>
+        ) : isInactive ? (
+          <button
+            type="button"
             onClick={() => onActivate(device)}
             className="p-2 text-green-600 rounded-lg hover:bg-green-50"
             title="Bật lại"
@@ -773,6 +943,7 @@ function DeviceCard({
           </button>
         ) : (
           <button
+            type="button"
             onClick={() => onDeactivate(device)}
             className="p-2 text-gray-600 rounded-lg hover:bg-gray-100"
             title="Ngừng hoạt động"

@@ -117,7 +117,19 @@ function DeviceDetailModal({ device, onClose }) {
       try {
         setLoading(true);
         setGateInfo(null);
-        const data = await iotDeviceService.getDetail(deviceId);
+        // /detail đôi khi lỗi 500 phía server; getById thường nhẹ hơn và đủ cho modal
+        let data;
+        try {
+          data = await iotDeviceService.getDetail(deviceId);
+        } catch (detailErr) {
+          if (detailErr?.response?.status === 500) {
+            console.warn(
+              "iot-devices/detail returned 500, falling back to getById:",
+              deviceId,
+            );
+          }
+          data = await iotDeviceService.getById(deviceId);
+        }
         setDetail(data);
 
         const gateId = data?.gateId ?? data?.gate_id ?? device?.gateId;
