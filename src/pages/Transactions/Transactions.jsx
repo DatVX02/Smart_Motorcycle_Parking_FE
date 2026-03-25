@@ -140,6 +140,15 @@ function formatDateTime(value) {
   });
 }
 
+/** Hiển thị phương thức thanh toán (API có thể trả mã tiếng Anh). */
+function formatPaymentMethodLabel(method, empty = "—") {
+  if (method == null || method === "") return empty;
+  const s = String(method).trim();
+  if (s.toLowerCase() === "wallet") return "Ví điện tử";
+  if (s.toLowerCase() === "payos") return "PayOS";
+  return s;
+}
+
 /** Chuyển ngày thành tham số API: YYYY-MM-DDTHH:mm */
 function toApiDateParam(dateStr, endOfDay = false) {
   if (!dateStr) return "";
@@ -212,10 +221,6 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
   const rows = detail
     ? [
         [
-          "Mã giao dịch",
-          detail.transactionCode ?? detail.code ?? detail.id ?? id,
-        ],
-        [
           "Biển số xe",
           detail.licensePlate ??
             detail.vehicleLicensePlate ??
@@ -234,7 +239,13 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
           "Bãi đỗ xe",
           detail.parkingLotName ?? detail.lotName ?? detail.lotId ?? "-",
         ],
-        ["Loại giao dịch", detail.transactionType ?? detail.type ?? "-"],
+        [
+          "Loại giao dịch",
+          TX_TYPE_LABELS[detail.transactionType ?? detail.type ?? ""] ??
+            detail.transactionType ??
+            detail.type ??
+            "-",
+        ],
         [
           "Thời gian vào",
           formatDateTime(
@@ -245,7 +256,7 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
           "Thời gian ra",
           formatDateTime(detail.exitTime ?? detail.checkOutTime),
         ],
-        ["Phương thức TT", detail.paymentMethod ?? "-"],
+        ["Phương thức TT", formatPaymentMethodLabel(detail.paymentMethod, "-")],
         ["Số tiền", formatCurrency(detail.amount ?? detail.totalAmount)],
       ]
     : [];
@@ -258,7 +269,7 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -266,12 +277,9 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
               <Receipt className="w-4 h-4 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-gray-900">
+              <h2 className="text-xl font-bold text-gray-900">
                 Chi tiết giao dịch
               </h2>
-              <p className="text-xs text-gray-400 font-mono truncate max-w-[200px]">
-                #{id}
-              </p>
             </div>
           </div>
           <button
@@ -294,14 +302,14 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
             </div>
           ) : (
             <>
-              {/* Info grid */}
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              {/* Info grid: 8 ô — 4 hàng × 2 cột, cân đối sau khi bỏ mã giao dịch */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
                 {rows.map(([label, value]) => (
-                  <div key={label}>
+                  <div key={label} className="min-w-0">
                     <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
                       {label}
                     </p>
-                    <p className="text-sm font-medium text-gray-900 break-all">
+                    <p className="text-sm font-medium text-gray-900 break-words">
                       {value}
                     </p>
                   </div>
@@ -316,7 +324,7 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
                 <StatusBadge tx={detail} />
               </div>
 
-              {/* Update status */}
+              {/* Update status
               <div className="pt-3 border-t border-gray-100">
                 <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-2">
                   Cập nhật trạng thái
@@ -345,7 +353,7 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
                     )}
                   </button>
                 </div>
-              </div>
+              </div> */}
 
               {(detail.note || detail.description) && (
                 <div className="pt-3 border-t border-gray-100">
@@ -680,7 +688,7 @@ export default function Transactions() {
               <option value="Momo">Momo</option>
               <option value="VNPay">VNPay</option>
               <option value="payos">PayOS</option>
-              <option value="Wallet">Ví điện tử</option>
+              <option value="wallet">Ví điện tử</option>
               <option value="Cash">Tiền mặt</option>
             </select>
           </div>
@@ -876,7 +884,7 @@ export default function Transactions() {
                       </td>
                       {/* Phương thức */}
                       <td className="p-3 text-center text-gray-600">
-                        {tx.paymentMethod ?? "—"}
+                        {formatPaymentMethodLabel(tx.paymentMethod)}
                       </td>
                       {/* Trạng thái */}
                       <td className="p-3 text-center">

@@ -129,7 +129,15 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
-function toCalendarEvent(shift) {
+/** YYYY-MM-DD theo giờ local (so khớp ô ngày trên lịch). */
+function getLocalYmd(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function toCalendarEvent(shift, todayYmd) {
   const rawDate =
     shift.shiftDate ?? shift.workDate ?? shift.date ?? shift.ShiftDate ?? "";
   const date = rawDate ? rawDate.split("T")[0] : "";
@@ -154,6 +162,8 @@ function toCalendarEvent(shift) {
   const startStr =
     startTime && date ? `${date}T${startTime.slice(0, 5)}` : date || undefined;
   const endStr = endTime && date ? `${date}T${endTime.slice(0, 5)}` : undefined;
+  /** Hôm nay và các ngày trước: chỉ xem, không bấm / không xóa hàng loạt (chia ca chỉ từ ngày mai). */
+  const isReadOnlyShift = Boolean(date && todayYmd && date <= todayYmd);
 
   return {
     id: String(shift.shiftId ?? shift.ShiftId ?? shift.id ?? Math.random()),
@@ -163,7 +173,7 @@ function toCalendarEvent(shift) {
     backgroundColor: color,
     borderColor: color,
     textColor: "#ffffff",
-    extendedProps: { shift },
+    extendedProps: { shift, isReadOnlyShift },
   };
 }
 
@@ -259,7 +269,7 @@ function renderEventContent(eventInfo) {
 
 function ShiftTooltip({ tooltip }) {
   if (!tooltip) return null;
-  const { x, y, shift } = tooltip;
+  const { x, y, shift, readOnly } = tooltip;
   const shiftType = (shift?.shiftType ?? "").toUpperCase();
   const statusKey = (shift?.shiftStatus ?? shift?.status ?? "").toUpperCase();
   const barColor =
@@ -359,7 +369,7 @@ function ShiftTooltip({ tooltip }) {
               {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? "—"}
             </span>
             <span className="text-[10px] text-gray-400 ml-auto">
-              Nhấn để xem chi tiết
+              {readOnly ? "Chỉ xem (không chỉnh sửa)" : "Nhấn để xem chi tiết"}
             </span>
           </div>
         </div>
@@ -903,7 +913,7 @@ function Shifts() {
 
   const handleRefresh = () => setRefreshKey((k) => k + 1);
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayLocalStr = getLocalYmd();
 
   const clearRange = () => setSelectedRange(null);
 
@@ -968,7 +978,12 @@ function Shifts() {
     const shift = info.event.extendedProps?.shift;
     if (!shift) return;
     const rect = info.el.getBoundingClientRect();
-    setTooltip({ x: rect.right + 6, y: rect.top, shift });
+    setTooltip({
+      x: rect.right + 6,
+      y: rect.top,
+      shift,
+      readOnly: !!info.event.extendedProps?.isReadOnlyShift,
+    });
   }, []);
 
   const handleEventMouseLeave = useCallback(() => {
@@ -1004,6 +1019,7 @@ function Shifts() {
   const handleEventClick = (info) => {
     const shift = info.event.extendedProps.shift;
     if (!shift) return;
+    if (info.event.extendedProps.isReadOnlyShift) return;
     if (isMultiDeleteMode) {
       const id = String(shift.shiftId ?? shift.ShiftId ?? shift.id);
       setSelectedShiftIds((prev) => {
@@ -1089,8 +1105,15 @@ function Shifts() {
             shift.date ??
             ""
           ).split("T")[0];
-          if (date && date >= startStr && date <= endStr) {
-            const sid = String(shift.shiftId ?? shift.ShiftId ?? shift.id ?? "");
+          if (
+            date &&
+            date >= startStr &&
+            date <= endStr &&
+            date > todayLocalStr
+          ) {
+            const sid = String(
+              shift.shiftId ?? shift.ShiftId ?? shift.id ?? "",
+            );
             if (sid) idsToAdd.add(sid);
           }
         }
@@ -1107,7 +1130,7 @@ function Shifts() {
       setSelectedRange({ start: startStr, end: endStr });
       selectInfo.view.calendar.unselect();
     },
-    [isMultiDeleteMode, shiftsByLot, inactiveStaffIds],
+    [isMultiDeleteMode, shiftsByLot, inactiveStaffIds, todayLocalStr],
   );
 
   const activeStaffForSidebar = useMemo(
@@ -1145,8 +1168,6 @@ function Shifts() {
     );
   }, [selectedRange, activeStaffForSidebar, allShiftsArray]);
 
-  const today = new Date().toISOString().split("T")[0];
-
   // Kiểm tra một ngày có thuộc tháng đang xem trên calendar không
   const isInViewedMonth = useCallback(
     (dateStr) => {
@@ -1172,7 +1193,9 @@ function Shifts() {
   );
 
   const todayShifts = allShiftsArray.filter(
-    (s) => (s.shiftDate ?? "").split("T")[0] === today,
+    (s) =>
+      (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0] ===
+      todayLocalStr,
   );
 
   const todayShiftsByLot = useMemo(
@@ -1182,10 +1205,12 @@ function Shifts() {
         count: (shiftsByLot[lot.id] ?? []).filter((s) => {
           if (inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")))
             return false;
-          return (s.shiftDate ?? s.workDate ?? "").split("T")[0] === today;
+          return (
+            (s.shiftDate ?? s.workDate ?? "").split("T")[0] === todayLocalStr
+          );
         }).length,
       })),
-    [parkingLots, shiftsByLot, inactiveStaffIds, today],
+    [parkingLots, shiftsByLot, inactiveStaffIds, todayLocalStr],
   );
 
   const scheduledByLot = useMemo(
@@ -1687,12 +1712,12 @@ function Shifts() {
                     if (filterDateFrom && shiftDate < filterDateFrom)
                       return false;
                     if (filterDateTo && shiftDate > filterDateTo) return false;
-                  } else {
-                    if (shiftDate && shiftDate < todayStr) return false;
                   }
                   return true;
                 });
-                const calendarEvents = lotShifts.map(toCalendarEvent);
+                const calendarEvents = lotShifts.map((s) =>
+                  toCalendarEvent(s, todayLocalStr),
+                );
                 const isSmallGrid = viewMode === "grid" && gridCols >= 3;
 
                 return (
@@ -1746,6 +1771,15 @@ function Shifts() {
                           const id = String(
                             shift.shiftId ?? shift.ShiftId ?? shift.id,
                           );
+
+                          if (arg.event.extendedProps?.isReadOnlyShift) {
+                            return [
+                              "!opacity-50",
+                              "grayscale-[0.45]",
+                              "cursor-default",
+                              "transition-opacity",
+                            ];
+                          }
 
                           if (isMultiDeleteMode) {
                             if (selectedShiftIds.has(id)) {

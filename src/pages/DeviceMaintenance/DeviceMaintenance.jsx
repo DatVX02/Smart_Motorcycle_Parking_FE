@@ -1,23 +1,86 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
 import iotDeviceService from "../../services/iotDeviceService";
 import MaintenanceDetailModal from "../../components/DeviceMaintenance/MaintenanceDetailModal";
+import DeviceMaintenanceSchedulesModal from "../../components/DeviceMaintenance/DeviceMaintenanceSchedulesModal";
 import dayjs from "dayjs";
 import { ConfigProvider, Pagination } from "antd";
 import viVN from "antd/es/locale/vi_VN";
 import { Button } from "@/components/ui/button";
-import CompleteMaintenanceModal from "../../components/DeviceMaintenance/CompleteMaintenanceModal";
 import UpdateNextMaintenanceModal from "../../components/DeviceMaintenance/UpdateNextMaintenanceModal";
 import {
   LayoutGrid,
   CalendarCheck,
-  Clock,
   Wrench,
   CheckCircle,
   AlertTriangle,
+  XCircle,
 } from "lucide-react";
 import { EyeTwoTone } from "@ant-design/icons";
+
+function normalizeMaintenanceStatus(s) {
+  return String(s ?? "").trim();
+}
+
+/**
+ * Chuẩn hoá status từ API (vd. "In Progress", IN_PROGRESS) → key dùng cho map UI & so sánh.
+ */
+function toUiStatusKey(statusRaw) {
+  const s = normalizeMaintenanceStatus(statusRaw);
+  const compact = s.toLowerCase().replace(/[\s_-]+/g, "");
+  if (compact === "inprogress") return "InProgress";
+  if (compact === "completed") return "Completed";
+  if (compact === "cancelled") return "Cancelled";
+  if (compact === "pending") return "Pending";
+  if (compact === "overdue") return "Overdue";
+  if (compact === "scheduled") return "Scheduled";
+  if (isScheduledLikeStatus(s)) return "Scheduled";
+  return s;
+}
+
+function isScheduledLikeStatus(statusRaw) {
+  const s = normalizeMaintenanceStatus(statusRaw).toLowerCase();
+  return s === "scheduled" || s === "đã lên lịch";
+}
+
+function isNextMaintenancePastDue(item) {
+  const raw = item?.nextMaintenanceDate;
+  if (!raw || String(raw).startsWith("0001")) return false;
+  const d = dayjs(raw);
+  if (!d.isValid()) return false;
+  return d.diff(dayjs(), "day") < 0;
+}
+
+/**
+ * Trạng thái hiển thị / thống kê.
+ * Nếu đã quá nextMaintenanceDate mà chưa hoàn thành/hủy → luôn coi là Quá hạn
+ * (kể cả API vẫn trả Scheduled hoặc In Progress).
+ */
+function getEffectiveMaintenanceStatus(item) {
+  const key = toUiStatusKey(item?.status);
+  if (key === "Completed" || key === "Cancelled" || key === "Pending") {
+    return key;
+  }
+  if (key === "Overdue") return "Overdue";
+  if (isNextMaintenancePastDue(item)) return "Overdue";
+  return key;
+}
+
+/** Badge tóm tắt trên thẻ thiết bị: ưu tiên Quá hạn → Đang bảo trì → Đã lên lịch → … */
+function aggregateGroupStatus(schedules) {
+  if (!schedules?.length) return "Scheduled";
+  const effects = schedules.map((s) => getEffectiveMaintenanceStatus(s));
+  if (effects.some((e) => e === "Overdue")) return "Overdue";
+  if (effects.some((e) => e === "InProgress")) return "InProgress";
+  if (effects.some((e) => e === "Scheduled")) return "Scheduled";
+  if (effects.every((e) => e === "Completed")) return "Completed";
+  if (effects.every((e) => e === "Cancelled" || e === "Pending"))
+    return "Cancelled";
+  if (effects.some((e) => e === "Cancelled" || e === "Pending"))
+    return "Scheduled";
+  return effects[0];
+}
 
 function StatCard({
   icon: Icon,
@@ -52,7 +115,8 @@ const DeviceMaintenance = () => {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMaintenanceId, setSelectedMaintenanceId] = useState(null);
-  const [completeMaintenanceId, setCompleteMaintenanceId] = useState(null);
+  const [schedulesGroupForBack, setSchedulesGroupForBack] = useState(null);
+  const [deviceGroupModal, setDeviceGroupModal] = useState(null);
   const [updateMaintenanceId, setUpdateMaintenanceId] = useState(null);
   const [filterStatus, setFilterStatus] = useState("All");
   const [searchId, setSearchId] = useState("");
@@ -63,50 +127,52 @@ const DeviceMaintenance = () => {
   const PAGE_SIZE = 9;
 
   const total = devices.length;
-  const pending = devices.filter((d) => d.status === "Pending").length;
-  const inProgress = devices.filter((d) => d.status === "InProgress").length;
-  const completed = devices.filter((d) => d.status === "Completed").length;
-  const overdue = devices.filter((d) => {
+  const inProgress = devices.filter(
+    (d) => getEffectiveMaintenanceStatus(d) === "InProgress",
+  ).length;
+  const completed = devices.filter(
+    (d) => toUiStatusKey(d.status) === "Completed",
+  ).length;
+  const overdue = devices.filter(
+    (d) => getEffectiveMaintenanceStatus(d) === "Overdue",
+  ).length;
+  const cancelled = devices.filter((d) => {
     const s = (d.status || "").toString().trim();
-    return s === "Cancelled" || s === "Overdue";
+    return s === "Cancelled" || s === "Pending";
   }).length;
-  const scheduled = devices.filter((d) => {
-    const s = (d.status || "").toString().trim().toLowerCase();
-    return s === "scheduled" || s === "đã lên lịch";
-  }).length;
+  const scheduled = devices.filter(
+    (d) => getEffectiveMaintenanceStatus(d) === "Scheduled",
+  ).length;
 
   const getStatusColor = (status) => {
-    const s = (status || "").toString().trim();
+    const key = toUiStatusKey(status);
     const map = {
-      Pending: "bg-yellow-100 text-yellow-700",
       Scheduled: "bg-blue-100 text-blue-700",
       "Đã lên lịch": "bg-blue-100 text-blue-700",
       "đã lên lịch": "bg-blue-100 text-blue-700",
       InProgress: "bg-yellow-100 text-black",
       Completed: "bg-green-100 text-black",
-      Cancelled: "bg-red-100 text-red-600",
+      Cancelled: "bg-slate-100 text-slate-700",
+      Pending: "bg-slate-100 text-slate-700",
       Overdue: "bg-red-100 text-red-600",
     };
-    if (map[s]) return map[s];
-    const key = s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-    return map[key] || "bg-gray-100 text-gray-600";
+    if (map[key]) return map[key];
+    return "bg-gray-100 text-gray-600";
   };
 
   const getStatusLabel = (status) => {
-    const s = (status || "").toString().trim();
+    const key = toUiStatusKey(status);
     const map = {
-      Pending: "Chờ bảo trì",
       Scheduled: "Đã lên lịch",
       "Đã lên lịch": "Đã lên lịch",
       "đã lên lịch": "Đã lên lịch",
       InProgress: "Đang bảo trì",
       Completed: "Đã bảo trì",
-      Cancelled: "Quá hạn",
+      Cancelled: "Đã hủy",
+      Pending: "Đã hủy",
       Overdue: "Quá hạn",
     };
-    if (map[s]) return map[s];
-    const key = s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-    return map[key] || s || "—";
+    return map[key] || normalizeMaintenanceStatus(status) || "—";
   };
 
   const formatDate = (date) => {
@@ -186,12 +252,14 @@ const DeviceMaintenance = () => {
   const filteredDevices = devices.filter((d) => {
     const lotOk = filterLot === "all" || d.lotId === filterLot;
     const itemStatus = (d.status || "").toString().trim();
+    const effective = getEffectiveMaintenanceStatus(d);
     const statusOk =
       filterStatus === "All" ||
-      itemStatus === filterStatus ||
-      (filterStatus === "Scheduled" &&
-        (itemStatus.toLowerCase() === "scheduled" ||
-          itemStatus === "đã lên lịch"));
+      (filterStatus === "Cancelled" &&
+        (itemStatus === "Cancelled" || itemStatus === "Pending")) ||
+      (filterStatus !== "All" &&
+        filterStatus !== "Cancelled" &&
+        effective === filterStatus);
     const searchOk =
       !searchId || d.deviceName?.toLowerCase().includes(searchId.toLowerCase());
     return lotOk && statusOk && searchOk;
@@ -201,7 +269,33 @@ const DeviceMaintenance = () => {
     setCurrentPage(1);
   }, [filterStatus, filterLot, searchId]);
 
-  const paginatedDevices = filteredDevices.slice(
+  const deviceGroups = useMemo(() => {
+    const map = new Map();
+    for (const item of filteredDevices) {
+      const rawId = item.deviceId ?? item.device_id;
+      const key =
+        rawId != null && String(rawId) !== ""
+          ? String(rawId)
+          : `code:${item.deviceCode || "unknown"}:${item.maintenanceId}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          deviceId: rawId,
+          deviceName: item.deviceName,
+          deviceCode: item.deviceCode,
+          lotName: item.lotName,
+          lotId: item.lotId,
+          schedules: [],
+        });
+      }
+      map.get(key).schedules.push(item);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      (a.deviceName || "").localeCompare(b.deviceName || "", "vi"),
+    );
+  }, [filteredDevices]);
+
+  const paginatedGroups = deviceGroups.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
@@ -244,7 +338,7 @@ const DeviceMaintenance = () => {
             <StatCard
               icon={LayoutGrid}
               iconColor="text-blue-600"
-              label="Tổng thiết bị"
+              label="Tổng lịch bảo trì"
               value={total}
               valueSuffix="Lịch"
             />
@@ -257,16 +351,6 @@ const DeviceMaintenance = () => {
               value={scheduled}
               valueSuffix="Lịch"
               bgTint="bg-blue-500/30"
-            />
-          </div>
-          <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
-            <StatCard
-              icon={Clock}
-              iconColor="text-amber-600"
-              label="Chờ bảo trì"
-              value={pending}
-              valueSuffix="Lịch"
-              bgTint="bg-amber-500/30"
             />
           </div>
           <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
@@ -297,6 +381,16 @@ const DeviceMaintenance = () => {
               value={overdue}
               valueSuffix="Lịch"
               bgTint="bg-red-500/30"
+            />
+          </div>
+          <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
+            <StatCard
+              icon={XCircle}
+              iconColor="text-slate-600"
+              label="Đã hủy"
+              value={cancelled}
+              valueSuffix="Lịch"
+              bgTint="bg-slate-400/25"
             />
           </div>
         </div>
@@ -334,129 +428,100 @@ const DeviceMaintenance = () => {
             >
               <option value="All">Tất cả</option>
               <option value="Scheduled">Đã lên lịch</option>
-              <option value="Pending">Chờ bảo trì</option>
               <option value="InProgress">Đang bảo trì</option>
               <option value="Completed">Đã bảo trì</option>
-              <option value="Cancelled">Quá hạn</option>
+              <option value="Overdue">Quá hạn</option>
+              <option value="Cancelled">Đã hủy</option>
             </select>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {paginatedDevices.map((item) => {
-            const daysLeft = item.nextMaintenanceDate
-              ? dayjs(item.nextMaintenanceDate).diff(dayjs(), "day")
-              : null;
+          {paginatedGroups.length === 0 && devices.length > 0 && (
+            <div className="col-span-full py-12 text-center text-gray-500 rounded-2xl border border-dashed border-gray-200 bg-gray-50/50">
+              Không có thiết bị phù hợp bộ lọc.
+            </div>
+          )}
+          {paginatedGroups.map((group) => {
+            const groupDisplay = aggregateGroupStatus(group.schedules);
+            const overdueCount = group.schedules.filter(
+              (s) => getEffectiveMaintenanceStatus(s) === "Overdue",
+            ).length;
+            const preview = group.schedules
+              .slice(0, 3)
+              .map((s) => s.maintenanceType)
+              .filter(Boolean)
+              .join(" · ");
 
             return (
               <div
-                key={item.maintenanceId}
+                key={group.key}
                 className="bg-white rounded-3xl shadow border p-6 hover:shadow-lg transition flex flex-col"
               >
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      {item.deviceName}
+                <div className="flex items-center justify-between mb-3 gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-gray-900 truncate">
+                      {group.deviceName}
                     </h3>
-                    <p className="text-xs text-gray-500">{item.deviceCode}</p>
-                    <p className="text-xs text-gray-400 italic">
-                      {item.lotName && item.lotName.trim() !== ""
-                        ? item.lotName
+                    <p className="text-xs text-gray-500">{group.deviceCode}</p>
+                    <p className="text-xs text-gray-400 italic truncate">
+                      {group.lotName && group.lotName.trim() !== ""
+                        ? group.lotName
                         : "Chưa gán bãi"}
                     </p>
                   </div>
                   <span
-                    className={`text-xs px-3 py-1 rounded-full font-medium text-center min-w-[80px] whitespace-nowrap ${getStatusColor(
-                      item.status,
+                    className={`text-xs px-3 py-1 rounded-full font-medium text-center min-w-[80px] flex-shrink-0 whitespace-nowrap ${getStatusColor(
+                      groupDisplay,
                     )}`}
                   >
-                    {getStatusLabel(item.status)}
+                    {getStatusLabel(groupDisplay)}
                   </span>
                 </div>
 
                 <div className="space-y-1 text-sm flex-1">
-                  <Row label="Loại bảo trì" value={item.maintenanceType} />
-                  <Row label="Mô tả" value={item.description} />
-
-                  {item.performedAt && (
-                    <Row
-                      label="Ngày thực hiện"
-                      value={formatDate(item.performedAt)}
-                    />
-                  )}
-
-                  {item.status !== "InProgress" &&
-                    item.nextMaintenanceDate &&
-                    item.status === "Completed" && (
-                      <Row
-                        label="Bảo trì tiếp theo"
-                        value={format(item.nextMaintenanceDate)}
-                      />
-                    )}
-
-                  {daysLeft !== null && daysLeft <= 7 && daysLeft > 0 && (
-                    <div className="mt-3 text-yellow-600 text-sm font-medium">
-                      Còn {daysLeft} ngày nữa đến hạn bảo trì
+                  <Row
+                    label="Số lịch"
+                    value={`${group.schedules.length} lịch bảo trì`}
+                  />
+                  {preview && (
+                    <div className="pt-1">
+                      <span className="text-gray-400 text-xs block mb-0.5">
+                        Gồm
+                      </span>
+                      <p className="text-gray-800 text-sm leading-snug line-clamp-3">
+                        {preview}
+                        {group.schedules.length > 3 ? "…" : ""}
+                      </p>
                     </div>
                   )}
-
-                  {daysLeft !== null && daysLeft === 0 && (
-                    <div className="mt-3 text-yellow-600 text-sm font-medium">
-                      Tới hạn bảo trì
-                    </div>
-                  )}
-
-                  {daysLeft !== null && daysLeft < 0 && (
-                    <div className="mt-3 text-red-600 text-sm font-medium">
-                      Thiết bị đã quá hạn bảo trì
+                  {overdueCount > 0 && (
+                    <div className="mt-2 text-red-600 text-sm font-medium">
+                      {overdueCount} lịch quá hạn
                     </div>
                   )}
                 </div>
 
-                <div
-                  className={`mt-4 flex gap-2 ${
-                    item.status === "InProgress" ? "flex-row" : "flex-col"
-                  }`}
-                >
+                <div className="mt-4 flex flex-col gap-2">
                   <Button
                     variant="outline"
-                    className="mt-4 w-full"
-                    onClick={() => setSelectedMaintenanceId(item.maintenanceId)}
+                    className="mt-2 w-full"
+                    onClick={() => setDeviceGroupModal(group)}
                   >
                     <EyeTwoTone className="w-4 h-4 mr-2" />
                     Xem chi tiết
                   </Button>
-
-                  {item.status === "InProgress" && (
-                    <Button
-                      className="mt-4 w-full"
-                      onClick={() =>
-                        setCompleteMaintenanceId(item.maintenanceId)
-                      }
-                    >
-                      Hoàn thành bảo trì
-                    </Button>
-                  )}
-
-                  {/* {(item.status === "Completed" || item.status === "Cancelled") && (
-                                    <Button
-                                        className="mt-2 w-full"
-                                        onClick={() => setUpdateMaintenanceId(item.maintenanceId)}
-                                    >
-                                        Cập nhật ngày bảo trì tiếp theo
-                                    </Button>
-                                )} */}
                 </div>
               </div>
             );
           })}
         </div>
-        {filteredDevices.length > PAGE_SIZE && (
+        {deviceGroups.length > PAGE_SIZE && (
           <div className="flex justify-end mt-6">
             <Pagination
               current={currentPage}
               pageSize={PAGE_SIZE}
-              total={filteredDevices.length}
+              total={deviceGroups.length}
               onChange={(page) => setCurrentPage(page)}
               showSizeChanger={false}
             />
@@ -464,19 +529,40 @@ const DeviceMaintenance = () => {
         )}
       </div>
 
+      {deviceGroupModal && (
+        <DeviceMaintenanceSchedulesModal
+          group={deviceGroupModal}
+          onClose={() => setDeviceGroupModal(null)}
+          getEffectiveStatus={getEffectiveMaintenanceStatus}
+          getStatusColor={getStatusColor}
+          getStatusLabel={getStatusLabel}
+          format={format}
+          formatDate={formatDate}
+          onSelectSchedule={(id) => {
+            setSchedulesGroupForBack(deviceGroupModal);
+            setDeviceGroupModal(null);
+            setSelectedMaintenanceId(id);
+          }}
+        />
+      )}
+
       {selectedMaintenanceId && (
         <MaintenanceDetailModal
           maintenanceId={selectedMaintenanceId}
           mode="complete"
-          onClose={() => setSelectedMaintenanceId(null)}
-          onUpdated={fetchDevices}
-        />
-      )}
-
-      {completeMaintenanceId && (
-        <CompleteMaintenanceModal
-          maintenanceId={completeMaintenanceId}
-          onClose={() => setCompleteMaintenanceId(null)}
+          onClose={() => {
+            setSelectedMaintenanceId(null);
+            setSchedulesGroupForBack(null);
+          }}
+          onBack={
+            schedulesGroupForBack
+              ? () => {
+                  setSelectedMaintenanceId(null);
+                  setDeviceGroupModal(schedulesGroupForBack);
+                  setSchedulesGroupForBack(null);
+                }
+              : undefined
+          }
           onUpdated={fetchDevices}
         />
       )}

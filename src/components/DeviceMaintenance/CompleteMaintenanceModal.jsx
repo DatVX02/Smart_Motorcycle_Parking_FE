@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
+import iotDeviceService from "../../services/iotDeviceService";
 import { Button } from "@/components/ui/button";
 import dayjs from "dayjs";
 import "dayjs/locale/vi";
@@ -61,6 +62,25 @@ const CompleteMaintenanceModal = ({
             }
 
             await DeviceMaintenanceService.update(maintenanceId, formData);
+
+            const deviceIdForSync =
+                maintenance?.deviceId ?? maintenance?.device_id;
+            if (status === "Completed" && deviceIdForSync != null) {
+                try {
+                    await iotDeviceService.update(deviceIdForSync, {
+                        connectionStatus: "READY",
+                    });
+                } catch (syncErr) {
+                    console.error(syncErr);
+                    toast.error(
+                        "Đã lưu bảo trì nhưng không cập nhật được trạng thái thiết bị trên danh sách quản lý",
+                        { duration: 2500 },
+                    );
+                    onUpdated();
+                    onClose();
+                    return;
+                }
+            }
 
             toast.success("Cập nhật bảo trì thành công", {duration: 1000});
 
@@ -181,7 +201,7 @@ const CompleteMaintenanceModal = ({
                         >
 
                             <option value="Completed">Đã bảo trì</option>
-                            <option value="Cancelled">Hủy</option>
+                            <option value="Cancelled">Đã hủy</option>
 
                         </select>
 
