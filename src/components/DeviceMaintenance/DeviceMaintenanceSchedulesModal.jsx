@@ -16,11 +16,37 @@ function segmentColorForStatus(effective) {
   return SEGMENT_COLORS[effective] || "#94a3b8";
 }
 
+/** Xuống dòng theo độ dài (ưu tiên cắt tại dấu cách), không dùng dấu … */
+function wrapMaintenanceTypeLines(text, maxCharsPerLine) {
+  if (!text?.trim()) return ["—"];
+  const s = String(text).trim();
+  const lines = [];
+  let remaining = s;
+  while (remaining.length > 0) {
+    if (remaining.length <= maxCharsPerLine) {
+      lines.push(remaining);
+      break;
+    }
+    const slice = remaining.slice(0, maxCharsPerLine);
+    const lastSpace = slice.lastIndexOf(" ");
+    if (lastSpace > maxCharsPerLine * 0.35) {
+      lines.push(remaining.slice(0, lastSpace).trim());
+      remaining = remaining.slice(lastSpace + 1).trim();
+    } else {
+      lines.push(remaining.slice(0, maxCharsPerLine));
+      remaining = remaining.slice(maxCharsPerLine).trim();
+    }
+  }
+  return lines;
+}
+
 /**
- * Vòng tròn nhiều cung: mỗi cung = một lịch; số trên cung = "Lịch N" trong danh sách.
+ * Vòng tròn nhiều cung: mỗi cung = một lịch; nhãn ngoài vòng (Lần N, ngày, loại) giống infographic lịch định kỳ.
  */
 function MaintenanceDonut({
   schedules,
+  deviceName,
+  formatDateShort,
   getEffectiveStatus,
   getStatusLabel,
   hoveredIndex,
@@ -30,11 +56,14 @@ function MaintenanceDonut({
   const n = schedules.length;
   if (n === 0) return null;
 
-  const cx = 50;
-  const cy = 50;
-  const rOuter = 42;
-  const rInner = 26;
-  const rLabel = (rOuter + rInner) / 2;
+  const VB = 140;
+  const cx = VB / 2;
+  const cy = VB / 2;
+  const rOuter = 40;
+  const rInner = 24;
+  const rOuterLabel = rOuter + 18;
+  const fontOuter = n > 7 ? 2.65 : n > 5 ? 3 : 3.35;
+
   let angle = -90;
 
   const segments = schedules.map((item, i) => {
@@ -65,13 +94,28 @@ function MaintenanceDonut({
 
     const midDeg = startDeg + sweep / 2;
     const midRad = (midDeg * Math.PI) / 180;
-    const lx = cx + rLabel * Math.cos(midRad);
-    const ly = cy + rLabel * Math.sin(midRad);
+    const lx = cx + rOuterLabel * Math.cos(midRad);
+    const ly = cy + rOuterLabel * Math.sin(midRad);
 
     angle += sweep;
 
     const dimmed =
       hoveredIndex !== null && hoveredIndex !== undefined && hoveredIndex !== i;
+
+    const nextRaw = item.nextMaintenanceDate;
+    const dateLine =
+      nextRaw && !String(nextRaw).startsWith("0001")
+        ? formatDateShort(nextRaw)
+        : "—";
+
+    const maxChars =
+      n > 7 ? 11 : n > 5 ? 13 : n > 4 ? 15 : 18;
+    const typeLines = wrapMaintenanceTypeLines(
+      item.maintenanceType,
+      maxChars,
+    );
+    const lineGap =
+      fontOuter * (typeLines.length > 4 ? 0.92 : 1.06);
 
     return {
       key: item.maintenanceId ?? i,
@@ -81,10 +125,13 @@ function MaintenanceDonut({
       lx,
       ly,
       index: i,
-      label: String(i + 1),
       dimmed,
       title: `${getStatusLabel(eff)} — ${item.maintenanceType || "Lịch " + (i + 1)}`,
       ariaLabel: `Lịch ${i + 1}, ${item.maintenanceType || "chi tiết"}. ${getStatusLabel(eff)}. Nhấn để xem chi tiết`,
+      outerLine1: `Lần ${i + 1}`,
+      outerLine2: dateLine,
+      typeLines,
+      lineGap,
     };
   });
 
@@ -92,13 +139,15 @@ function MaintenanceDonut({
     if (maintenanceId != null) onSelectSchedule?.(maintenanceId);
   };
 
+  const centerLines = wrapMaintenanceTypeLines(deviceName || "Thiết bị", 11);
+
   return (
     <div className="flex flex-col items-center py-4 border-b border-gray-100">
       <svg
-        viewBox="0 0 100 100"
-        className="w-44 h-44 sm:w-52 sm:h-52 drop-shadow-sm touch-manipulation"
+        viewBox={`0 0 ${VB} ${VB}`}
+        className="w-full max-w-[min(22rem,92vw)] aspect-square drop-shadow-sm touch-manipulation"
         role="img"
-        aria-label="Vòng lịch bảo trì — nhấn từng phần hoặc số để xem chi tiết"
+        aria-label="Vòng lịch bảo trì — nhấn từng phần để xem chi tiết"
       >
         <title>
           Nhấn vào từng phần trên vòng để mở chi tiết lịch tương ứng
@@ -109,7 +158,7 @@ function MaintenanceDonut({
               d={seg.d}
               fill={seg.fill}
               stroke="#fff"
-              strokeWidth="0.8"
+              strokeWidth="1"
               opacity={seg.dimmed ? 0.35 : 1}
               className="cursor-pointer transition-[opacity] duration-150 outline-none"
               style={{ outline: "none" }}
@@ -128,24 +177,84 @@ function MaintenanceDonut({
             >
               <title>{seg.title}</title>
             </path>
-            <text
-              x={seg.lx}
-              y={seg.ly}
-              textAnchor="middle"
-              dominantBaseline="central"
-              className="pointer-events-none select-none font-bold"
-              style={{
-                fontSize: n > 8 ? 5.5 : n > 5 ? 6.5 : 8,
-                fill: "#fff",
-                stroke: "rgba(0,0,0,0.35)",
-                strokeWidth: 0.35,
-                paintOrder: "stroke fill",
-              }}
+            <g
+              transform={`translate(${seg.lx}, ${seg.ly})`}
+              className="pointer-events-none select-none"
             >
-              {seg.label}
-            </text>
+              {(() => {
+                const lg = seg.lineGap;
+                const totalLines = 2 + seg.typeLines.length;
+                const y0 = -((totalLines - 1) * lg) / 2;
+                return (
+                  <text
+                    textAnchor="middle"
+                    fill="#0f172a"
+                    style={{ fontSize: fontOuter, fontWeight: 600 }}
+                  >
+                    <tspan x={0} y={y0}>
+                      {seg.outerLine1}
+                    </tspan>
+                    <tspan x={0} dy={lg} style={{ fontWeight: 500 }}>
+                      {seg.outerLine2}
+                    </tspan>
+                    {seg.typeLines.map((line, li) => (
+                      <tspan
+                        key={li}
+                        x={0}
+                        dy={lg}
+                        style={{ fontWeight: 400, fill: "#475569" }}
+                      >
+                        {line}
+                      </tspan>
+                    ))}
+                  </text>
+                );
+              })()}
+            </g>
           </g>
         ))}
+        <g
+          className="pointer-events-none select-none"
+          transform={`translate(${cx}, ${cy})`}
+        >
+          <text textAnchor="middle">
+            <tspan
+              x={0}
+              y={-10}
+              fill="#0f172a"
+              style={{
+                fontSize: 4.2,
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+              }}
+            >
+              LỊCH BẢO TRÌ
+            </tspan>
+            <tspan
+              x={0}
+              dy={6}
+              fill="#dc2626"
+              style={{
+                fontSize: 5.2,
+                fontWeight: 800,
+                letterSpacing: "0.02em",
+              }}
+            >
+              ĐỊNH KỲ
+            </tspan>
+            {centerLines.map((ln, ci) => (
+              <tspan
+                key={ci}
+                x={0}
+                dy={ci === 0 ? 5.5 : 3.6}
+                fill="#334155"
+                style={{ fontSize: 3.4, fontWeight: 500 }}
+              >
+                {ln}
+              </tspan>
+            ))}
+          </text>
+        </g>
       </svg>
     </div>
   );
@@ -204,6 +313,8 @@ export default function DeviceMaintenanceSchedulesModal({
         <div className="overflow-y-auto flex-1 px-5">
           <MaintenanceDonut
             schedules={sorted}
+            deviceName={group.deviceName}
+            formatDateShort={format}
             getEffectiveStatus={getEffectiveStatus}
             getStatusLabel={getStatusLabel}
             hoveredIndex={hoveredIndex}

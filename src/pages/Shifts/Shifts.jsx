@@ -137,6 +137,24 @@ function getLocalYmd(d = new Date()) {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Khoảng đếm "Ca đã lên lịch": từ hôm nay (hoặc đầu tháng nếu đang xem tháng tương lai)
+ * đến hết tháng đang xem — không tính ngày đã qua trong tháng.
+ * Trả về null nếu cả tháng đã nằm trước hôm nay.
+ */
+function getScheduledStatsDateRangeYmd(viewedMonth, todayYmd) {
+  const y = viewedMonth.year;
+  const m = viewedMonth.month; // 0–11 (giống Date.getMonth)
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const pad = (n) => String(n).padStart(2, "0");
+  const monthNum = m + 1;
+  const monthStart = `${y}-${pad(monthNum)}-01`;
+  const monthEnd = `${y}-${pad(monthNum)}-${pad(lastDay)}`;
+  const rangeStart = todayYmd > monthStart ? todayYmd : monthStart;
+  if (rangeStart > monthEnd) return null;
+  return { start: rangeStart, end: monthEnd };
+}
+
 function toCalendarEvent(shift, todayYmd) {
   const rawDate =
     shift.shiftDate ?? shift.workDate ?? shift.date ?? shift.ShiftDate ?? "";
@@ -391,7 +409,7 @@ function StatCard({
   rowValueClass,
   rowUnit = "ca",
 }) {
-  const hasLots = lots.filter((l) => l.count > 0).length > 0;
+  const hasLots = lots.length > 0;
   return (
     <div
       className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-default select-none ${colorClass}`}
@@ -432,9 +450,7 @@ function StatCard({
               </span>
             </div>
             <div className="py-1">
-              {lots
-                .filter((l) => l.count > 0)
-                .map((lot) => (
+              {lots.map((lot) => (
                   <div
                     key={lot.name}
                     className="flex items-center justify-between gap-6 px-3 py-1.5 hover:bg-gray-50"
@@ -491,10 +507,14 @@ function useClickOutside(ref, onClose) {
   }, [ref, onClose]);
 }
 
+/** null = tất cả bãi — hiển thị lịch gộp; chọn một id = chỉ lịch bãi đó */
 function LotDropdown({ lots, value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  const selected = lots.find((l) => String(l.id) === String(value));
+  const isAll = value == null || value === "";
+  const selected = isAll
+    ? { id: null, name: "Tất cả bãi xe" }
+    : lots.find((l) => String(l.id) === String(value));
   const close = useCallback(() => setOpen(false), []);
   useClickOutside(ref, close);
 
@@ -505,7 +525,7 @@ function LotDropdown({ lots, value, onChange }) {
         className={`flex items-center gap-2 bg-white border rounded-lg px-3 py-1.5 shadow-sm transition-all hover:shadow-md ${open ? "border-blue-400 ring-1 ring-blue-100" : "border-blue-200 hover:border-blue-400"}`}
       >
         <MapPin className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-        <span className="text-xs font-semibold text-gray-800 max-w-[180px] truncate">
+        <span className="text-xs font-semibold text-gray-800 max-w-[200px] truncate">
           {selected?.name ?? "Chọn bãi xe"}
         </span>
         <ChevronDown
@@ -514,15 +534,36 @@ function LotDropdown({ lots, value, onChange }) {
       </button>
 
       {open && (
-        <div className="absolute top-[calc(100%+6px)] left-0 z-[200] bg-white border border-gray-200 rounded-xl shadow-2xl py-1.5 min-w-[240px] max-w-[320px] overflow-hidden">
+        <div className="absolute top-[calc(100%+6px)] left-0 z-[200] bg-white border border-gray-200 rounded-xl shadow-2xl py-1.5 min-w-[240px] max-w-[320px] overflow-hidden max-h-[min(70vh,420px)] overflow-y-auto">
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-3 pb-1.5 pt-0.5">
             Chọn bãi xe
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null);
+              setOpen(false);
+            }}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${isAll ? "bg-blue-50" : "hover:bg-gray-50"}`}
+          >
+            <div
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${isAll ? "bg-blue-500" : "bg-gray-300"}`}
+            />
+            <span
+              className={`text-xs font-medium flex-1 ${isAll ? "text-blue-700 font-semibold" : "text-gray-700"}`}
+            >
+              Tất cả bãi xe
+            </span>
+            {isAll && (
+              <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+            )}
+          </button>
           {lots.map((lot) => {
             const isActive = String(lot.id) === String(value);
             return (
               <button
                 key={lot.id}
+                type="button"
                 onClick={() => {
                   onChange(lot.id);
                   setOpen(false);
@@ -742,7 +783,8 @@ function Shifts() {
 
   const [viewMode, setViewMode] = useState("tab");
   const [gridCols, setGridCols] = useState(2);
-  const [activeTabLotId, setActiveTabLotId] = useState("");
+  /** null = tất cả bãi (mặc định: lịch gộp mọi bãi) */
+  const [activeTabLotId, setActiveTabLotId] = useState(null);
 
   const [viewedMonth, setViewedMonth] = useState(() => {
     const d = new Date();
@@ -775,15 +817,27 @@ function Shifts() {
   const calendarRef = useRef(null);
   const calendarRefs = useRef({});
 
+  const tabShowsAllLots =
+    viewMode === "tab" &&
+    (activeTabLotId == null || activeTabLotId === "");
+
+  /** Chỉ tab + chọn 1 bãi: thống kê đầu trang theo bãi đó; còn lại = tất cả bãi */
+  const activeStatsLotId =
+    viewMode === "tab" &&
+    activeTabLotId != null &&
+    activeTabLotId !== ""
+      ? activeTabLotId
+      : null;
+
   const calendarApiAll = useCallback(
     (fn) => {
-      if (viewMode === "tab") {
+      if (viewMode === "tab" && !tabShowsAllLots) {
         fn(calendarRef.current?.getApi());
       } else {
         Object.values(calendarRefs.current).forEach((r) => fn(r?.getApi()));
       }
     },
-    [viewMode],
+    [viewMode, tabShowsAllLots],
   );
 
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -841,8 +895,6 @@ function Shifts() {
         name: lot.lotName ?? lot.name ?? "Bãi xe",
       }));
       setParkingLots(normalized);
-      if (normalized.length > 0 && !activeTabLotId)
-        setActiveTabLotId(normalized[0].id);
     } catch (err) {
       toast.error("Lỗi tải bãi xe");
     }
@@ -1181,67 +1233,121 @@ function Shifts() {
     [viewedMonth],
   );
 
-  // Shifts của 1 lot đã lọc theo tháng đang xem
+  // Shifts của 1 lot đã lọc theo tháng đang xem (dùng cho thống kê đầu trang; có lọc NV nếu đang chọn)
   const lotShiftsInMonth = useCallback(
     (lotId) =>
       (shiftsByLot[lotId] ?? []).filter((s) => {
         if (inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")))
           return false;
+        if (
+          filterStaffId &&
+          String(s.staffId ?? s.StaffId ?? "") !== String(filterStaffId)
+        )
+          return false;
         return isInViewedMonth(s.shiftDate ?? s.workDate ?? s.date ?? "");
       }),
-    [shiftsByLot, inactiveStaffIds, isInViewedMonth],
+    [shiftsByLot, inactiveStaffIds, isInViewedMonth, filterStaffId],
   );
 
-  const todayShifts = allShiftsArray.filter(
-    (s) =>
-      (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0] ===
-      todayLocalStr,
+  const statsParkingLots = useMemo(
+    () =>
+      activeStatsLotId != null
+        ? parkingLots.filter(
+            (l) => String(l.id) === String(activeStatsLotId),
+          )
+        : parkingLots,
+    [parkingLots, activeStatsLotId],
   );
+
+  const todayShifts = useMemo(() => {
+    const base =
+      activeStatsLotId != null
+        ? (shiftsByLot[activeStatsLotId] ?? []).filter(
+            (s) =>
+              !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+          )
+        : allShiftsArray;
+    return base.filter((s) => {
+      if (
+        filterStaffId &&
+        String(s.staffId ?? s.StaffId ?? "") !== String(filterStaffId)
+      )
+        return false;
+      return (
+        (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0] ===
+        todayLocalStr
+      );
+    });
+  }, [
+    activeStatsLotId,
+    shiftsByLot,
+    inactiveStaffIds,
+    allShiftsArray,
+    todayLocalStr,
+    filterStaffId,
+  ]);
 
   const todayShiftsByLot = useMemo(
     () =>
-      parkingLots.map((lot) => ({
+      statsParkingLots.map((lot) => ({
         name: lot.name,
         count: (shiftsByLot[lot.id] ?? []).filter((s) => {
           if (inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")))
+            return false;
+          if (
+            filterStaffId &&
+            String(s.staffId ?? s.StaffId ?? "") !== String(filterStaffId)
+          )
             return false;
           return (
             (s.shiftDate ?? s.workDate ?? "").split("T")[0] === todayLocalStr
           );
         }).length,
       })),
-    [parkingLots, shiftsByLot, inactiveStaffIds, todayLocalStr],
+    [statsParkingLots, shiftsByLot, inactiveStaffIds, todayLocalStr, filterStaffId],
+  );
+
+  const scheduledStatsDateRange = useMemo(
+    () => getScheduledStatsDateRangeYmd(viewedMonth, todayLocalStr),
+    [viewedMonth, todayLocalStr],
   );
 
   const scheduledByLot = useMemo(
     () =>
-      parkingLots.map((lot) => ({
+      statsParkingLots.map((lot) => ({
         name: lot.name,
-        count: lotShiftsInMonth(lot.id).filter(
-          (s) => (s.shiftStatus ?? "").toUpperCase() === "SCHEDULED",
-        ).length,
+        count: lotShiftsInMonth(lot.id).filter((s) => {
+          if ((s.shiftStatus ?? "").toUpperCase() !== "SCHEDULED")
+            return false;
+          if (!scheduledStatsDateRange) return false;
+          const d = (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0];
+          return (
+            d >= scheduledStatsDateRange.start &&
+            d <= scheduledStatsDateRange.end
+          );
+        }).length,
       })),
-    [parkingLots, lotShiftsInMonth],
+    [statsParkingLots, lotShiftsInMonth, scheduledStatsDateRange],
   );
 
   const inProgressByLot = useMemo(
     () =>
-      parkingLots.map((lot) => ({
+      statsParkingLots.map((lot) => ({
         name: lot.name,
         count: lotShiftsInMonth(lot.id).filter(
           (s) => (s.shiftStatus ?? "").toUpperCase() === "IN_PROGRESS",
         ).length,
       })),
-    [parkingLots, lotShiftsInMonth],
+    [statsParkingLots, lotShiftsInMonth],
   );
 
   const totalByLot = useMemo(
     () =>
-      parkingLots.map((lot) => ({
+      statsParkingLots.map((lot) => ({
         name: lot.name,
         count: lotShiftsInMonth(lot.id).length,
       })),
-    [parkingLots, lotShiftsInMonth],
+    [statsParkingLots, lotShiftsInMonth],
   );
 
   const scheduledCount = scheduledByLot.reduce((s, l) => s + l.count, 0);
@@ -1257,7 +1363,11 @@ function Shifts() {
 
   const visibleLots =
     viewMode === "tab"
-      ? parkingLots.filter((l) => l.id === activeTabLotId)
+      ? tabShowsAllLots
+        ? parkingLots
+        : parkingLots.filter(
+            (l) => String(l.id) === String(activeTabLotId),
+          )
       : parkingLots;
 
   return (
@@ -1670,7 +1780,7 @@ function Shifts() {
             )}
 
             <div
-              className={`flex-1 min-h-0 overflow-auto p-2 ${viewMode === "grid" ? `grid gap-4 ${gridLayoutClass}` : "flex flex-col"}`}
+              className={`flex-1 min-h-0 overflow-auto p-2 ${viewMode === "grid" || tabShowsAllLots ? `grid gap-4 ${gridLayoutClass}` : "flex flex-col"}`}
             >
               {visibleLots.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -1723,9 +1833,9 @@ function Shifts() {
                 return (
                   <div
                     key={lot.id}
-                    className={`${viewMode === "grid" ? "h-[700px]" : "flex-1 min-h-0"} flex flex-col`}
+                    className={`${viewMode === "grid" || tabShowsAllLots ? "h-[700px]" : "flex-1 min-h-0"} flex flex-col`}
                   >
-                    {viewMode === "grid" && (
+                    {(viewMode === "grid" || tabShowsAllLots) && (
                       <div
                         className="group flex items-center gap-2 mb-2 px-2 cursor-pointer"
                         onClick={() => {
@@ -1748,8 +1858,15 @@ function Shifts() {
                     <DroppableLotCalendar lotId={lot.id}>
                       <FullCalendar
                         ref={(el) => {
-                          if (viewMode === "tab") calendarRef.current = el;
-                          else calendarRefs.current[lot.id] = el;
+                          const tabSingleLot =
+                            viewMode === "tab" &&
+                            activeTabLotId != null &&
+                            activeTabLotId !== "";
+                          if (viewMode === "tab" && tabSingleLot) {
+                            calendarRef.current = el;
+                          } else {
+                            calendarRefs.current[lot.id] = el;
+                          }
                         }}
                         plugins={[
                           dayGridPlugin,
