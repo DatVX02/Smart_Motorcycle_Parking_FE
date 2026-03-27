@@ -29,6 +29,15 @@ const staffService = {
             },
         });
     },
+
+    /**
+     * PATCH /api/v1/staff/update-shift-change-status
+     * Cập nhật trạng thái thông báo yêu cầu đổi ca (query: notificationId, newStatus).
+     */
+    updateShiftChangeStatus: (notificationId, newStatus) =>
+        apiClient.patch(`${API_URL}/update-shift-change-status`, null, {
+            params: { notificationId, newStatus },
+        }),
 };
 
 export default staffService;

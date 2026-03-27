@@ -72,7 +72,7 @@ src/
 │   ├── ParkingLots/
 │   ├── Transactions/
 │   ├── Shifts/
-│   ├── SystemLogs/
+│   ├── DeviceEvents/
 │   ├── RewardPoints/
 │   ├── PriceList/
 │   └── IoTDevices/

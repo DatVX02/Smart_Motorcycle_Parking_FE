@@ -6,10 +6,10 @@ import parkingLotService from "../../services/parkingLotService";
 import iotDeviceService from "../../services/iotDeviceService";
 
 export default function Dashboard() {
-
   const [lots, setLots] = useState([]);
-  const apiBaseUrl =
-    (import.meta?.env?.VITE_API_BASE_URL || "https://localhost:7015").replace(/\/+$/, "");
+  const apiBaseUrl = (
+    import.meta?.env?.VITE_API_BASE_URL || "https://localhost:7015"
+  ).replace(/\/+$/, "");
 
   const {
     spotsMap,
@@ -18,7 +18,7 @@ export default function Dashboard() {
     sessionEvents,
     hubStatus,
     connectionId,
-    adminJoined
+    adminJoined,
   } = useAdminHub();
 
   const [initialDeviceEvents, setInitialDeviceEvents] = useState([]);
@@ -81,20 +81,20 @@ export default function Dashboard() {
       typeof rtAvailable === "number"
         ? rtAvailable
         : Math.max(
-          0,
-          (lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0) -
-          (lot.currentOccupancy ?? lot.occupiedSpots ?? 0),
-        );
+            0,
+            (lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0) -
+              (lot.currentOccupancy ?? lot.occupiedSpots ?? 0),
+          );
     return sum + available;
   }, 0);
 
-  // Tỉ lệ lấp đầy TB: ưu tiên realtime, fallback API 
+  // Tỉ lệ lấp đầy TB: ưu tiên realtime, fallback API
   const hasRealtimeOcc = Object.values(occupancyMap).length > 0;
   const avgOccupancyRealtime = hasRealtimeOcc
     ? (
-      Object.values(occupancyMap).reduce((a, b) => a + b, 0) /
-      Object.values(occupancyMap).length
-    ).toFixed(1)
+        Object.values(occupancyMap).reduce((a, b) => a + b, 0) /
+        Object.values(occupancyMap).length
+      ).toFixed(1)
     : null;
 
   const avgOccupancyFromApi = (() => {
@@ -114,12 +114,12 @@ export default function Dashboard() {
 
   const avgOccupancy = avgOccupancyRealtime ?? avgOccupancyFromApi;
 
-  const mergedDeviceEvents = [
-    ...initialDeviceEvents,
-    ...deviceEvents,
-  ].slice(0, 50);
+  const mergedDeviceEvents = [...initialDeviceEvents, ...deviceEvents].slice(
+    0,
+    50,
+  );
 
-  const faultyCount = mergedDeviceEvents.filter(e => {
+  const faultyCount = mergedDeviceEvents.filter((e) => {
     const status = (e.status ?? e.eventStatus ?? "").toString().toLowerCase();
     return status !== "online";
   }).length;
@@ -142,7 +142,7 @@ export default function Dashboard() {
       iconColor: "text-green-600",
     },
     {
-      title: "Thiết bị lỗi",
+      title: "Tổng thiết bị",
       value: faultyCount,
       icon: AlertTriangle,
       color: "bg-orange-500",
@@ -166,29 +166,35 @@ export default function Dashboard() {
             Chi tiết chỗ trống theo từng bãi
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {lots.map(lot => {
+            {lots.map((lot) => {
               const rtAvailable = spotsMap[lot.lotId];
               const available =
                 typeof rtAvailable === "number"
                   ? rtAvailable
                   : Math.max(
-                    0,
-                    (lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0) -
-                    (lot.currentOccupancy ?? lot.occupiedSpots ?? 0),
-                  );
+                      0,
+                      (lot.totalCapacity ??
+                        lot.totalSpots ??
+                        lot.capacity ??
+                        0) - (lot.currentOccupancy ?? lot.occupiedSpots ?? 0),
+                    );
               const rtOccPct = occupancyMap[lot.lotId];
               const occPct =
                 typeof rtOccPct === "number"
                   ? rtOccPct
                   : (() => {
-                    const total =
-                      lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0;
-                    const occupied =
-                      lot.currentOccupancy ?? lot.occupiedSpots ?? 0;
-                    if (!total) return 0;
-                    return (occupied / total) * 100;
-                  })();
-              const totalSpots = lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0;
+                      const total =
+                        lot.totalCapacity ??
+                        lot.totalSpots ??
+                        lot.capacity ??
+                        0;
+                      const occupied =
+                        lot.currentOccupancy ?? lot.occupiedSpots ?? 0;
+                      if (!total) return 0;
+                      return (occupied / total) * 100;
+                    })();
+              const totalSpots =
+                lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0;
               const occupied = Math.max(0, totalSpots - available);
 
               return (
@@ -196,19 +202,27 @@ export default function Dashboard() {
                   key={lot.lotId ?? lot.id}
                   className="rounded-2xl border border-gray-200 p-5 shadow-sm bg-white hover:shadow-md transition-shadow"
                 >
-                  <div className="font-semibold text-gray-900 mb-3">{lot.lotName}</div>
+                  <div className="font-semibold text-gray-900 mb-3">
+                    {lot.lotName}
+                  </div>
                   <div className="space-y-1.5 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Tổng chỗ</span>
-                      <span className="font-medium text-gray-900">{totalSpots}</span>
+                      <span className="font-medium text-gray-900">
+                        {totalSpots}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Đang dùng</span>
-                      <span className="font-medium text-orange-600">{occupied}</span>
+                      <span className="font-medium text-orange-600">
+                        {occupied}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Chỗ trống</span>
-                      <span className="font-medium text-green-600">{available}</span>
+                      <span className="font-medium text-green-600">
+                        {available}
+                      </span>
                     </div>
                     <div className="flex justify-between pt-2 border-t border-gray-100">
                       <span className="text-gray-500">Lấp đầy</span>
@@ -280,30 +294,17 @@ export default function Dashboard() {
         </h2>
 
         {sessionEvents.length === 0 ? (
-
-          <p className="text-gray-400">
-            Chưa có hoạt động
-          </p>
-
+          <p className="text-gray-400">Chưa có hoạt động</p>
         ) : (
-
           <div className="space-y-2">
-
             {sessionEvents.slice(0, 10).map((e, i) => (
-
               <p key={i} className="text-sm">
-
                 [{e.lotId}] Xe <b>{e.status ?? e.sessionStatus}</b> lúc{" "}
                 {new Date(e.timestamp).toLocaleTimeString()}
-
               </p>
-
             ))}
-
           </div>
-
         )}
-
       </div>
 
       <div className="bg-white p-6 rounded-2xl shadow border border-gray-100">
@@ -311,43 +312,32 @@ export default function Dashboard() {
           Cảnh báo thiết bị
         </h2>
 
-        {mergedDeviceEvents.filter(e => {
-          const status = (e.status ?? e.eventStatus ?? "").toString().toLowerCase();
+        {mergedDeviceEvents.filter((e) => {
+          const status = (e.status ?? e.eventStatus ?? "")
+            .toString()
+            .toLowerCase();
           return status !== "online";
         }).length === 0 ? (
-
           <p className="text-green-600">
             Tất cả thiết bị hoạt động bình thường
           </p>
-
         ) : (
-
           <div className="space-y-2">
-
             {mergedDeviceEvents
-              .filter(e => {
-                const status = (e.status ?? e.eventStatus ?? "").toString().toLowerCase();
+              .filter((e) => {
+                const status = (e.status ?? e.eventStatus ?? "")
+                  .toString()
+                  .toLowerCase();
                 return status !== "online";
               })
               .map((e, i) => (
-
                 <p key={i} className="text-red-600">
-
                   Thiết bị {e.deviceId}: {e.status ?? e.eventStatus}
-
                 </p>
-
               ))}
-
           </div>
-
         )}
-
       </div>
-
     </div>
-
-
   );
-
 }

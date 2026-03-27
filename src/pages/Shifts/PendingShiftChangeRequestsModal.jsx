@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import workShiftService from "../../services/workShiftService";
+import staffService from "../../services/staffService";
 
 const SHIFT_TYPE_LABELS = {
   Morning: "Ca sáng",
@@ -289,13 +290,10 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
         });
       }
 
-      // Cập nhật trạng thái notification
-      await workShiftService.processShiftChangeRequest({
+      await staffService.updateShiftChangeStatus(
         notificationId,
-        decision: "Approved",
-        newShiftId: selectedShiftId || undefined,
-        adminNote: adminNote.trim() || undefined,
-      });
+        "Approved",
+      );
 
       toast.success(
         selectedShiftId
@@ -606,11 +604,10 @@ function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
     if (!notificationId) return;
     setLoading(true);
     try {
-      await workShiftService.processShiftChangeRequest({
+      await staffService.updateShiftChangeStatus(
         notificationId,
-        decision: "Rejected",
-        adminNote: rejectNote.trim() || undefined,
-      });
+        "Rejected",
+      );
       toast.success("Đã từ chối yêu cầu");
       setLocalState("rejected");
       onProcessed(notificationId, "rejected");
