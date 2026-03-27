@@ -155,52 +155,298 @@ function extractItems(data) {
   return [];
 }
 
+const SHIFT_TYPE_VI = {
+  MORNING: "Ca sáng",
+  morning: "Ca sáng",
+  AFTERNOON: "Ca chiều",
+  afternoon: "Ca chiều",
+  NIGHT: "Ca đêm",
+  night: "Ca đêm",
+  FULL_DAY: "Cả ngày",
+  fullday: "Cả ngày",
+  Morning: "Ca sáng",
+  Afternoon: "Ca chiều",
+  Night: "Ca đêm",
+  FullDay: "Cả ngày",
+};
+
+function translateShiftTypeToken(token) {
+  const t = String(token).trim();
+  if (!t) return "";
+  return (
+    SHIFT_TYPE_VI[t] ??
+    SHIFT_TYPE_VI[t.toUpperCase()] ??
+    SHIFT_TYPE_VI[t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()] ??
+    t
+  );
+}
+
+const WARNING_TYPE_VI = {
+  UNSCHEDULED_DAYS: "Ngày chưa xếp lịch",
+  MULTIPLE_LOT_CONFLICT: "Xung đột nhiều bãi",
+  OVERSTAFFED: "Bãi quá nhiều nhân viên",
+  UNBALANCED_WORKLOAD: "Lịch không cân bằng",
+  EMPTY_SHIFTS: "Ca trống chưa gán",
+};
+
+const SEVERITY_VI = {
+  High: "Cao",
+  MEDIUM: "Trung bình",
+  Medium: "Trung bình",
+  LOW: "Thấp",
+  Low: "Thấp",
+  CRITICAL: "Nghiêm trọng",
+  Critical: "Nghiêm trọng",
+};
+
+/** Gộp lặp "Bãi xe Bãi xe …" → một lần */
+function dedupeBaiXePrefix(text) {
+  if (typeof text !== "string") return text;
+  return text.replace(/(Bãi xe\s*){2,}/gi, "Bãi xe ");
+}
+
+function formatShortUuid(id) {
+  if (typeof id !== "string" || id.length < 12) return id ?? "—";
+  return `${id.slice(0, 8)}…`;
+}
+
+function formatMaybeIsoDateTime(value) {
+  if (typeof value !== "string") return value;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    const d = new Date(value);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    }
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(value + "T12:00:00").toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+  return value;
+}
+
+/** Chuỗi nhiều ngày "yyyy-mm-dd, ..." → dd/mm/yyyy */
+function formatDateList(value) {
+  if (typeof value !== "string") return formatMaybeIsoDateTime(value);
+  if (!value.includes(",")) return formatMaybeIsoDateTime(value.trim());
+  return value
+    .split(",")
+    .map((x) => formatMaybeIsoDateTime(x.trim()))
+    .join(", ");
+}
+
+/** Chuỗi/array loại ca (Morning, xuống dòng, v.v.) → tiếng Việt */
+function formatShiftTypesList(raw) {
+  if (raw == null) return "—";
+  let parts;
+  if (Array.isArray(raw)) {
+    parts = raw.flatMap((x) =>
+      String(x)
+        .split(/\s*,\s*|\r?\n|\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+  } else {
+    parts = String(raw)
+      .split(/\r?\n/)
+      .flatMap((line) => line.split(/\s*,\s*/))
+      .flatMap((seg) => seg.trim().split(/\s+/));
+  }
+  parts = parts.map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return "—";
+  return parts.map(translateShiftTypeToken).join(", ");
+}
+
+function formatNumberVi(n) {
+  if (typeof n !== "number" || Number.isNaN(n)) return String(n);
+  if (Number.isInteger(n)) return String(n);
+  return String(Number(n.toFixed(2)));
+}
+
+/** Dòng chi tiết: lotId / Mã bãi xe | Tên bãi | … (phân tách | · •) */
+function parseDetailsPipeString(str) {
+  if (typeof str !== "string" || !str.trim()) return null;
+  const parts = str
+    .split(/\s*[|·•]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+  const detailLabels = {
+    lotid: "Mã bãi xe",
+    lotname: "Tên bãi xe",
+    daysahead: "Số ngày tới",
+    staffid: "Mã NV",
+    staffname: "Nhân viên",
+  };
+  const rows = [];
+  for (const part of parts) {
+    const idx = part.indexOf(":");
+    if (idx === -1) continue;
+    if (/^\s*(lotId|lot_id|Mã\s*bãi\s*xe)\s*:/i.test(part)) continue;
+    const key = part.slice(0, idx).trim().toLowerCase().replace(/\s+/g, "");
+    if (key === "lotid" || key === "lot_id" || key === "mãbãixe") continue;
+    const val = part.slice(idx + 1).trim();
+    const label = detailLabels[key] ?? part.slice(0, idx).trim();
+    let displayVal = val;
+    if (key === "staffid") displayVal = formatShortUuid(val);
+    else if (key === "daysahead") displayVal = val;
+    rows.push({ label, value: displayVal });
+  }
+  return rows.length ? rows : null;
+}
+
+/** Fallback: chuỗi chi tiết không parse được — vẫn bỏ đoạn mã bãi */
+function stripLotIdFromDetailsRaw(str) {
+  if (typeof str !== "string") return str;
+  return str
+    .replace(
+      /\s*lotId\s*:\s*[0-9a-fA-F-]{30,}\s*([|·•]\s*|$)/gi,
+      "$1",
+    )
+    .replace(
+      /\s*Mã\s*bãi\s*xe\s*:\s*[0-9a-fA-F-]{30,}\s*([|·•]\s*|$)/gi,
+      "$1",
+    )
+    .replace(/^[|·•\s]+/, "")
+    .trim();
+}
+
+/** Chuẩn hoá key field (camelCase / snake_case) để so khớp */
+function normalizeFieldKey(key) {
+  return String(key).toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function formatStaffWorkloadRow(w) {
+  if (typeof w !== "object" || w === null) return String(w);
+  const name = w.staffName ?? w.name ?? w.fullName ?? w.StaffName ?? "—";
+  const shifts =
+    w.shiftCount ?? w.totalShifts ?? w.shifts ?? w.shiftTotal ?? "—";
+  const dev = w.deviation ?? w.diff ?? w.balance ?? w.weight;
+  const devStr =
+    typeof dev === "number" ? ` · Lệch phân bổ: ${formatNumberVi(dev)}` : "";
+  return `• ${name}: ${shifts} ca${devStr}`;
+}
+
 // Chuyển bất kỳ giá trị nào thành string an toàn cho React
 function toDisplayString(val) {
   if (val === null || val === undefined) return "—";
   if (typeof val === "boolean") return val ? "Có" : "Không";
-  if (typeof val === "number") return String(val);
+  if (typeof val === "number") return formatNumberVi(val);
   if (typeof val === "string") return val;
   if (Array.isArray(val)) {
     if (val.length === 0) return "—";
     return val
       .map((v) =>
         typeof v === "object" && v !== null
-          ? Object.values(v)
-              .filter((x) => typeof x === "string" || typeof x === "number")
-              .join(" · ")
+          ? formatStaffWorkloadRow(v)
           : String(v),
       )
-      .join(", ");
+      .join("\n");
   }
   if (typeof val === "object") {
-    // Lấy các field string/number dễ đọc
     const readable = Object.entries(val)
-      .filter(([, v]) => typeof v === "string" || typeof v === "number")
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(" | ");
+      .filter(([, v]) => v !== null && v !== undefined)
+      .map(([k, v]) => `${friendlyKey(k)}: ${formatFieldValue(k, v)}`)
+      .join(" · ");
     return readable || JSON.stringify(val);
   }
   return String(val);
 }
 
-// Label đẹp cho key camelCase
+/** Giá trị hiển thị theo từng field (tiếng Việt, định dạng) */
+function formatFieldValue(key, val) {
+  const k = normalizeFieldKey(key);
+
+  if (val === null || val === undefined) return "—";
+
+  if (k === "warningtype") {
+    const s = String(val);
+    return WARNING_TYPE_VI[s] ?? WARNING_TYPE_VI[s.toUpperCase()] ?? s;
+  }
+  if (k === "severity") {
+    const s = String(val);
+    return (
+      SEVERITY_VI[s] ??
+      SEVERITY_VI[s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()] ??
+      s
+    );
+  }
+  if (k === "detectedat") {
+    return formatMaybeIsoDateTime(String(val));
+  }
+  if (k === "message" || k === "description" || k === "title") {
+    return dedupeBaiXePrefix(String(val));
+  }
+  if (k === "unscheduleddates") {
+    if (Array.isArray(val))
+      return val
+        .map((d) => formatMaybeIsoDateTime(String(d).split("T")[0]))
+        .join(", ");
+    return formatDateList(String(val));
+  }
+  if (k === "emptyshifttypes" || k === "emptyshifts") {
+    return formatShiftTypesList(val);
+  }
+  if (k === "shifttypes" || k === "shifttype") {
+    return formatShiftTypesList(val);
+  }
+  if (k === "averageshiftsperstaff") {
+    return typeof val === "number" ? formatNumberVi(val) : toDisplayString(val);
+  }
+  if (k === "staffworkloads") {
+    if (Array.isArray(val))
+      return val.map((row) => formatStaffWorkloadRow(row)).join("\n");
+    return toDisplayString(val);
+  }
+  if (k === "details" && typeof val === "string") {
+    const parsed = parseDetailsPipeString(val);
+    if (parsed && parsed.length > 0)
+      return parsed.map((r) => `${r.label}: ${r.value}`).join("\n");
+    return stripLotIdFromDetailsRaw(val);
+  }
+  if (typeof val === "number") return formatNumberVi(val);
+  if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+    return formatMaybeIsoDateTime(val);
+  }
+
+  return toDisplayString(val);
+}
+
+// Label tiếng Việt cho key (camelCase / snake / API)
 function friendlyKey(k) {
+  const raw = String(k);
+  const normalized = raw.trim().toLowerCase();
+  const byNorm = {
+    "warning type": "Loại cảnh báo",
+    "detected at": "Thời điểm phát hiện",
+    "staff workloads": "Phân bổ ca theo nhân viên",
+  };
+  if (byNorm[normalized]) return byNorm[normalized];
   const map = {
-    staffId: "Mã NV",
+    staffId: "Mã nhân viên",
     staffName: "Nhân viên",
-    lotId: "Mã bãi",
-    lotName: "Bãi xe",
+    lotId: "Mã bãi xe",
+    lotName: "Tên bãi xe",
     shiftDate: "Ngày ca",
     workDate: "Ngày làm",
     shiftType: "Loại ca",
     startTime: "Giờ bắt đầu",
     endTime: "Giờ kết thúc",
     unscheduledDates: "Ngày chưa có lịch",
-    daysAhead: "Số ngày tới",
+    daysAhead: "Số ngày xét (tới)",
     emptyShiftTypes: "Ca còn trống",
     totalShifts: "Tổng ca",
-    averageShiftsPerStaff: "TB ca/NV",
+    averageShiftsPerStaff: "Trung bình ca/NV",
     maxShifts: "Ca nhiều nhất",
     minShifts: "Ca ít nhất",
     startDate: "Từ ngày",
@@ -208,8 +454,23 @@ function friendlyKey(k) {
     date: "Ngày",
     reason: "Lý do",
     message: "Nội dung",
+    warningType: "Loại cảnh báo",
+    severity: "Mức độ",
+    detectedAt: "Thời điểm phát hiện",
+    details: "Chi tiết",
+    staffWorkloads: "Phân bổ ca theo nhân viên",
+    staff_workloads: "Phân bổ ca theo nhân viên",
+    description: "Mô tả",
+    title: "Tiêu đề",
   };
-  return map[k] ?? k.replace(/([A-Z])/g, " $1").toLowerCase();
+  if (map[raw]) return map[raw];
+  if (map[normalized]) return map[normalized];
+  const spaced = raw
+    .replace(/([A-Z])/g, " $1")
+    .replace(/_/g, " ")
+    .trim();
+  if (!spaced) return raw;
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 function ItemCard({ item }) {
@@ -238,24 +499,43 @@ function ItemCard({ item }) {
   const titleVal =
     titleRaw !== null &&
     (typeof titleRaw === "string" || typeof titleRaw === "number")
-      ? String(titleRaw)
+      ? dedupeBaiXePrefix(String(titleRaw))
       : null;
 
   const subRaw =
-    item.shiftDate ??
-    item.workDate ??
-    item.date ??
-    item.reason ??
-    item.details ??
-    null;
+    item.shiftDate ?? item.workDate ?? item.date ?? item.reason ?? null;
   const subVal =
     subRaw !== null &&
     subRaw !== titleRaw &&
     (typeof subRaw === "string" || typeof subRaw === "number")
-      ? String(subRaw)
+      ? (() => {
+          const s = String(subRaw);
+          if (/^\d{4}-\d{2}-\d{2}/.test(s))
+            return formatMaybeIsoDateTime(s.split("T")[0]);
+          return s;
+        })()
       : null;
 
-  const hasMore = entries.length > 1;
+  const titleNorm = titleVal ? titleVal.trim().toLowerCase() : "";
+  const displayEntries = entries.filter(([key, val]) => {
+    const kn = normalizeFieldKey(key);
+    if (kn === "lotid" || kn === "mãbãixe") return false;
+    if (kn === "lotname" && titleNorm) {
+      const lotStr = dedupeBaiXePrefix(String(val ?? ""))
+        .trim()
+        .toLowerCase();
+      if (
+        lotStr === titleNorm ||
+        lotStr === titleNorm.replace(/^bãi xe\s+/i, "")
+      )
+        return false;
+    }
+    if (kn === "title" && titleRaw != null && String(val) === String(titleRaw))
+      return false;
+    return true;
+  });
+
+  const hasMore = displayEntries.length > 0;
 
   return (
     <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
@@ -282,16 +562,21 @@ function ItemCard({ item }) {
       </button>
       {open && hasMore && (
         <div className="px-3 pb-2.5 border-t border-gray-100 pt-2 space-y-1.5">
-          {entries.map(([k, v]) => (
-            <div key={k} className="flex gap-2 text-[11px]">
-              <span className="text-gray-400 font-medium min-w-[120px] flex-shrink-0">
-                {friendlyKey(k)}
-              </span>
-              <span className="text-gray-700 break-all">
-                {toDisplayString(v)}
-              </span>
-            </div>
-          ))}
+          {displayEntries.map(([k, v]) => {
+            const text = formatFieldValue(k, v);
+            return (
+              <div key={k} className="flex gap-2 text-[11px]">
+                <span className="text-gray-500 font-medium min-w-[130px] flex-shrink-0">
+                  {friendlyKey(k)}
+                </span>
+                <span
+                  className={`text-gray-800 flex-1 min-w-0 break-words ${String(text).includes("\n") ? "whitespace-pre-line" : ""}`}
+                >
+                  {text}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -462,9 +747,15 @@ export default function ShiftAnomaliesModal({ onClose }) {
               </span>
               <span className="text-gray-300 mx-1">·</span>
               <span>
-                {new Date(params.startDate + "T00:00:00").toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                {new Date(params.startDate + "T00:00:00").toLocaleDateString(
+                  "vi-VN",
+                  { day: "2-digit", month: "2-digit", year: "numeric" },
+                )}
                 {" → "}
-                {new Date(params.endDate + "T00:00:00").toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                {new Date(params.endDate + "T00:00:00").toLocaleDateString(
+                  "vi-VN",
+                  { day: "2-digit", month: "2-digit", year: "numeric" },
+                )}
               </span>
             </p>
           </div>
