@@ -501,13 +501,15 @@ export default function Transactions() {
       setAllTransactions(items);
       setPageNumber(1); // reset về trang 1 khi filter thay đổi
 
-      // Tính thống kê từ toàn bộ kết quả
-      const totalRevenue = items.reduce(
-        (s, tx) => s + Number(tx.amount ?? tx.totalAmount ?? 0),
-        0,
-      );
       const statusLower = (tx) =>
         (tx.paymentStatus ?? tx.status ?? "").toLowerCase();
+
+      // Doanh thu: chỉ giao dịch thanh toán thành công (Hoàn thành)
+      const totalRevenue = items.reduce((s, tx) => {
+        if (statusLower(tx) !== "completed") return s;
+        return s + Number(tx.amount ?? tx.totalAmount ?? 0);
+      }, 0);
+
       setStatistics({
         totalTransactions: items.length,
         totalRevenue,
@@ -695,7 +697,7 @@ export default function Transactions() {
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
-              Loại giao dịch
+              Hình thức
             </label>
             <select
               value={transactionType}
@@ -705,7 +707,7 @@ export default function Transactions() {
               }}
               className="input text-sm"
             >
-              <option value="">Tất cả loại GD</option>
+              <option value="">Tất cả hình thức</option>
               <option value="parking">Đỗ xe</option>
               <option value="monthly_pass">Vé tháng</option>
               <option value="deposit">Nạp tiền</option>
@@ -795,7 +797,7 @@ export default function Transactions() {
                   "STT",
                   "Biển số",
                   "Người dùng",
-                  "Loại GD",
+                  "Hình thức",
                   "Thời gian vào",
                   "Thời gian ra",
                   "Số tiền",

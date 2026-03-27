@@ -12,7 +12,7 @@ import Accounts from "./pages/Accounts/Accounts";
 import ParkingLots from "./pages/ParkingLots/ParkingLots";
 import Transactions from "./pages/Transactions/Transactions";
 import Shifts from "./pages/Shifts/Shifts";
-import SystemLogs from "./pages/SystemLogs/SystemLogs";
+import DeviceEvents from "./pages/DeviceEvents/DeviceEvents";
 import RewardPoints from "./pages/RewardPoints/RewardPoints";
 import PriceList from "./pages/PriceList/PriceList";
 import IoTDevices from "./pages/IoTDevices/IoTDevices";
@@ -43,12 +43,12 @@ function App() {
           <Route path="parking-lots" element={<ParkingLots />} />
           <Route path="transactions" element={<Transactions />} />
           <Route path="shifts" element={<Shifts />} />
-          <Route path="system-logs" element={<SystemLogs />} />
+          <Route path="device-events" element={<DeviceEvents />} />
           <Route path="reward-points" element={<RewardPoints />} />
           <Route path="price-list" element={<PriceList />} />
           <Route path="monthly-passes" element={<MonthlyPasses />} />
           <Route path="iot-devices" element={<IoTDevices />} />
-          <Route path="device-maintenance" element = {<DeviceMaintenance />} />
+          <Route path="device-maintenance" element={<DeviceMaintenance />} />
         </Route>
       </Routes>
     </Router>
