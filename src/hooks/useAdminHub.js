@@ -1,5 +1,6 @@
 import * as signalR from "@microsoft/signalr";
 import { useEffect, useRef, useState } from "react";
+import { API_BASE_URL } from "../config/api";
 
 export function useAdminHub() {
   const connectionRef = useRef(null);
@@ -13,9 +14,7 @@ export function useAdminHub() {
   const [adminJoined, setAdminJoined] = useState(false);
 
   useEffect(() => {
-    const apiBaseUrl = (
-      import.meta?.env?.VITE_API_BASE_URL || "https://localhost:7015"
-    ).replace(/\/+$/, "");
+    const apiBaseUrl = API_BASE_URL.replace(/\/+$/, "");
     const hubUrl = `${apiBaseUrl}/hubs/parking`;
     setHubStatus("connecting");
     setConnectionId(null);

@@ -12,16 +12,31 @@ export function normStatus(status) {
     .toLowerCase();
 }
 
+/** EventStatus API: còn mở / đang xử lý (thống kê «Hoạt động»). */
 export function isActiveOperationalStatus(status) {
   const s = normStatus(status);
   if (!s || s === "—") return false;
-  return ["active", "online", "running", "enabled", "ok"].includes(s);
+  return [
+    "active",
+    "processing",
+    "pending",
+    "online",
+    "running",
+    "enabled",
+    "ok",
+  ].includes(s);
 }
 
+/** EventStatus API: đã kết thúc / đóng (thống kê «Ngừng hoạt động»). */
 export function isInactiveOperationalStatus(status) {
   const s = normStatus(status);
   if (!s || s === "—") return false;
   return [
+    "resolved",
+    "ignored",
+    "success",
+    "failed",
+    "acknowledged",
     "inactive",
     "offline",
     "stopped",
@@ -34,31 +49,20 @@ export function isInactiveOperationalStatus(status) {
   ].includes(s);
 }
 
-function mapSeverityToLevel(value) {
-  const s = String(value ?? "")
+/** Mức hiển thị (màu / icon) theo EventType — không dùng EventStatus để tránh nhầm Active với mức Lỗi. */
+function mapSeverityToLevel(eventType) {
+  const s = String(eventType ?? "")
     .trim()
     .toLowerCase();
-  if (["error", "err", "failed", "failure", "critical", "danger"].includes(s)) {
+  if (
+    ["error", "err", "failed", "failure", "critical", "danger"].includes(s)
+  ) {
     return "error";
   }
-  if (["warning", "warn"].includes(s)) {
-    return "warning";
-  }
   if (
-    [
-      "info",
-      "information",
-      "informational",
-      "debug",
-      "trace",
-      "active",
-      "success",
-      "succeeded",
-      "ok",
-      "completed",
-    ].includes(s)
+    ["warning", "warn", "maintenance", "offline", "devicereset"].includes(s)
   ) {
-    return "info";
+    return "warning";
   }
   return "info";
 }
@@ -109,7 +113,7 @@ export function normalizeDeviceEvent(raw, index) {
   const eventType = String(raw.eventType ?? "").trim() || "—";
   const eventStatus = String(raw.eventStatus ?? "").trim() || "—";
   const eventSource = String(raw.eventSource ?? "").trim() || "—";
-  const level = mapSeverityToLevel(raw.eventType ?? raw.eventStatus);
+  const level = mapSeverityToLevel(raw.eventType);
   const { summary, pretty } = parseEventData(raw.eventData);
 
   const deviceId = raw.deviceId != null ? String(raw.deviceId) : "—";

@@ -1,9 +1,15 @@
 import { Search, Filter, RefreshCw } from "lucide-react";
+import {
+  DEVICE_EVENT_TYPE_OPTIONS,
+  DEVICE_EVENT_STATUS_OPTIONS,
+} from "./deviceEventsConstants";
 
 export default function DeviceEventsFilters({
   searchTerm,
   onSearchChange,
   loading,
+  recordCount = 0,
+  pageSize = 10,
   onReload,
   onResetFilters,
   lots,
@@ -24,7 +30,7 @@ export default function DeviceEventsFilters({
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Tìm trong 10 bản ghi trang này..."
+            placeholder={loading ? "Đang tải..." : `Tìm trong tất cả bản ghi`}
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             className="input pl-10 w-full text-sm"
@@ -38,9 +44,7 @@ export default function DeviceEventsFilters({
             className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
             title="Tải lại"
           >
-            <RefreshCw
-              className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
           <button
             type="button"
@@ -83,24 +87,28 @@ export default function DeviceEventsFilters({
             className="input w-full text-sm"
           >
             <option value="">Tất cả loại</option>
-            <option value="warning">Cảnh báo</option>
-            <option value="error">Lỗi</option>
-            <option value="info">Thông tin</option>
+            {DEVICE_EVENT_TYPE_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex flex-col gap-1 min-w-0">
-          <label className="text-xs font-medium text-gray-500">Trạng thái</label>
+          <label className="text-xs font-medium text-gray-500">
+            Trạng thái
+          </label>
           <select
             value={filterEventStatus}
             onChange={(e) => onEventStatusChange(e.target.value)}
             className="input w-full text-sm"
           >
             <option value="">Tất cả trạng thái</option>
-            <option value="active">Đang hoạt động</option>
-            <option value="inactive">Không hoạt động</option>
-            <option value="resolved">Đã xử lý</option>
-            <option value="pending">Đang chờ</option>
-            <option value="cancelled">Đã hủy</option>
+            {DEVICE_EVENT_STATUS_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
