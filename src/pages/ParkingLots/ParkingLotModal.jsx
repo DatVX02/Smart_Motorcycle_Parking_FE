@@ -595,7 +595,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       console.log("Payload →", JSON.stringify(backendData, null, 2));
 
       if (lot) {
-        // ── EDIT MODE ──
+        // EDIT MODE
 
         // 1. Cập nhật AI config nếu có
         if (aiConfigIdRef.current) {
@@ -708,7 +708,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         // 3. Cập nhật thông tin bãi + đóng modal
         await onSave({ lotInfo });
       } else {
-        // ── CREATE MODE ────────────────────────────────────────────
+        // CREATE MODE
         await onSave(backendData);
       }
     } catch (err) {
@@ -749,7 +749,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
             className="flex flex-col flex-1 min-h-0 overflow-hidden"
           >
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* ══ SECTION 1: Lot info ══════════════════════════════════════ */}
+              {/* SECTION 1: Lot info */}
               <section className="border-b pb-5">
                 <h3 className="text-base font-semibold text-gray-900 mb-4">
                   Thông tin bãi đỗ xe
@@ -890,12 +890,13 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                     label="Ngày kích hoạt dự kiến"
                     optionalLabel="(tùy chọn)"
                     value={formData.scheduledActivationDate}
+                    min={format(new Date(), "yyyy-MM-dd")}
                     onChange={(v) => setField("scheduledActivationDate", v)}
                   />
                 </div>
               </section>
 
-              {/* ══ SECTION 2: Gates & Devices ═══════════════════════════════ */}
+              {/* SECTION 2: Gates & Devices */}
               <section className="border-b pb-5">
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -1336,7 +1337,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                       }
                       onChange={(e) => {
                         const v = Number(e.target.value);
-                        if (v >= 70) setField("licensePlateThreshold", e.target.value);
+                        if (v >= 70)
+                          setField("licensePlateThreshold", e.target.value);
                       }}
                       className={`w-full h-2.5 accent-primary-600 rounded-lg appearance-none cursor-pointer bg-gray-200 ${errClass("licensePlateThreshold")}`}
                     />
@@ -1366,7 +1368,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                       }
                       onChange={(e) => {
                         const v = Number(e.target.value);
-                        if (v >= 70) setField("faceRecognitionThreshold", e.target.value);
+                        if (v >= 70)
+                          setField("faceRecognitionThreshold", e.target.value);
                       }}
                       className={`w-full h-2.5 accent-primary-600 rounded-lg appearance-none cursor-pointer bg-gray-200 ${errClass("faceRecognitionThreshold")}`}
                     />

@@ -4,12 +4,11 @@ import { useAdminHub } from "../../hooks/useAdminHub";
 import StatCard from "./StatCard";
 import parkingLotService from "../../services/parkingLotService";
 import iotDeviceService from "../../services/iotDeviceService";
+import { API_BASE_URL } from "../../config/api";
 
 export default function Dashboard() {
   const [lots, setLots] = useState([]);
-  const apiBaseUrl = (
-    import.meta?.env?.VITE_API_BASE_URL || "https://localhost:7015"
-  ).replace(/\/+$/, "");
+  const apiBaseUrl = API_BASE_URL.replace(/\/+$/, "");
 
   const {
     spotsMap,

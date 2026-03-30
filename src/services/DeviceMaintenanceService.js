@@ -41,10 +41,51 @@ const DeviceMaintenanceService = {
     return res.data;
   },
 
-  //delete maintenance
   delete: async (id) => {
     const res = await apiClient.delete(`${API_URL}/${id}`);
     return res.data;
+  },
+
+  /**
+   * Xóa mọi lịch bảo trì gắn với danh sách thiết bị (trước khi xóa bãi).
+   * @returns {Promise<{ deleted: number, failed: number, total: number }>}
+   */
+  deleteAllSchedulesForDevices: async (deviceIds) => {
+    const ids = [...new Set((deviceIds ?? []).map((x) => String(x).trim()).filter(Boolean))];
+    if (ids.length === 0) return { deleted: 0, failed: 0, total: 0 };
+
+    const idSet = new Set(ids);
+    let items = [];
+    try {
+      const res = await DeviceMaintenanceService.getAll();
+      items = res?.data?.items || res?.items || [];
+      if (!Array.isArray(items)) items = [];
+    } catch {
+      return { deleted: 0, failed: 0, total: -1 };
+    }
+
+    const maintenanceIds = [
+      ...new Set(
+        items
+          .filter((m) => m && idSet.has(String(m.deviceId ?? m.DeviceId ?? "")))
+          .map((m) => m.maintenanceId ?? m.id ?? m.Id)
+          .filter((x) => x != null && x !== ""),
+      ),
+    ];
+
+    let deleted = 0;
+    let failed = 0;
+    await Promise.all(
+      maintenanceIds.map(async (mid) => {
+        try {
+          await DeviceMaintenanceService.delete(mid);
+          deleted += 1;
+        } catch {
+          failed += 1;
+        }
+      }),
+    );
+    return { deleted, failed, total: maintenanceIds.length };
   },
 
   //get maintenance by device
@@ -74,13 +115,5 @@ const DeviceMaintenanceService = {
 
     return res.data;
   },
-
-  // delete maintenance
-  delete: async (id) => {
-    const res = await apiClient.delete(`${API_URL}/${id}`);
-    return res.data;
-  },
-
-
 };
 export default DeviceMaintenanceService;

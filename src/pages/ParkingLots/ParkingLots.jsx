@@ -90,12 +90,17 @@ function ParkingLots() {
       // Fetch song song: IoT devices + gates của từng bãi
       const allDevices = await iotDeviceService.getAll().catch(() => []);
 
+      /** Số cổng theo từng bãi; `null` = API /gates/lot lỗi → dùng totalGates từ GET parking-lots */
       const gateCountByLot = {};
       await Promise.all(
         parkingLotsArray.map(async (lot) => {
           const lotId = lot.lotId ?? lot.id;
-          const gates = await gateService.getByLot(lotId).catch(() => []);
-          gateCountByLot[lotId] = Array.isArray(gates) ? gates.length : 0;
+          try {
+            const gates = await gateService.getByLot(lotId);
+            gateCountByLot[lotId] = Array.isArray(gates) ? gates.length : 0;
+          } catch {
+            gateCountByLot[lotId] = null;
+          }
         }),
       );
 
@@ -109,10 +114,13 @@ function ParkingLots() {
 
       const transformedData = parkingLotsArray.map((lot) => {
         const lotId = lot.lotId ?? lot.id;
+        const base = transformParkingLot(lot);
+        const gatesFromApi =
+          gateCountByLot[lotId] != null ? gateCountByLot[lotId] : base.gates;
         return {
-          ...transformParkingLot(lot),
-          gates: gateCountByLot[lotId] ?? 0,
-          cameras: deviceCountByLot[lotId] ?? 0,
+          ...base,
+          gates: gatesFromApi,
+          cameras: deviceCountByLot[lotId] ?? base.cameras,
         };
       });
       setParkingLots(transformedData);
@@ -157,8 +165,34 @@ function ParkingLots() {
   const handleConfirmDelete = async () => {
     const lot = confirm.lot;
     try {
-      // Kiểm tra trước xem còn cổng nào không — backend sẽ 500 nếu còn cổng
-      const gates = await gateService.getByLot(lot.id).catch(() => []);
+      const info = await parkingLotService.getParkingLotDeletionInfo(lot.id);
+      if (info && typeof info === "object") {
+        const canDelete = info.canDelete ?? info.CanDelete ?? info.isDeletable;
+        if (canDelete === false) {
+          const msg =
+            info.message ??
+            info.Message ??
+            info.reason ??
+            info.Reason ??
+            info.detail ??
+            "Bãi đỗ không thể xóa (còn cổng hoặc dữ liệu liên quan).";
+          toast.error(String(msg), { duration: 7000 });
+          return;
+        }
+      }
+
+      let gates = [];
+      try {
+        const g = await gateService.getByLot(lot.id);
+        gates = Array.isArray(g) ? g : [];
+      } catch {
+        toast.error(
+          "Không kiểm tra được cổng: API GET /api/v1/gates/lot đang lỗi (500). Không xóa bãi an toàn được — cần sửa backend. Nếu bãi vẫn còn cổng trong DB, xóa cổng trước (Swagger) rồi thử lại.",
+          { duration: 9000 },
+        );
+        return;
+      }
+
       if (gates.length > 0) {
         const gateNames = gates
           .map((g) => g.gateName || g.name || `Cổng ${g.gateId ?? g.id}`)
@@ -170,8 +204,43 @@ function ParkingLots() {
         return;
       }
 
+      const lotDevices = await iotDeviceService.getByLot(lot.id).catch(() => []);
+      const deviceIds = lotDevices
+        .map((d) => d.deviceId ?? d.id)
+        .filter(Boolean);
+      let maintenanceDeleted = 0;
+      if (deviceIds.length > 0) {
+        const maintResult =
+          await DeviceMaintenanceService.deleteAllSchedulesForDevices(deviceIds);
+        if (maintResult.total === -1) {
+          toast.error(
+            "Không tải được danh sách bảo trì — dừng xóa bãi. Thử lại sau.",
+            { duration: 6000 },
+          );
+          return;
+        }
+        if (maintResult.total > 0 && maintResult.deleted === 0) {
+          toast.error(
+            "Không xóa được lịch bảo trì của thiết bị trong bãi — dừng xóa bãi.",
+            { duration: 7000 },
+          );
+          return;
+        }
+        maintenanceDeleted = maintResult.deleted;
+        if (maintResult.failed > 0) {
+          toast(
+            `Đã xóa ${maintResult.deleted}/${maintResult.total} lịch bảo trì; ${maintResult.failed} lịch lỗi — vẫn thử xóa bãi.`,
+            { duration: 6000 },
+          );
+        }
+      }
+
       await parkingLotService.deleteParkingLot(lot.id);
-      toast.success(`Đã xóa bãi đỗ "${lot.name}" thành công`);
+      const maintHint =
+        maintenanceDeleted > 0
+          ? ` (đã gỡ ${maintenanceDeleted} lịch bảo trì)`
+          : "";
+      toast.success(`Đã xóa bãi đỗ "${lot.name}" thành công${maintHint}`);
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       const data = error.response?.data;

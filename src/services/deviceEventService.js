@@ -61,18 +61,89 @@ function parseListResponse(axiosResponse) {
   return { items, totalCount, totalPages };
 }
 
+function normalizePagingParams(params) {
+  const reqParams = { ...params };
+  const page =
+    reqParams.pageNumber ??
+    reqParams.page ??
+    reqParams.Page ??
+    1;
+  const size =
+    reqParams.pageSize ??
+    reqParams.PageSize ??
+    10;
+  delete reqParams.page;
+  delete reqParams.pageNumber;
+  delete reqParams.Page;
+  delete reqParams.pageSize;
+  delete reqParams.PageSize;
+  reqParams.pageNumber = page;
+  reqParams.pageSize = size;
+  return reqParams;
+}
+
 const deviceEventService = {
   /**
    * GET /api/v1/device-events
-   * Query: deviceId, lotId, eventType, eventStatus, page, pageSize
+   * Query (khớp backend .NET thường dùng): deviceId, lotId, eventType, eventStatus, pageNumber, pageSize
    * @returns {{ items: any[], totalCount: number | null, totalPages: number | null }}
    */
   getAll: async (params = {}) => {
-    const reqParams = { ...params };
-    if (reqParams.page == null) reqParams.page = 1;
-    if (reqParams.pageSize == null) reqParams.pageSize = 10;
-    const res = await apiClient.get(BASE, { params: reqParams });
+    const res = await apiClient.get(BASE, {
+      params: normalizePagingParams(params),
+    });
     return parseListResponse(res);
+  },
+
+  /**
+   * Gộp mọi trang cho cùng bộ lọc — dùng để thống kê tổng (không phụ thuộc trang hiện tại).
+   */
+  getAllFlattened: async (params = {}) => {
+    /** Nhiều API .NET giới hạn PageSize; tránh 500 do vượt max. */
+    const chunkSize = 100;
+    const rest = { ...params };
+    delete rest.page;
+    delete rest.pageNumber;
+    delete rest.pageSize;
+
+    const allItems = [];
+    let totalCount = null;
+    let page = 1;
+
+    for (;;) {
+      const { items, totalCount: tc, totalPages } =
+        await deviceEventService.getAll({
+          ...rest,
+          page,
+          pageSize: chunkSize,
+        });
+      if (typeof tc === "number" && Number.isFinite(tc)) totalCount = tc;
+
+      const batch = items ?? [];
+      allItems.push(...batch);
+
+      const inferredPages =
+        totalPages != null && Number.isFinite(totalPages) && totalPages >= 1
+          ? Math.floor(totalPages)
+          : totalCount != null
+            ? Math.max(1, Math.ceil(totalCount / chunkSize))
+            : null;
+
+      if (inferredPages != null && page >= inferredPages) break;
+      if (inferredPages == null && batch.length < chunkSize) break;
+      if (batch.length === 0) break;
+
+      page += 1;
+      if (page > 2000) break;
+    }
+
+    return {
+      items: allItems,
+      totalCount:
+        typeof totalCount === "number" && Number.isFinite(totalCount)
+          ? totalCount
+          : allItems.length,
+    };
   },
 
   /** GET /api/v1/device-events/{id} */
@@ -84,7 +155,11 @@ const deviceEventService = {
 
   /** GET /api/v1/device-events/device/{deviceId} */
   getByDeviceId: async (deviceId, params = {}) => {
-    const reqParams = { page: 1, pageSize: 10, ...params };
+    const reqParams = normalizePagingParams({
+      pageNumber: 1,
+      pageSize: 10,
+      ...params,
+    });
     const res = await apiClient.get(`${BASE}/device/${deviceId}`, {
       params: reqParams,
     });
@@ -93,7 +168,11 @@ const deviceEventService = {
 
   /** GET /api/v1/device-events/lot/{lotId} */
   getByLotId: async (lotId, params = {}) => {
-    const reqParams = { page: 1, pageSize: 10, ...params };
+    const reqParams = normalizePagingParams({
+      pageNumber: 1,
+      pageSize: 10,
+      ...params,
+    });
     const res = await apiClient.get(`${BASE}/lot/${lotId}`, {
       params: reqParams,
     });
