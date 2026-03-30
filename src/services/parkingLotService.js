@@ -45,6 +45,26 @@ const parkingLotService = {
   },
 
   /**
+   * GET /api/v1/parking-lots/{id}/deletion-info — Kiểm tra có được xóa bãi không (cổng, FK…).
+   * @returns {Promise<object|null>} Dữ liệu từ API, hoặc null nếu không có endpoint / lỗi.
+   */
+  getParkingLotDeletionInfo: async (id) => {
+    try {
+      const response = await apiClient.get(
+        `${PARKING_LOT_BASE_PATH}/${id}/deletion-info`,
+      );
+      return unwrap(response.data);
+    } catch (e) {
+      if (e.response?.status === 404) return null;
+      console.warn(
+        "[parking-lots] deletion-info:",
+        e.response?.status ?? e.message,
+      );
+      return null;
+    }
+  },
+
+  /**
    * POST /api/v1/parking-lots - Tạo bãi đỗ xe mới
    * @param {Object} payload - { lotInfo?, cameraSetup? } hoặc format backend yêu cầu
    */

@@ -1,12 +1,13 @@
 import { AlertTriangle, Info, XCircle, MapPin, Cpu } from "lucide-react";
 import {
+  EVENT_TYPE_LABELS,
   EVENT_STATUS_LABELS,
   EVENT_SOURCE_LABELS,
   LEVEL_BORDER,
   LEVEL_COLORS,
-  LEVEL_LABELS,
+  EVENT_STATUS_BADGE_CLASSES,
 } from "./deviceEventsConstants";
-import { labelFromMap } from "./deviceEventUtils";
+import { labelFromMap, normStatus } from "./deviceEventUtils";
 
 const LEVEL_ICONS = {
   error: XCircle,
@@ -26,6 +27,14 @@ export default function DeviceEventCard({ log }) {
     log.eventSource,
     log.eventSource,
   );
+  const typeVi = labelFromMap(
+    EVENT_TYPE_LABELS,
+    log.eventType,
+    log.eventType,
+  );
+  const statusBadgeClasses =
+    EVENT_STATUS_BADGE_CLASSES[normStatus(log.eventStatus)] ??
+    "text-gray-600 bg-slate-50 border-slate-200";
   const sameTime =
     log.occurredAtRaw &&
     log.createdAtRaw &&
@@ -50,9 +59,11 @@ export default function DeviceEventCard({ log }) {
                 <span
                   className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${LEVEL_COLORS[log.level] ?? LEVEL_COLORS.info}`}
                 >
-                  {LEVEL_LABELS[log.level] ?? LEVEL_LABELS.info}
+                  {typeVi}
                 </span>
-                <span className="text-xs text-gray-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md">
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-md border ${statusBadgeClasses}`}
+                >
                   {statusVi}
                 </span>
                 <span className="text-xs text-violet-800 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md">

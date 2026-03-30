@@ -19,6 +19,9 @@ function DeviceEvents() {
   const [serverTotalPages, setServerTotalPages] = useState(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  /** Thống kê 5 ô phía trên: toàn bộ bản ghi khớp bộ lọc (không đổi khi đổi trang). */
+  const [summaryStats, setSummaryStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [lots, setLots] = useState([]);
   const [lotId, setLotId] = useState("");
   const [filterEventType, setFilterEventType] = useState("");
@@ -40,13 +43,63 @@ function DeviceEvents() {
     };
   }, []);
 
+  const loadSummaryStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const params = {};
+      if (lotId) params.lotId = lotId;
+      const et = filterEventType.trim();
+      const es = filterEventStatus.trim();
+      if (et) params.eventType = et;
+      if (es) params.eventStatus = es;
+
+      const { items, totalCount: total } =
+        await deviceEventService.getAllFlattened(params);
+      const normalized = (items ?? []).map((raw, i) =>
+        normalizeDeviceEvent(raw, i),
+      );
+      const totalN =
+        typeof total === "number" && Number.isFinite(total)
+          ? total
+          : normalized.length;
+
+      setSummaryStats({
+        total: totalN,
+        active: normalized.filter((l) =>
+          isActiveOperationalStatus(l.eventStatus),
+        ).length,
+        inactive: normalized.filter((l) =>
+          isInactiveOperationalStatus(l.eventStatus),
+        ).length,
+        warning: normalized.filter((l) => l.level === "warning").length,
+        error: normalized.filter((l) => l.level === "error").length,
+      });
+    } catch (e) {
+      console.error(e);
+      toast.error("Không thể tải thống kê nhật ký");
+      setSummaryStats({
+        total: 0,
+        active: 0,
+        inactive: 0,
+        warning: 0,
+        error: 0,
+      });
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [lotId, filterEventType, filterEventStatus]);
+
+  useEffect(() => {
+    loadSummaryStats();
+  }, [loadSummaryStats]);
+
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
       const params = { page, pageSize: PAGE_SIZE };
       if (lotId) params.lotId = lotId;
-      const et = filterEventType.trim().toLowerCase();
-      const es = filterEventStatus.trim().toLowerCase();
+      const et = filterEventType.trim();
+      const es = filterEventStatus.trim();
       if (et) params.eventType = et;
       if (es) params.eventStatus = es;
 
@@ -101,14 +154,11 @@ function DeviceEvents() {
     });
   }, [logs, searchTerm]);
 
-  const errorCount = logs.filter((l) => l.level === "error").length;
-  const warningCount = logs.filter((l) => l.level === "warning").length;
-  const activeOperationalCount = logs.filter((l) =>
-    isActiveOperationalStatus(l.eventStatus),
-  ).length;
-  const inactiveOperationalCount = logs.filter((l) =>
-    isInactiveOperationalStatus(l.eventStatus),
-  ).length;
+  const statTotalEvents = summaryStats?.total ?? 0;
+  const activeOperationalCount = summaryStats?.active ?? 0;
+  const inactiveOperationalCount = summaryStats?.inactive ?? 0;
+  const warningCount = summaryStats?.warning ?? 0;
+  const errorCount = summaryStats?.error ?? 0;
 
   const totalPages =
     serverTotalPages != null
@@ -119,8 +169,6 @@ function DeviceEvents() {
 
   const canGoNext =
     totalPages != null ? page < totalPages : logs.length >= PAGE_SIZE;
-
-  const statTotalEvents = totalCount != null ? totalCount : logs.length;
 
   const handleResetFilters = () => {
     setSearchTerm("");
@@ -133,7 +181,7 @@ function DeviceEvents() {
   return (
     <div className="space-y-5">
       <DeviceEventsStats
-        loading={loading}
+        loading={statsLoading}
         statTotalEvents={statTotalEvents}
         activeOperationalCount={activeOperationalCount}
         inactiveOperationalCount={inactiveOperationalCount}
@@ -145,7 +193,12 @@ function DeviceEvents() {
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         loading={loading}
-        onReload={() => loadLogs()}
+        recordCount={logs.length}
+        pageSize={PAGE_SIZE}
+        onReload={() => {
+          loadSummaryStats();
+          loadLogs();
+        }}
         onResetFilters={handleResetFilters}
         lots={lots}
         lotId={lotId}
