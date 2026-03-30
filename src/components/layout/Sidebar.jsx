@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   X,
   Ticket,
+  AlertTriangle,
 } from "lucide-react";
 const { Sider } = Layout;
 
@@ -28,10 +29,18 @@ const menuItems = [
       { title: "Danh sách tài khoản nhân viên", path: "/accounts/staff" },
     ],
   },
-  { title: "Quản lý bãi đỗ xe", icon: ParkingCircle, path: "/parking-lots" },
+  {
+    title: "Quản lý đỗ xe",
+    icon: ParkingCircle,
+    children: [
+      { title: "Quản lý bãi đỗ xe", path: "/parking-lots" },
+      { title: "Quản lý phiên đỗ xe", path: "/parking-sessions" },
+    ],
+  },
   { title: "Giao dịch", icon: Receipt, path: "/transactions" },
   { title: "Lịch ca trực", icon: Calendar, path: "/shifts" },
   { title: "Nhật ký thiết bị", icon: ScrollText, path: "/device-events" },
+  { title: "Báo cáo sự cố", icon: AlertTriangle, path: "/incident-reports" },
   { title: "Điểm thưởng", icon: Award, path: "/reward-points" },
   { title: "Bảng giá phí", icon: DollarSign, path: "/price-list" },
   { title: "Vé tháng", icon: Ticket, path: "/monthly-passes" },

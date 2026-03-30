@@ -108,14 +108,9 @@ function MaintenanceDonut({
         ? formatDateShort(nextRaw)
         : "—";
 
-    const maxChars =
-      n > 7 ? 11 : n > 5 ? 13 : n > 4 ? 15 : 18;
-    const typeLines = wrapMaintenanceTypeLines(
-      item.maintenanceType,
-      maxChars,
-    );
-    const lineGap =
-      fontOuter * (typeLines.length > 4 ? 0.92 : 1.06);
+    const maxChars = n > 7 ? 11 : n > 5 ? 13 : n > 4 ? 15 : 18;
+    const typeLines = wrapMaintenanceTypeLines(item.maintenanceType, maxChars);
+    const lineGap = fontOuter * (typeLines.length > 4 ? 0.92 : 1.06);
 
     return {
       key: item.maintenanceId ?? i,

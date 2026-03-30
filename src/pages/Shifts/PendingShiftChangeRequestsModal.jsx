@@ -101,6 +101,55 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
+function getNotificationId(req = {}) {
+  return (
+    req?.notificationId ??
+    req?.NotificationId ??
+    req?.notificationID ??
+    req?.notification?.id ??
+    req?.notification?.notificationId ??
+    req?.id ??
+    req?.Id ??
+    ""
+  );
+}
+
+async function processThenUpdateStatus({
+  notificationId,
+  decisionType,
+  newShiftId,
+  adminNote,
+}) {
+  const id = String(notificationId ?? "").trim();
+  if (!id) throw new Error("Thiếu notificationId để xử lý yêu cầu đổi ca");
+
+  const decisionVariants =
+    decisionType === "approve"
+      ? ["APPROVED", "Approved", "approved"]
+      : ["REJECTED", "Rejected", "rejected"];
+
+  let processErr;
+  for (const decision of decisionVariants) {
+    try {
+      await workShiftService.processShiftChangeRequest({
+        notificationId: id,
+        decision,
+        newShiftId: newShiftId || null,
+        adminNote: adminNote?.trim() || "",
+      });
+      processErr = null;
+      break;
+    } catch (err) {
+      processErr = err;
+    }
+  }
+
+  if (processErr) throw processErr;
+
+  const status = decisionType === "approve" ? "APPROVED" : "REJECTED";
+  await staffService.updateShiftChangeStatus(id, status);
+}
+
 /* ── Modal phụ khi Duyệt ── */
 function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
   const [selectedShiftId, setSelectedShiftId] = useState("");
@@ -114,8 +163,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
     ),
   );
 
-  const notificationId =
-    request?.notificationId ?? request?.id ?? request?.notification?.id;
+  const notificationId = getNotificationId(request);
   const parsed = parseShiftChangeMessage(request?.message ?? "");
   const staffName =
     parsed.staffName ??
@@ -161,7 +209,12 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
         );
         if (process.env.NODE_ENV === "development") {
           console.log("[ApproveModal] getByStaff result:", arr);
-          console.log("[ApproveModal] currentDateIso:", currentDateIso, "matched:", match);
+          console.log(
+            "[ApproveModal] currentDateIso:",
+            currentDateIso,
+            "matched:",
+            match,
+          );
         }
         if (!cancelled && match) {
           setCurrentShiftId(
@@ -252,54 +305,20 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
   }, [proposedDateIso, parkingLots]);
 
   const handleSubmit = async () => {
-    if (!notificationId) return;
-    if (selectedShiftId && !currentShiftId) {
-      toast.error(
-        "Không xác định được ca hiện tại của nhân viên. Vui lòng thử lại.",
-      );
+    if (!notificationId) {
+      toast.error("Không tìm thấy notificationId của yêu cầu đổi ca");
       return;
     }
     setLoading(true);
     try {
-      if (selectedShiftId && currentShiftId) {
-        // Có chọn ca để đổi → hoán đổi 2 ca với nhau
-        if (process.env.NODE_ENV === "development") {
-          console.log("[adminSwapShifts] payload:", {
-            shiftId1: currentShiftId,
-            shiftId2: selectedShiftId,
-          });
-          console.log(
-            "[adminSwapShifts] all available shifts:",
-            shiftsOnDate.map((s) => ({
-              shiftId: s.shiftId,
-              ShiftId: s.ShiftId,
-              workShiftId: s.workShiftId,
-              id: s.id,
-              staffName: s.staffName,
-            })),
-          );
-        }
-        await workShiftService.adminSwapShifts({
-          shiftId1: currentShiftId,
-          shiftId2: selectedShiftId,
-        });
-      } else if (currentShiftId && proposedDateIso) {
-        // Không có ca để đổi → chỉ chuyển ngày ca hiện tại sang ngày đề xuất
-        await workShiftService.update(currentShiftId, {
-          shiftDate: proposedDateIso,
-        });
-      }
-
-      await staffService.updateShiftChangeStatus(
+      await processThenUpdateStatus({
         notificationId,
-        "Approved",
-      );
+        decisionType: "approve",
+        newShiftId: selectedShiftId || null,
+        adminNote,
+      });
 
-      toast.success(
-        selectedShiftId
-          ? "Đã duyệt và hoán đổi ca trực thành công"
-          : "Đã duyệt – ca đã được chuyển sang ngày đề xuất",
-      );
+      toast.success("Đã duyệt yêu cầu đổi ca");
       onSuccess();
     } catch (err) {
       toast.error(
@@ -596,18 +615,23 @@ function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
   const proposedDate = parsed.proposedDate ?? "";
   const proposedShiftType = parsed.proposedShiftType ?? "";
   const additionalNote = parsed.note ?? parsed.reason ?? "";
-  const notificationId = req.notificationId ?? req.id ?? req.notification?.id;
+  const notificationId = getNotificationId(req);
 
   const isProcessed = localState === "approved" || localState === "rejected";
 
   const handleReject = async () => {
-    if (!notificationId) return;
+    if (!notificationId) {
+      toast.error("Không tìm thấy notificationId của yêu cầu đổi ca");
+      return;
+    }
     setLoading(true);
     try {
-      await staffService.updateShiftChangeStatus(
+      await processThenUpdateStatus({
         notificationId,
-        "Rejected",
-      );
+        decisionType: "reject",
+        newShiftId: null,
+        adminNote: rejectNote,
+      });
       toast.success("Đã từ chối yêu cầu");
       setLocalState("rejected");
       onProcessed(notificationId, "rejected");
@@ -826,7 +850,7 @@ function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
     onSuccess?.();
   };
 
-  const getReqId = (req) => req.notificationId ?? req.id;
+  const getReqId = (req) => getNotificationId(req);
 
   const counts = {
     all: requests.length,
@@ -941,7 +965,7 @@ function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
             <div className="space-y-3">
               {filteredRequests.map((req, idx) => (
                 <RequestCard
-                  key={req.notificationId ?? req.id ?? idx}
+                  key={getReqId(req) || idx}
                   req={req}
                   idx={idx}
                   parkingLots={parkingLots}

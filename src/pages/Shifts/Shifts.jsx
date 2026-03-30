@@ -32,7 +32,6 @@ import {
   Inbox,
   Phone,
   StickyNote,
-  SlidersHorizontal,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -450,19 +449,19 @@ function StatCard({
               </span>
             </div>
             <div className="py-1">
-              {lots.map((lot) => (
-                  <div
-                    key={lot.name}
-                    className="flex items-center justify-between gap-6 px-3 py-1.5 hover:bg-gray-50"
+              {lots.map((lot, idx) => (
+                <div
+                  key={`${lot.name}-${idx}`}
+                  className="flex items-center justify-between gap-6 px-3 py-1.5 hover:bg-gray-50"
+                >
+                  <span className="text-xs text-gray-600">{lot.name}</span>
+                  <span
+                    className={`text-xs font-bold flex-shrink-0 ${rowValueClass ?? dotColor}`}
                   >
-                    <span className="text-xs text-gray-600">{lot.name}</span>
-                    <span
-                      className={`text-xs font-bold flex-shrink-0 ${rowValueClass ?? dotColor}`}
-                    >
-                      {lot.count} {rowUnit}
-                    </span>
-                  </div>
-                ))}
+                    {lot.count} {rowUnit}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -779,7 +778,6 @@ function Shifts() {
   const [parkingLots, setParkingLots] = useState([]);
 
   const [shiftsByLot, setShiftsByLot] = useState({});
-  const [shiftsLoading, setShiftsLoading] = useState(false);
 
   const [viewMode, setViewMode] = useState("tab");
   const [gridCols, setGridCols] = useState(2);
@@ -818,14 +816,11 @@ function Shifts() {
   const calendarRefs = useRef({});
 
   const tabShowsAllLots =
-    viewMode === "tab" &&
-    (activeTabLotId == null || activeTabLotId === "");
+    viewMode === "tab" && (activeTabLotId == null || activeTabLotId === "");
 
   /** Chỉ tab + chọn 1 bãi: thống kê đầu trang theo bãi đó; còn lại = tất cả bãi */
   const activeStatsLotId =
-    viewMode === "tab" &&
-    activeTabLotId != null &&
-    activeTabLotId !== ""
+    viewMode === "tab" && activeTabLotId != null && activeTabLotId !== ""
       ? activeTabLotId
       : null;
 
@@ -859,10 +854,6 @@ function Shifts() {
     loadParkingLots();
     loadPendingCount();
   }, []);
-
-  useEffect(() => {
-    if (parkingLots.length > 0) loadAllShifts(parkingLots);
-  }, [parkingLots, refreshKey, viewedMonth.year, viewedMonth.month]);
 
   const loadStaff = async () => {
     setStaffLoading(true);
@@ -916,52 +907,56 @@ function Shifts() {
     }
   };
 
-  const loadAllShifts = async (lots, monthOverride) => {
-    setShiftsLoading(true);
-    const { year, month } = monthOverride ?? viewedMonth;
-    // Tính startDate / endDate của tháng đang xem (±1 tuần để lịch không bị trống biên)
-    const start = new Date(year, month - 1, 1);
-    start.setDate(start.getDate() - 7);
-    const end = new Date(year, month, 0);
-    end.setDate(end.getDate() + 7);
-    const pad = (n) => String(n).padStart(2, "0");
-    const fmt = (d) =>
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const loadAllShifts = useCallback(
+    async (lots, monthOverride) => {
+      const { year, month } = monthOverride ?? viewedMonth;
+      // Tính startDate / endDate của tháng đang xem (±1 tuần để lịch không bị trống biên)
+      const start = new Date(year, month - 1, 1);
+      start.setDate(start.getDate() - 7);
+      const end = new Date(year, month, 0);
+      end.setDate(end.getDate() + 7);
+      const pad = (n) => String(n).padStart(2, "0");
+      const fmt = (d) =>
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-    try {
-      const results = {};
-      await Promise.all(
-        lots.map(async (lot) => {
-          let data;
-          try {
-            // Thử filter theo tháng trước (giảm tải server)
-            data = await workShiftService.getByLot(lot.id, {
-              month: month,
-              year: year,
-              startDate: fmt(start),
-              endDate: fmt(end),
-            });
-          } catch {
-            // Nếu server không hỗ trợ params đó, thử không params
-            data = await workShiftService.getByLot(lot.id, {});
-          }
-          const arr = Array.isArray(data)
-            ? data
-            : Array.isArray(data?.data)
-              ? data.data
-              : Array.isArray(data?.items)
-                ? data.items
-                : data?.data?.items || [];
-          results[lot.id] = arr;
-        }),
-      );
-      setShiftsByLot(results);
-    } catch (err) {
-      toast.error(`Lỗi tải ca trực: ${err.message}`);
-    } finally {
-      setShiftsLoading(false);
-    }
-  };
+      try {
+        const results = {};
+        await Promise.all(
+          lots.map(async (lot) => {
+            let data;
+            try {
+              // Thử filter theo tháng trước (giảm tải server)
+              data = await workShiftService.getByLot(lot.id, {
+                month: month,
+                year: year,
+                startDate: fmt(start),
+                endDate: fmt(end),
+              });
+            } catch {
+              // Nếu server không hỗ trợ params đó, thử không params
+              data = await workShiftService.getByLot(lot.id, {});
+            }
+            const arr = Array.isArray(data)
+              ? data
+              : Array.isArray(data?.data)
+                ? data.data
+                : Array.isArray(data?.items)
+                  ? data.items
+                  : data?.data?.items || [];
+            results[lot.id] = arr;
+          }),
+        );
+        setShiftsByLot(results);
+      } catch (err) {
+        toast.error(`Lỗi tải ca trực: ${err.message}`);
+      }
+    },
+    [viewedMonth],
+  );
+
+  useEffect(() => {
+    if (parkingLots.length > 0) loadAllShifts(parkingLots);
+  }, [parkingLots, refreshKey, loadAllShifts]);
 
   const handleRefresh = () => setRefreshKey((k) => k + 1);
 
@@ -1252,9 +1247,7 @@ function Shifts() {
   const statsParkingLots = useMemo(
     () =>
       activeStatsLotId != null
-        ? parkingLots.filter(
-            (l) => String(l.id) === String(activeStatsLotId),
-          )
+        ? parkingLots.filter((l) => String(l.id) === String(activeStatsLotId))
         : parkingLots,
     [parkingLots, activeStatsLotId],
   );
@@ -1263,8 +1256,7 @@ function Shifts() {
     const base =
       activeStatsLotId != null
         ? (shiftsByLot[activeStatsLotId] ?? []).filter(
-            (s) =>
-              !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+            (s) => !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
           )
         : allShiftsArray;
     return base.filter((s) => {
@@ -1304,7 +1296,13 @@ function Shifts() {
           );
         }).length,
       })),
-    [statsParkingLots, shiftsByLot, inactiveStaffIds, todayLocalStr, filterStaffId],
+    [
+      statsParkingLots,
+      shiftsByLot,
+      inactiveStaffIds,
+      todayLocalStr,
+      filterStaffId,
+    ],
   );
 
   const scheduledStatsDateRange = useMemo(
@@ -1317,8 +1315,7 @@ function Shifts() {
       statsParkingLots.map((lot) => ({
         name: lot.name,
         count: lotShiftsInMonth(lot.id).filter((s) => {
-          if ((s.shiftStatus ?? "").toUpperCase() !== "SCHEDULED")
-            return false;
+          if ((s.shiftStatus ?? "").toUpperCase() !== "SCHEDULED") return false;
           if (!scheduledStatsDateRange) return false;
           const d = (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0];
           return (
@@ -1365,9 +1362,7 @@ function Shifts() {
     viewMode === "tab"
       ? tabShowsAllLots
         ? parkingLots
-        : parkingLots.filter(
-            (l) => String(l.id) === String(activeTabLotId),
-          )
+        : parkingLots.filter((l) => String(l.id) === String(activeTabLotId))
       : parkingLots;
 
   return (
@@ -1828,7 +1823,6 @@ function Shifts() {
                 const calendarEvents = lotShifts.map((s) =>
                   toCalendarEvent(s, todayLocalStr),
                 );
-                const isSmallGrid = viewMode === "grid" && gridCols >= 3;
 
                 return (
                   <div
@@ -2049,7 +2043,6 @@ function Shifts() {
       {detailShift && (
         <ShiftDetailPopup
           shift={detailShift}
-          parkingLots={parkingLots}
           onClose={() => setDetailShift(null)}
           onDelete={handleRefresh}
           onEdit={(shift) => {
@@ -2098,7 +2091,7 @@ function Shifts() {
   );
 }
 
-function ShiftDetailPopup({ shift, parkingLots, onClose, onDelete, onEdit }) {
+function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   if (!shift) return null;

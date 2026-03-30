@@ -28,10 +28,23 @@ const parkingLotService = {
    * GET /api/v1/parking-lots/{id}/detail - Lấy chi tiết đầy đủ (cổng, thiết bị, AI config)
    */
   getParkingLotDetail: async (id) => {
-    const response = await apiClient.get(
-      `${PARKING_LOT_BASE_PATH}/${id}/detail`,
-    );
-    return unwrap(response.data);
+    try {
+      const response = await apiClient.get(
+        `${PARKING_LOT_BASE_PATH}/${id}/detail`,
+      );
+      return unwrap(response.data);
+    } catch (e) {
+      // Một số bản ghi có thể khiến endpoint /detail lỗi 500 phía server.
+      if (e?.response?.status === 500) {
+        console.warn(
+          "[parking-lots/detail] returned 500, falling back to get-by-id:",
+          id,
+        );
+        const fallback = await apiClient.get(`${PARKING_LOT_BASE_PATH}/${id}`);
+        return unwrap(fallback.data);
+      }
+      throw e;
+    }
   },
 
   /**
