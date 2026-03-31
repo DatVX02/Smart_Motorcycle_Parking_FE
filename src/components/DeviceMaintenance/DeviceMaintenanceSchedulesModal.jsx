@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import dayjs from "dayjs";
+import toast from "react-hot-toast";
+import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
 
 const SEGMENT_COLORS = {
   Overdue: "#dc2626",
@@ -40,217 +42,125 @@ function wrapMaintenanceTypeLines(text, maxCharsPerLine) {
   return lines;
 }
 
-/**
- * Vòng tròn nhiều cung: mỗi cung = một lịch; nhãn ngoài vòng (Lần N, ngày, loại) giống infographic lịch định kỳ.
- */
-function MaintenanceDonut({
+function MaintenanceTimelineHorizontal({
   schedules,
-  deviceName,
-  formatDateShort,
+  formatDate,
   getEffectiveStatus,
   getStatusLabel,
   hoveredIndex,
   onHoverIndex,
   onSelectSchedule,
 }) {
-  const n = schedules.length;
-  if (n === 0) return null;
-
-  const VB = 140;
-  const cx = VB / 2;
-  const cy = VB / 2;
-  const rOuter = 40;
-  const rInner = 24;
-  const rOuterLabel = rOuter + 18;
-  const fontOuter = n > 7 ? 2.65 : n > 5 ? 3 : 3.35;
-
-  let angle = -90;
-
-  const segments = schedules.map((item, i) => {
-    const eff = getEffectiveStatus(item);
-    const fill = segmentColorForStatus(eff);
-    const sweep = 360 / n;
-    const startDeg = angle;
-    const start = (angle * Math.PI) / 180;
-    const end = ((angle + sweep) * Math.PI) / 180;
-
-    const x1o = cx + rOuter * Math.cos(start);
-    const y1o = cy + rOuter * Math.sin(start);
-    const x2o = cx + rOuter * Math.cos(end);
-    const y2o = cy + rOuter * Math.sin(end);
-    const x1i = cx + rInner * Math.cos(end);
-    const y1i = cy + rInner * Math.sin(end);
-    const x2i = cx + rInner * Math.cos(start);
-    const y2i = cy + rInner * Math.sin(start);
-
-    const largeArc = sweep > 180 ? 1 : 0;
-    const d = [
-      `M ${x1o} ${y1o}`,
-      `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${x2o} ${y2o}`,
-      `L ${x1i} ${y1i}`,
-      `A ${rInner} ${rInner} 0 ${largeArc} 0 ${x2i} ${y2i}`,
-      "Z",
-    ].join(" ");
-
-    const midDeg = startDeg + sweep / 2;
-    const midRad = (midDeg * Math.PI) / 180;
-    const lx = cx + rOuterLabel * Math.cos(midRad);
-    const ly = cy + rOuterLabel * Math.sin(midRad);
-
-    angle += sweep;
-
-    const dimmed =
-      hoveredIndex !== null && hoveredIndex !== undefined && hoveredIndex !== i;
-
-    const nextRaw = item.nextMaintenanceDate;
-    const dateLine =
-      nextRaw && !String(nextRaw).startsWith("0001")
-        ? formatDateShort(nextRaw)
-        : "—";
-
-    const maxChars = n > 7 ? 11 : n > 5 ? 13 : n > 4 ? 15 : 18;
-    const typeLines = wrapMaintenanceTypeLines(item.maintenanceType, maxChars);
-    const lineGap = fontOuter * (typeLines.length > 4 ? 0.92 : 1.06);
-
-    return {
-      key: item.maintenanceId ?? i,
-      maintenanceId: item.maintenanceId,
-      d,
-      fill,
-      lx,
-      ly,
-      index: i,
-      dimmed,
-      title: `${getStatusLabel(eff)} — ${item.maintenanceType || "Lịch " + (i + 1)}`,
-      ariaLabel: `Lịch ${i + 1}, ${item.maintenanceType || "chi tiết"}. ${getStatusLabel(eff)}. Nhấn để xem chi tiết`,
-      outerLine1: `Lần ${i + 1}`,
-      outerLine2: dateLine,
-      typeLines,
-      lineGap,
-    };
-  });
-
-  const openDetail = (maintenanceId) => {
-    if (maintenanceId != null) onSelectSchedule?.(maintenanceId);
-  };
-
-  const centerLines = wrapMaintenanceTypeLines(deviceName || "Thiết bị", 11);
-
   return (
-    <div className="flex flex-col items-center py-4 border-b border-gray-100">
-      <svg
-        viewBox={`0 0 ${VB} ${VB}`}
-        className="w-full max-w-[min(22rem,92vw)] aspect-square drop-shadow-sm touch-manipulation"
-        role="img"
-        aria-label="Vòng lịch bảo trì — nhấn từng phần để xem chi tiết"
-      >
-        <title>
-          Nhấn vào từng phần trên vòng để mở chi tiết lịch tương ứng
-        </title>
-        {segments.map((seg) => (
-          <g key={seg.key}>
-            <path
-              d={seg.d}
-              fill={seg.fill}
-              stroke="#fff"
-              strokeWidth="1"
-              opacity={seg.dimmed ? 0.35 : 1}
-              className="cursor-pointer transition-[opacity] duration-150 outline-none"
-              style={{ outline: "none" }}
-              role="button"
-              tabIndex={0}
-              aria-label={seg.ariaLabel}
-              onMouseEnter={() => onHoverIndex?.(seg.index)}
-              onMouseLeave={() => onHoverIndex?.(null)}
-              onClick={() => openDetail(seg.maintenanceId)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openDetail(seg.maintenanceId);
-                }
-              }}
-            >
-              <title>{seg.title}</title>
-            </path>
-            <g
-              transform={`translate(${seg.lx}, ${seg.ly})`}
-              className="pointer-events-none select-none"
-            >
-              {(() => {
-                const lg = seg.lineGap;
-                const totalLines = 2 + seg.typeLines.length;
-                const y0 = -((totalLines - 1) * lg) / 2;
-                return (
-                  <text
-                    textAnchor="middle"
-                    fill="#0f172a"
-                    style={{ fontSize: fontOuter, fontWeight: 600 }}
-                  >
-                    <tspan x={0} y={y0}>
-                      {seg.outerLine1}
-                    </tspan>
-                    <tspan x={0} dy={lg} style={{ fontWeight: 500 }}>
-                      {seg.outerLine2}
-                    </tspan>
-                    {seg.typeLines.map((line, li) => (
-                      <tspan
-                        key={li}
-                        x={0}
-                        dy={lg}
-                        style={{ fontWeight: 400, fill: "#475569" }}
-                      >
-                        {line}
-                      </tspan>
-                    ))}
-                  </text>
+    <div className="py-4 border-b border-gray-100">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-gray-800">
+          Lịch bảo trì theo dòng thời gian
+        </h3>
+        <p className="text-xs text-gray-500">Lướt ngang để xem đầy đủ</p>
+      </div>
+
+      <div className="overflow-x-auto pb-2">
+        <div className="min-w-max px-1">
+          <div className="relative">
+            <div className="flex gap-5">
+              {schedules.map((item, index) => {
+                const effective = getEffectiveStatus(item);
+                const isDimmed =
+                  hoveredIndex !== null &&
+                  hoveredIndex !== undefined &&
+                  hoveredIndex !== index;
+                const titleLines = wrapMaintenanceTypeLines(
+                  item.maintenanceType || `Lịch ${index + 1}`,
+                  30,
                 );
-              })()}
-            </g>
-          </g>
-        ))}
-        <g
-          className="pointer-events-none select-none"
-          transform={`translate(${cx}, ${cy})`}
-        >
-          <text textAnchor="middle">
-            <tspan
-              x={0}
-              y={-10}
-              fill="#0f172a"
-              style={{
-                fontSize: 4.2,
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-              }}
-            >
-              LỊCH BẢO TRÌ
-            </tspan>
-            <tspan
-              x={0}
-              dy={6}
-              fill="#dc2626"
-              style={{
-                fontSize: 5.2,
-                fontWeight: 800,
-                letterSpacing: "0.02em",
-              }}
-            >
-              ĐỊNH KỲ
-            </tspan>
-            {centerLines.map((ln, ci) => (
-              <tspan
-                key={ci}
-                x={0}
-                dy={ci === 0 ? 5.5 : 3.6}
-                fill="#334155"
-                style={{ fontSize: 3.4, fontWeight: 500 }}
-              >
-                {ln}
-              </tspan>
-            ))}
-          </text>
-        </g>
-      </svg>
+
+                return (
+                  <button
+                    key={item.maintenanceId ?? `schedule-${index}`}
+                    type="button"
+                    className={`relative z-10 w-[18rem] min-h-[8.5rem] rounded-xl border bg-white p-3 text-left transition-all ${
+                      isDimmed
+                        ? "opacity-45"
+                        : "shadow-sm hover:shadow-md hover:-translate-y-0.5"
+                    } ${hoveredIndex === index ? "ring-2 ring-blue-200 border-blue-300" : "border-gray-200"}`}
+                    onMouseEnter={() => onHoverIndex?.(index)}
+                    onMouseLeave={() => onHoverIndex?.(null)}
+                    onClick={() => onSelectSchedule?.(item.maintenanceId)}
+                    onFocus={() => onHoverIndex?.(index)}
+                    onBlur={() => onHoverIndex?.(null)}
+                    aria-label={`Lịch ${index + 1}: ${item.maintenanceType || "chi tiết"}`}
+                  >
+                    <div className="mb-2 flex items-center gap-2">
+                      <span
+                        className="h-4 w-4 rounded-full border-2 border-white shadow"
+                        style={{
+                          backgroundColor: segmentColorForStatus(effective),
+                        }}
+                      />
+                      <span className="text-xs font-semibold text-gray-500">
+                        Lịch {index + 1}
+                      </span>
+                    </div>
+
+                    <p className="text-sm font-medium text-gray-900 leading-5">
+                      {titleLines[0]}
+                      {titleLines[1] ? (
+                        <span className="block text-gray-700">
+                          {titleLines[1]}
+                        </span>
+                      ) : null}
+                    </p>
+
+                    <p className="mt-2 text-xs text-gray-500">
+                      Ngày kế tiếp:{" "}
+                      <span className="font-medium text-gray-700">
+                        {item.nextMaintenanceDate &&
+                        !String(item.nextMaintenanceDate).startsWith("0001")
+                          ? formatDate(item.nextMaintenanceDate)
+                          : "—"}
+                      </span>
+                    </p>
+
+                    <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700">
+                      {getStatusLabel(effective)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative mt-2">
+              {schedules.length > 1 && (
+                <div className="absolute left-4 right-4 top-3 h-[2px] bg-gray-200" />
+              )}
+              <div className="flex gap-5">
+                {schedules.map((item, index) => {
+                  const effective = getEffectiveStatus(item);
+                  const active = hoveredIndex === index;
+
+                  return (
+                    <div
+                      key={item.maintenanceId ?? `timeline-marker-${index}`}
+                      className="w-[18rem] flex flex-col items-center"
+                    >
+                      <div className="h-3 w-px bg-gray-300" />
+                      <span
+                        className={`h-4 w-4 rounded-full border-2 border-white shadow-sm ${
+                          active ? "ring-2 ring-blue-200" : ""
+                        }`}
+                        style={{
+                          backgroundColor: segmentColorForStatus(effective),
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -258,6 +168,7 @@ function MaintenanceDonut({
 export default function DeviceMaintenanceSchedulesModal({
   group,
   onClose,
+  onCreated,
   getEffectiveStatus,
   getStatusColor,
   getStatusLabel,
@@ -268,8 +179,93 @@ export default function DeviceMaintenanceSchedulesModal({
   if (!group) return null;
 
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newSchedule, setNewSchedule] = useState({
+    maintenanceType: "",
+    description: "",
+    nextMaintenanceDate: "",
+  });
+  const [schedules, setSchedules] = useState(group.schedules || []);
 
-  const sorted = [...group.schedules].sort((a, b) => {
+  useEffect(() => {
+    setSchedules(group.schedules || []);
+  }, [group]);
+
+  const getCurrentDeviceId = () => {
+    const fromGroup = group.deviceId ?? group.device_id;
+    if (fromGroup != null && String(fromGroup).trim() !== "") return fromGroup;
+
+    const first = (group.schedules || [])[0] || {};
+    const fromSchedule = first.deviceId ?? first.device_id;
+    if (fromSchedule != null && String(fromSchedule).trim() !== "") {
+      return fromSchedule;
+    }
+
+    return null;
+  };
+
+  const handleCreateSchedule = async () => {
+    const maintenanceType = newSchedule.maintenanceType.trim();
+    if (!maintenanceType) {
+      toast.error("Vui lòng nhập loại bảo trì", { duration: 1200 });
+      return;
+    }
+
+    const deviceId = getCurrentDeviceId();
+    if (!deviceId) {
+      toast.error("Không tìm thấy mã thiết bị để tạo lịch", { duration: 1200 });
+      return;
+    }
+
+    const payload = {
+      deviceId,
+      maintenanceType,
+      description: newSchedule.description.trim() || "",
+      nextMaintenanceDate: newSchedule.nextMaintenanceDate
+        ? dayjs(newSchedule.nextMaintenanceDate).toISOString()
+        : null,
+    };
+
+    try {
+      setCreating(true);
+      const res = await DeviceMaintenanceService.create(payload);
+      const createdItem =
+        res?.data?.item ||
+        res?.data ||
+        res?.item ||
+        (typeof res === "object" ? res : null);
+
+      const fallbackId = `new-${Date.now()}`;
+      const appended = {
+        ...payload,
+        maintenanceId:
+          createdItem?.maintenanceId ?? createdItem?.id ?? fallbackId,
+        status: createdItem?.status || "Scheduled",
+        performedAt: createdItem?.performedAt || null,
+      };
+
+      setSchedules((prev) => [...prev, appended]);
+      setNewSchedule({
+        maintenanceType: "",
+        description: "",
+        nextMaintenanceDate: "",
+      });
+      setShowCreateForm(false);
+      toast.success("Đã tạo lịch bảo trì", { duration: 1200 });
+      await onCreated?.(createdItem || appended);
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể tạo lịch bảo trì";
+      toast.error(message, { duration: 1500 });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const sorted = [...schedules].sort((a, b) => {
     const da = a.nextMaintenanceDate
       ? dayjs(a.nextMaintenanceDate).valueOf()
       : Number.MAX_SAFE_INTEGER;
@@ -281,7 +277,7 @@ export default function DeviceMaintenanceSchedulesModal({
 
   return createPortal(
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col my-auto">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[92vh] flex flex-col my-auto">
         <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 flex-shrink-0">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-gray-900 leading-tight">
@@ -295,21 +291,99 @@ export default function DeviceMaintenanceSchedulesModal({
               {group.lotName?.trim() ? group.lotName : "Chưa gán bãi"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-            aria-label="Đóng"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCreateForm((v) => !v)}
+              className="h-9 rounded-lg border border-blue-200 px-3 text-sm font-medium text-blue-600 hover:bg-blue-50"
+            >
+              {showCreateForm ? "Ẩn form" : "Thêm lịch"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              aria-label="Đóng"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="overflow-y-auto flex-1 px-5">
-          <MaintenanceDonut
+          {showCreateForm && (
+            <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">
+                    Loại bảo trì <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newSchedule.maintenanceType}
+                    onChange={(e) =>
+                      setNewSchedule((prev) => ({
+                        ...prev,
+                        maintenanceType: e.target.value,
+                      }))
+                    }
+                    placeholder="Ví dụ: Bảo trì quý 2"
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">
+                    Ngày bảo trì tiếp theo
+                  </label>
+                  <input
+                    type="date"
+                    value={newSchedule.nextMaintenanceDate}
+                    onChange={(e) =>
+                      setNewSchedule((prev) => ({
+                        ...prev,
+                        nextMaintenanceDate: e.target.value,
+                      }))
+                    }
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="lg:col-span-1 flex items-end">
+                  <button
+                    type="button"
+                    onClick={handleCreateSchedule}
+                    disabled={creating}
+                    className="h-10 w-full rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {creating ? "Đang tạo..." : "Tạo lịch bảo trì"}
+                  </button>
+                </div>
+
+                <div className="lg:col-span-3">
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">
+                    Mô tả
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newSchedule.description}
+                    onChange={(e) =>
+                      setNewSchedule((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
+                    placeholder="Mô tả công việc bảo trì"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 resize-y"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <MaintenanceTimelineHorizontal
             schedules={sorted}
-            deviceName={group.deviceName}
-            formatDateShort={format}
+            formatDate={format}
             getEffectiveStatus={getEffectiveStatus}
             getStatusLabel={getStatusLabel}
             hoveredIndex={hoveredIndex}
@@ -323,7 +397,7 @@ export default function DeviceMaintenanceSchedulesModal({
               const rowActive = hoveredIndex === index;
               return (
                 <li
-                  key={item.maintenanceId}
+                  key={item.maintenanceId ?? `schedule-row-${index}`}
                   className={`rounded-xl border bg-gray-50/80 p-3 transition-shadow ${
                     rowActive
                       ? "border-blue-300 ring-2 ring-blue-200 shadow-sm"
@@ -374,7 +448,8 @@ export default function DeviceMaintenanceSchedulesModal({
                   </div>
                   <button
                     type="button"
-                    onClick={() => onSelectSchedule(item.maintenanceId)}
+                    onClick={() => onSelectSchedule?.(item.maintenanceId)}
+                    disabled={item.maintenanceId == null}
                     className="mt-3 w-full text-sm py-2 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 font-medium"
                   >
                     Xem chi tiết lịch này
@@ -382,6 +457,12 @@ export default function DeviceMaintenanceSchedulesModal({
                 </li>
               );
             })}
+
+            {sorted.length === 0 && (
+              <li className="rounded-xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
+                Thiết bị này chưa có lịch bảo trì. Bấm "Thêm lịch" để tạo mới.
+              </li>
+            )}
           </ul>
         </div>
 

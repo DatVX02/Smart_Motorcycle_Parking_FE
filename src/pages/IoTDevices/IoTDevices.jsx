@@ -22,6 +22,7 @@ import {
 import { EyeTwoTone, EditTwoTone } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import dayjs from "dayjs";
+import { useNavigate } from "react-router-dom";
 
 import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
 
@@ -203,6 +204,7 @@ function maintenanceDueWithinWeek(nextDateISO) {
 }
 
 function IoTDevices() {
+  const navigate = useNavigate();
   const [devices, setDevices] = useState([]);
   const [lots, setLots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -392,6 +394,11 @@ function IoTDevices() {
         toast.success("Đã chuyển thiết bị sang trạng thái bảo trì", {
           duration: 1000,
         });
+
+        setConfirmDialog({ open: false, type: null, device: null });
+        navigate(
+          `/device-maintenance?deviceId=${encodeURIComponent(deviceId)}&openSchedules=1`,
+        );
       }
 
       await fetchDevices();
