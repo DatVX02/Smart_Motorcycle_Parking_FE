@@ -119,8 +119,6 @@ const TX_TYPE_LABELS = {
   REWARD: "Thưởng điểm",
 };
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50];
-
 /* Helpers */
 function formatCurrency(amount) {
   if (amount == null || amount === "") return "-";
@@ -169,6 +167,13 @@ function getStatusInfo(tx) {
   };
 }
 
+function normalizeStatus(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
 function StatusBadge({ tx }) {
   const info = getStatusInfo(tx);
   if (!info) return <span className="text-gray-400 text-xs">—</span>;
@@ -182,11 +187,9 @@ function StatusBadge({ tx }) {
 }
 
 /* Detail Modal */
-function DetailModal({ id, onClose, onStatusUpdate }) {
+function DetailModal({ id, onClose }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [newStatus, setNewStatus] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -195,28 +198,10 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
       .getById(id)
       .then((data) => {
         setDetail(data);
-        const cur = data?.paymentStatus ?? data?.status ?? "";
-        setNewStatus(cur);
       })
       .catch(() => toast.error("Không thể tải chi tiết giao dịch"))
       .finally(() => setLoading(false));
   }, [id]);
-
-  const handleSave = async () => {
-    const cur = detail?.paymentStatus ?? detail?.status ?? "";
-    if (!newStatus || newStatus === cur) return;
-    setSaving(true);
-    try {
-      await transactionService.updateStatus(id, newStatus);
-      toast.success("Cập nhật trạng thái thành công");
-      setDetail((p) => ({ ...p, paymentStatus: newStatus, status: newStatus }));
-      onStatusUpdate?.();
-    } catch {
-      toast.error("Cập nhật trạng thái thất bại");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const rows = detail
     ? [
@@ -260,8 +245,6 @@ function DetailModal({ id, onClose, onStatusUpdate }) {
         ["Số tiền", formatCurrency(detail.amount ?? detail.totalAmount)],
       ]
     : [];
-
-  const curStatus = detail?.paymentStatus ?? detail?.status ?? "";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -422,7 +405,7 @@ export default function Transactions() {
 
   // Pagination (client-side)
   const [pageNumber, setPageNumber] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize] = useState(10);
 
   const [detailId, setDetailId] = useState(null);
 
@@ -462,7 +445,7 @@ export default function Transactions() {
 
       const params = { pageSize: 9999 }; // lấy hết để phân trang client-side
       if (search) params.search = search;
-      if (paymentStatus) params.paymentStatus = paymentStatus;
+      // Tránh phụ thuộc backend lọc phân biệt hoa/thường cho paymentStatus.
       if (paymentMethod) params.paymentMethod = paymentMethod;
       if (transactionType) params.transactionType = transactionType;
       if (lotId) params.lotId = lotId;
@@ -482,10 +465,9 @@ export default function Transactions() {
 
       // Client-side filter fallback nếu API chưa lọc server-side
       if (paymentStatus) {
-        const needle = paymentStatus.toLowerCase();
+        const needle = normalizeStatus(paymentStatus);
         const filtered = items.filter(
-          (tx) =>
-            (tx.paymentStatus ?? tx.status ?? "").toLowerCase() === needle,
+          (tx) => normalizeStatus(tx.paymentStatus ?? tx.status) === needle,
         );
         if (filtered.length !== items.length) items = filtered;
       }
@@ -502,7 +484,7 @@ export default function Transactions() {
       setPageNumber(1); // reset về trang 1 khi filter thay đổi
 
       const statusLower = (tx) =>
-        (tx.paymentStatus ?? tx.status ?? "").toLowerCase();
+        normalizeStatus(tx.paymentStatus ?? tx.status);
 
       // Doanh thu: chỉ giao dịch thanh toán thành công (Hoàn thành)
       const totalRevenue = items.reduce((s, tx) => {
@@ -667,7 +649,7 @@ export default function Transactions() {
             >
               <option value="">Tất cả trạng thái</option>
               <option value="Completed">Hoàn thành</option>
-              <option value="pending">Chờ thanh toán</option>
+              <option value="Pending">Chờ thanh toán</option>
               <option value="InProgress">Đang đỗ</option>
               <option value="Failed">Thất bại</option>
               <option value="Cancelled">Đã hủy</option>
@@ -959,11 +941,7 @@ export default function Transactions() {
 
       {/* Detail Modal */}
       {detailId && (
-        <DetailModal
-          id={detailId}
-          onClose={() => setDetailId(null)}
-          onStatusUpdate={loadTransactions}
-        />
+        <DetailModal id={detailId} onClose={() => setDetailId(null)} />
       )}
     </div>
   );

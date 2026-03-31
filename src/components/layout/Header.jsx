@@ -1,20 +1,4 @@
-import {
-  Bell,
-  LogOut,
-  Settings,
-  Menu,
-  LayoutDashboard,
-  Users,
-  ParkingCircle,
-  Receipt,
-  Calendar,
-  ScrollText,
-  Award,
-  DollarSign,
-  Ticket,
-  Cpu,
-  Wrench,
-} from "lucide-react";
+import { Bell, LogOut, Settings, Menu } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -25,6 +9,7 @@ const PAGE_TITLES = {
   "/accounts": { title: "Quản Lý Tài Khoản Khách Hàng" },
   "/accounts/staff": { title: "Quản Lý Tài Khoản Nhân Viên" },
   "/parking-lots": { title: "Quản Lý Bãi Đỗ Xe" },
+  "/parking-sessions": { title: "Quản Lý Phiên Giữ Xe" },
   "/transactions": { title: "Quản Lý Giao Dịch" },
   "/shifts": { title: "Quản Lý Lịch Bãi Xe" },
   "/device-events": { title: "Nhật Ký Thiết Bị" },
@@ -33,6 +18,7 @@ const PAGE_TITLES = {
   "/monthly-passes": { title: "Quản Lý Vé Tháng" },
   "/iot-devices": { title: "Quản Lý Thiết Bị IoT" },
   "/device-maintenance": { title: "Bảo Trì Thiết Bị" },
+  "/incident-reports": { title: "Báo Cáo Sự Cố" },
 };
 
 function Header({ onMenuClick }) {
@@ -44,6 +30,7 @@ function Header({ onMenuClick }) {
     "/accounts",
     "/dashboard",
     "/parking-lots",
+    "/parking-sessions",
     "/transactions",
     "/shifts",
     "/device-events",
@@ -52,6 +39,7 @@ function Header({ onMenuClick }) {
     "/monthly-passes",
     "/iot-devices",
     "/device-maintenance",
+    "/incident-reports",
   ].find((p) => path === p || path.startsWith(p + "/"));
   const pageInfo = PAGE_TITLES[pathMatch || "/dashboard"] || {
     title: "Dashboard",
