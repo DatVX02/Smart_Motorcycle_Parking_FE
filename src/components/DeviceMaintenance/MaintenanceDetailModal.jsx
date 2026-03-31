@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,41 @@ import iotDeviceService from "../../services/iotDeviceService";
 import dayjs from "dayjs";
 import { Image } from "antd";
 
-const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated, onBack }) => {
+function maintenanceStatusVi(statusRaw) {
+  const s = String(statusRaw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+  if (s === "completed") return "Đã bảo trì";
+  if (s === "cancelled") return "Đã hủy";
+  if (s === "pending") return "Chờ xử lý";
+  if (s === "inprogress") return "Đang bảo trì";
+  if (s === "overdue") return "Quá hạn";
+  if (s === "scheduled") return "Đã lên lịch";
+  return statusRaw && String(statusRaw).trim() !== "" ? String(statusRaw) : "—";
+}
+
+function isMaintenanceTerminalStatus(statusRaw) {
+  const k = String(statusRaw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+  return k === "completed" || k === "cancelled";
+}
+
+const MAX_IMAGE_MB = 8;
+
+const MaintenanceDetailModal = ({
+  maintenanceId,
+  onClose,
+  onUpdated,
+  onBack,
+}) => {
   const [maintenance, setMaintenance] = useState(null);
   const [deviceDetail, setDeviceDetail] = useState(null);
-  const [nextMaintenanceDate, setNextMaintenanceDate] = useState(null);
+  const [updating, setUpdating] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const fileInputRef = useRef(null);
   const formatDate = (date) => {
     if (!date || date.startsWith("0001")) return "-";
     return dayjs(date).format("DD/MM/YYYY HH:mm:ss");
@@ -21,7 +52,7 @@ const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated, onBack }) =
     return dayjs(date).format("DD/MM/YYYY");
   };
 
-  const fetchDetail = async () => {
+  const fetchDetail = useCallback(async () => {
     try {
       const res = await DeviceMaintenanceService.getById(maintenanceId);
 
@@ -37,46 +68,38 @@ const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated, onBack }) =
     } catch {
       toast.error("Không thể tải chi tiết", { duration: 1000 });
     }
-  };
+  }, [maintenanceId]);
 
-  const updateNextMaintenance = async (date) => {
-    try {
-      await DeviceMaintenanceService.update(maintenanceId, {
-        nextMaintenanceDate: date,
-      });
-
-      toast.success("Cập nhật thành công", { duration: 1000 });
-
-      fetchDetail();
-
-      onUpdated();
-    } catch {
-      toast.error("Không thể cập nhật", { duration: 1000 });
+  const handleMarkMaintained = async () => {
+    if (imageFile && imageFile.size > MAX_IMAGE_MB * 1024 * 1024) {
+      toast.error(`Ảnh tối đa ${MAX_IMAGE_MB} MB`, { duration: 2000 });
+      return;
     }
-  };
-
-  const handleComplete = async () => {
+    setUpdating(true);
     try {
-      await DeviceMaintenanceService.complete(
-        maintenanceId,
-        nextMaintenanceDate,
-        image,
-      );
-
-      toast.success("Đã hoàn thành bảo trì", { duration: 1000 });
-
-      onUpdated();
-      onClose();
+      await DeviceMaintenanceService.markAsMaintained(maintenanceId, {
+        imageFile: imageFile ?? null,
+      });
+      toast.success("Đã cập nhật — trạng thái: đã bảo trì", { duration: 2000 });
+      setImageFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await fetchDetail();
+      onUpdated?.();
     } catch (err) {
       console.error(err);
-
-      toast.error("Không thể cập nhật bảo trì", { duration: 1000 });
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.title ||
+        "Không thể cập nhật trạng thái bảo trì";
+      toast.error(msg, { duration: 2500 });
+    } finally {
+      setUpdating(false);
     }
   };
 
   useEffect(() => {
     fetchDetail();
-  }, [maintenanceId]);
+  }, [fetchDetail]);
 
   if (!maintenance) return null;
 
@@ -100,6 +123,15 @@ const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated, onBack }) =
           <Row label="Loại bảo trì" value={maintenance.maintenanceType} />
 
           <Row label="Mô tả" value={maintenance.description} />
+
+          <Row
+            label="Trạng thái"
+            value={
+              <span className="font-medium text-gray-900">
+                {maintenanceStatusVi(maintenance.status)}
+              </span>
+            }
+          />
 
           <Row
             label="Hình ảnh bảo trì"
@@ -192,16 +224,66 @@ const MaintenanceDetailModal = ({ maintenanceId, onClose, onUpdated, onBack }) =
         </div>
 
         {onBack && (
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={onBack}
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Quay lại
-            </Button>
+          <div className="mt-6 pt-4 border-t border-gray-100 space-y-3">
+            {!isMaintenanceTerminalStatus(maintenance.status) && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm">
+                <span className="text-gray-600 shrink-0">
+                  Ảnh minh chứng{" "}
+                  <span className="text-gray-400 font-normal">(tùy chọn)</span>
+                </span>
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={updating}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Chọn ảnh
+                  </Button>
+                  {imageFile ? (
+                    <span className="text-xs text-gray-700 truncate max-w-[220px]">
+                      {imageFile.name}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">
+                      Chưa chọn file
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={onBack}
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Quay lại
+              </Button>
+              {!isMaintenanceTerminalStatus(maintenance.status) && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={updating}
+                  onClick={handleMarkMaintained}
+                >
+                  {updating ? "Đang cập nhật…" : "Cập nhật"}
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -19,6 +19,8 @@ import IoTDevices from "./pages/IoTDevices/IoTDevices";
 import AccountStaff from "./pages/Accounts/AccountStaff";
 import DeviceMaintenance from "./pages/DeviceMaintenance/DeviceMaintenance";
 import MonthlyPasses from "./pages/MonthlyPasses/MonthlyPasses";
+import ParkingSessions from "./pages/ParkingSessions/ParkingSessions";
+import IncidentReports from "./pages/IncidentReports/IncidentReports";
 
 function App() {
   return (
@@ -41,9 +43,11 @@ function App() {
           <Route path="accounts" element={<Accounts />} />
           <Route path="accounts/staff" element={<AccountStaff />} />
           <Route path="parking-lots" element={<ParkingLots />} />
+          <Route path="parking-sessions" element={<ParkingSessions />} />
           <Route path="transactions" element={<Transactions />} />
           <Route path="shifts" element={<Shifts />} />
           <Route path="device-events" element={<DeviceEvents />} />
+          <Route path="incident-reports" element={<IncidentReports />} />
           <Route path="reward-points" element={<RewardPoints />} />
           <Route path="price-list" element={<PriceList />} />
           <Route path="monthly-passes" element={<MonthlyPasses />} />

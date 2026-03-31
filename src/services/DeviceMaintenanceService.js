@@ -30,20 +30,44 @@ const DeviceMaintenanceService = {
     return res.data;
   },
 
-  //update maintenance
+  /**
+   * PUT /api/v1/maintenance/{id}
+   * - Truyền FormData → multipart (upload ảnh); interceptor sẽ set boundary.
+   * - Truyền object thường → JSON.
+   */
   update: async (id, data) => {
-    const res = await apiClient.put(`${API_URL}/${id}`, data, {
-      headers: {
-        "Content-Type": "multipart/form-data"
-      }
-    });
-
+    const res = await apiClient.put(`${API_URL}/${id}`, data);
     return res.data;
   },
 
   delete: async (id) => {
     const res = await apiClient.delete(`${API_URL}/${id}`);
     return res.data;
+  },
+
+  /**
+   * PATCH /api/v1/maintenance/{id}/status — cập nhật trạng thái (vd. Completed = đã bảo trì).
+   * Fallback PUT /api/v1/maintenance/{id} nếu PATCH 404/405.
+   */
+  patchStatus: async (id, body) => {
+    const res = await apiClient.patch(`${API_URL}/${id}/status`, body);
+    return res.data;
+  },
+
+  /**
+   * Đánh dấu đã bảo trì — luôn dùng PUT multipart (khớp upload ảnh trên backend).
+   * @param {string} id
+   * @param {{ imageFile?: File | null }} [options]
+   */
+  markAsMaintained: async (id, options = {}) => {
+    const { imageFile } = options;
+    const fd = new FormData();
+    fd.append("status", "Completed");
+    fd.append("performedAt", new Date().toISOString());
+    if (imageFile instanceof File) {
+      fd.append("image", imageFile);
+    }
+    return DeviceMaintenanceService.update(id, fd);
   },
 
   /**
@@ -102,17 +126,22 @@ const DeviceMaintenanceService = {
     return res.data;
   },
 
-  // complete maintenance
+  // complete maintenance (FormData nếu có file ảnh)
   complete: async (id, nextMaintenanceDate, image) => {
-
+    if (image instanceof File || image instanceof Blob) {
+      const fd = new FormData();
+      fd.append("status", "Completed");
+      if (nextMaintenanceDate != null && nextMaintenanceDate !== "") {
+        fd.append("nextMaintenanceDate", String(nextMaintenanceDate));
+      }
+      fd.append("image", image);
+      return DeviceMaintenanceService.update(id, fd);
+    }
     const payload = {
       status: "Completed",
       nextMaintenanceDate,
-      image,
     };
-
     const res = await apiClient.put(`${API_URL}/${id}`, payload);
-
     return res.data;
   },
 };

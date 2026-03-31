@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   MapPin,
   ParkingCircle,
@@ -45,7 +46,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -160,33 +160,37 @@ function SectionTitle({ children, icon: Icon }) {
 
 /* Main component */
 function ParkingLotDetailModal({ lot, onClose }) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
   const [gates, setGates] = useState([]);
+  const [devicesByLot, setDevicesByLot] = useState([]);
   const [statistics, setStatistics] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [addDeviceGate, setAddDeviceGate] = useState(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [det, gts, stats] = await Promise.all([
+      const [det, gts, stats, devs] = await Promise.all([
         parkingLotService.getParkingLotDetail(lot.id),
         gateService.getByLot(lot.id).catch(() => []),
         parkingLotService.getParkingLotStatistics(lot.id).catch(() => null),
+        iotDeviceService.getByLot(lot.id).catch(() => []),
       ]);
       setDetail(det);
       setGates(Array.isArray(gts) ? gts : []);
       setStatistics(stats);
+      setDevicesByLot(Array.isArray(devs) ? devs : []);
     } catch {
       toast.error("Không thể tải thông tin chi tiết");
     } finally {
       setLoading(false);
     }
-  };
+  }, [lot?.id]);
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       setSessionsLoading(true);
       const data = await parkingSessionService
@@ -203,23 +207,36 @@ function ParkingLotDetailModal({ lot, onClose }) {
     } finally {
       setSessionsLoading(false);
     }
-  };
+  }, [lot?.id]);
 
   useEffect(() => {
     if (!lot?.id) return;
     loadData();
     loadSessions();
-  }, [lot?.id]);
+  }, [lot?.id, loadData, loadSessions]);
 
   /* flatten all devices */
   const allDevices = useMemo(() => {
-    const devs = detail?.devices || [];
+    const detailDevices = Array.isArray(detail?.devices) ? detail.devices : [];
+    const devs = detailDevices.length > 0 ? detailDevices : devicesByLot;
     return devs.map((dev) => ({
       ...dev,
+      gateId:
+        dev.gateId ?? dev.gate_id ?? dev.gate?.gateId ?? dev.gate?.id ?? null,
       gateName:
-        gates.find((g) => (g.gateId ?? g.id) === dev.gateId)?.gateName || "—",
+        gates.find(
+          (g) =>
+            String(g.gateId ?? g.id ?? "") ===
+            String(
+              dev.gateId ??
+                dev.gate_id ??
+                dev.gate?.gateId ??
+                dev.gate?.id ??
+                "",
+            ),
+        )?.gateName || "—",
     }));
-  }, [detail, gates]);
+  }, [detail, gates, devicesByLot]);
 
   /* Tạo thiết bị mới cho cổng */
   const handleSaveDevice = async (payload) => {
@@ -233,8 +250,12 @@ function ParkingLotDetailModal({ lot, onClose }) {
       toast.success("Đã thêm thiết bị thành công");
       setAddDeviceGate(null);
       // Reload để cập nhật danh sách thiết bị
-      const det = await parkingLotService.getParkingLotDetail(lot.id);
+      const [det, devs] = await Promise.all([
+        parkingLotService.getParkingLotDetail(lot.id),
+        iotDeviceService.getByLot(lot.id).catch(() => []),
+      ]);
       setDetail(det);
+      setDevicesByLot(Array.isArray(devs) ? devs : []);
     } catch (err) {
       const msg = err?.response?.data?.message || "Không thể thêm thiết bị";
       toast.error(msg);
@@ -618,7 +639,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                           }}
                           labelFormatter={(label) => `⏱ ${label}`}
                           formatter={(v, name) => [
-                            <span style={{ fontWeight: 700 }}>{v} xe</span>,
+                            `${v} xe`,
                             name === "vào" ? "Xe vào" : "Xe ra",
                           ]}
                           cursor={{
@@ -676,7 +697,9 @@ function ParkingLotDetailModal({ lot, onClose }) {
                       {gates.map((gate, idx) => {
                         const gId = gate.gateId ?? gate.id;
                         const devList = allDevices.filter(
-                          (dv) => dv.gateId === gId,
+                          (dv) =>
+                            String(dv.gateId ?? dv.gate_id ?? "") ===
+                            String(gId ?? ""),
                         );
                         const isActive = gate.isActive !== false;
                         const typeLabel =
@@ -895,7 +918,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                           <div
                             key={s.sessionId ?? s.id ?? i}
                             className={cn(
-                              "flex items-center gap-2.5 px-3 py-2 rounded-xl border",
+                              "flex items-start gap-2.5 px-3 py-2 rounded-xl border",
                               isEntry
                                 ? "bg-green-50 border-green-100"
                                 : "bg-orange-50 border-orange-100",
@@ -914,7 +937,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-mono text-xs font-bold text-gray-800 leading-tight truncate">
+                              <p className="font-mono text-xs font-bold text-gray-800 leading-snug break-words whitespace-normal">
                                 {plate}
                               </p>
                               <p
@@ -941,12 +964,23 @@ function ParkingLotDetailModal({ lot, onClose }) {
                           </div>
                         );
                       })}
-                      {sessions.length === 10 && (
-                        <p className="text-center text-[10px] text-gray-300 pt-1 pb-0.5">
-                          Hiển thị 10 phiên gần nhất
-                        </p>
-                      )}
                     </div>
+                  )}
+                  {!sessionsLoading && lot?.id && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-2 shrink-0 text-xs"
+                      onClick={() => {
+                        onClose();
+                        navigate(
+                          `/parking-sessions?lotId=${encodeURIComponent(lot.id)}`,
+                        );
+                      }}
+                    >
+                      Xem thêm
+                    </Button>
                   )}
                 </div>
               </div>

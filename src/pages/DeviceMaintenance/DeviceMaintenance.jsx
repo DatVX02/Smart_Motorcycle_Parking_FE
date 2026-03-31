@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
 import iotDeviceService from "../../services/iotDeviceService";
@@ -7,12 +7,12 @@ import DeviceMaintenanceSchedulesModal from "../../components/DeviceMaintenance/
 import dayjs from "dayjs";
 import { ConfigProvider, Pagination } from "antd";
 import viVN from "antd/es/locale/vi_VN";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import UpdateNextMaintenanceModal from "../../components/DeviceMaintenance/UpdateNextMaintenanceModal";
 import {
   LayoutGrid,
   CalendarCheck,
-  Wrench,
   CheckCircle,
   AlertTriangle,
   XCircle,
@@ -59,7 +59,8 @@ function isNextMaintenancePastDue(item) {
  */
 function getEffectiveMaintenanceStatus(item) {
   const key = toUiStatusKey(item?.status);
-  if (key === "Completed" || key === "Cancelled" || key === "Pending") {
+  if (key === "Pending") return "Scheduled";
+  if (key === "Completed" || key === "Cancelled") {
     return key;
   }
   if (key === "Overdue") return "Overdue";
@@ -75,10 +76,8 @@ function aggregateGroupStatus(schedules) {
   if (effects.some((e) => e === "InProgress")) return "InProgress";
   if (effects.some((e) => e === "Scheduled")) return "Scheduled";
   if (effects.every((e) => e === "Completed")) return "Completed";
-  if (effects.every((e) => e === "Cancelled" || e === "Pending"))
-    return "Cancelled";
-  if (effects.some((e) => e === "Cancelled" || e === "Pending"))
-    return "Scheduled";
+  if (effects.every((e) => e === "Cancelled")) return "Cancelled";
+  if (effects.some((e) => e === "Cancelled")) return "Scheduled";
   return effects[0];
 }
 
@@ -112,6 +111,7 @@ function StatCard({
 }
 
 const DeviceMaintenance = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMaintenanceId, setSelectedMaintenanceId] = useState(null);
@@ -122,14 +122,12 @@ const DeviceMaintenance = () => {
   const [searchId, setSearchId] = useState("");
   const [filterLot, setFilterLot] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [autoOpenedFromQuery, setAutoOpenedFromQuery] = useState(false);
 
   const [lots, setLots] = useState([]);
   const PAGE_SIZE = 9;
 
   const total = devices.length;
-  const inProgress = devices.filter(
-    (d) => getEffectiveMaintenanceStatus(d) === "InProgress",
-  ).length;
   const completed = devices.filter(
     (d) => toUiStatusKey(d.status) === "Completed",
   ).length;
@@ -138,7 +136,7 @@ const DeviceMaintenance = () => {
   ).length;
   const cancelled = devices.filter((d) => {
     const s = (d.status || "").toString().trim();
-    return s === "Cancelled" || s === "Pending";
+    return s === "Cancelled";
   }).length;
   const scheduled = devices.filter(
     (d) => getEffectiveMaintenanceStatus(d) === "Scheduled",
@@ -153,7 +151,7 @@ const DeviceMaintenance = () => {
       InProgress: "bg-yellow-100 text-black",
       Completed: "bg-green-100 text-black",
       Cancelled: "bg-slate-100 text-slate-700",
-      Pending: "bg-slate-100 text-slate-700",
+      Pending: "bg-blue-100 text-blue-700",
       Overdue: "bg-red-100 text-red-600",
     };
     if (map[key]) return map[key];
@@ -169,7 +167,7 @@ const DeviceMaintenance = () => {
       InProgress: "Đang bảo trì",
       Completed: "Đã bảo trì",
       Cancelled: "Đã hủy",
-      Pending: "Đã hủy",
+      Pending: "Đã lên lịch",
       Overdue: "Quá hạn",
     };
     return map[key] || normalizeMaintenanceStatus(status) || "—";
@@ -255,8 +253,7 @@ const DeviceMaintenance = () => {
     const effective = getEffectiveMaintenanceStatus(d);
     const statusOk =
       filterStatus === "All" ||
-      (filterStatus === "Cancelled" &&
-        (itemStatus === "Cancelled" || itemStatus === "Pending")) ||
+      (filterStatus === "Cancelled" && itemStatus === "Cancelled") ||
       (filterStatus !== "All" &&
         filterStatus !== "Cancelled" &&
         effective === filterStatus);
@@ -300,6 +297,35 @@ const DeviceMaintenance = () => {
     currentPage * PAGE_SIZE,
   );
 
+  useEffect(() => {
+    if (autoOpenedFromQuery || loading || deviceGroups.length === 0) return;
+
+    const shouldOpen = searchParams.get("openSchedules") === "1";
+    const targetDeviceId = searchParams.get("deviceId");
+    if (!shouldOpen || !targetDeviceId) return;
+
+    const targetGroup = deviceGroups.find((group) => {
+      const groupDeviceId = group.deviceId ?? group.device_id;
+      return String(groupDeviceId ?? "") === String(targetDeviceId);
+    });
+
+    if (!targetGroup) return;
+
+    setDeviceGroupModal(targetGroup);
+    setAutoOpenedFromQuery(true);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("openSchedules");
+    nextParams.delete("deviceId");
+    setSearchParams(nextParams, { replace: true });
+  }, [
+    autoOpenedFromQuery,
+    loading,
+    deviceGroups,
+    searchParams,
+    setSearchParams,
+  ]);
+
   if (loading)
     return (
       <div className="flex justify-center items-center h-60">
@@ -333,7 +359,7 @@ const DeviceMaintenance = () => {
         )}
 
         {/* Statistics - giống Quản lý thiết bị */}
-        <div className="flex overflow-x-auto gap-3 pb-2 -mx-1 px-1 sm:grid sm:grid-cols-6 sm:overflow-visible sm:mx-0 sm:px-0">
+        <div className="flex overflow-x-auto gap-3 pb-2 -mx-1 px-1 sm:grid sm:grid-cols-5 sm:overflow-visible sm:mx-0 sm:px-0">
           <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
             <StatCard
               icon={LayoutGrid}
@@ -351,16 +377,6 @@ const DeviceMaintenance = () => {
               value={scheduled}
               valueSuffix="Lịch"
               bgTint="bg-blue-500/30"
-            />
-          </div>
-          <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
-            <StatCard
-              icon={Wrench}
-              iconColor="text-orange-600"
-              label="Đang bảo trì"
-              value={inProgress}
-              valueSuffix="Lịch"
-              bgTint="bg-orange-500/30"
             />
           </div>
           <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
@@ -533,6 +549,7 @@ const DeviceMaintenance = () => {
         <DeviceMaintenanceSchedulesModal
           group={deviceGroupModal}
           onClose={() => setDeviceGroupModal(null)}
+          onCreated={fetchDevices}
           getEffectiveStatus={getEffectiveMaintenanceStatus}
           getStatusColor={getStatusColor}
           getStatusLabel={getStatusLabel}
