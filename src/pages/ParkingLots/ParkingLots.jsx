@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ParkingCircle,
   MapPin,
@@ -31,6 +31,35 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+// Transform response từ GET /api/v1/parking-lots sang format UI
+const parseCount = (val) => {
+  if (Array.isArray(val)) return val.length;
+  const n = parseInt(val, 10);
+  return isNaN(n) ? 0 : n;
+};
+
+const transformParkingLot = (lot) => ({
+  id: lot.lotId ?? lot.id,
+  name: lot.lotName ?? lot.name ?? "",
+  location: lot.fullAddress ?? lot.address ?? lot.location ?? "",
+  totalSpots:
+    parseInt(lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0, 10) || 0,
+  occupiedSpots:
+    parseInt(lot.currentOccupancy ?? lot.occupiedSpots ?? 0, 10) || 0,
+  gates: parseCount(
+    lot.totalGates ?? lot.gateCount ?? lot.numberOfGates ?? lot.gates,
+  ),
+  cameras: parseCount(
+    lot.totalDevices ??
+      lot.deviceCount ??
+      lot.totalCameras ??
+      lot.cameraCount ??
+      lot.cameras ??
+      lot.devices,
+  ),
+  status: String(lot.status ?? "active").toLowerCase(),
+});
+
 function ParkingLots() {
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -43,45 +72,9 @@ function ParkingLots() {
   const [sortBy, setSortBy] = useState("default");
   const [togglingLotId, setTogglingLotId] = useState(null);
 
-  const { spotsMap, occupancyMap, hubStatus, adminJoined, connectionId } =
-    useAdminHub();
+  const { spotsMap, occupancyMap } = useAdminHub();
 
-  // Fetch parking lots on component mount
-  useEffect(() => {
-    fetchParkingLots();
-  }, [refreshKey]);
-
-  // Transform response từ GET /api/v1/parking-lots sang format UI
-  const parseCount = (val) => {
-    if (Array.isArray(val)) return val.length;
-    const n = parseInt(val, 10);
-    return isNaN(n) ? 0 : n;
-  };
-
-  const transformParkingLot = (lot) => ({
-    id: lot.lotId ?? lot.id,
-    name: lot.lotName ?? lot.name ?? "",
-    location: lot.fullAddress ?? lot.address ?? lot.location ?? "",
-    totalSpots:
-      parseInt(lot.totalCapacity ?? lot.totalSpots ?? lot.capacity ?? 0, 10) ||
-      0,
-    occupiedSpots:
-      parseInt(lot.currentOccupancy ?? lot.occupiedSpots ?? 0, 10) || 0,
-    gates: parseCount(
-      lot.totalGates ?? lot.gateCount ?? lot.numberOfGates ?? lot.gates,
-    ),
-    cameras: parseCount(
-      lot.totalDevices ??
-        lot.deviceCount ??
-        lot.totalCameras ??
-        lot.cameraCount ??
-        lot.cameras ??
-        lot.devices,
-    ),
-    status: String(lot.status ?? "active").toLowerCase(),
-  });
-
-  const fetchParkingLots = async (showToast = false) => {
+  const fetchParkingLots = useCallback(async (showToast = false) => {
     try {
       setLoading(true);
       const data = await parkingLotService.getAllParkingLots();
@@ -151,7 +144,12 @@ function ParkingLots() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Fetch parking lots on component mount / refresh
+  useEffect(() => {
+    fetchParkingLots();
+  }, [fetchParkingLots, refreshKey]);
 
   const handleEdit = (lot) => {
     setSelectedLot(lot);
@@ -204,14 +202,18 @@ function ParkingLots() {
         return;
       }
 
-      const lotDevices = await iotDeviceService.getByLot(lot.id).catch(() => []);
+      const lotDevices = await iotDeviceService
+        .getByLot(lot.id)
+        .catch(() => []);
       const deviceIds = lotDevices
         .map((d) => d.deviceId ?? d.id)
         .filter(Boolean);
       let maintenanceDeleted = 0;
       if (deviceIds.length > 0) {
         const maintResult =
-          await DeviceMaintenanceService.deleteAllSchedulesForDevices(deviceIds);
+          await DeviceMaintenanceService.deleteAllSchedulesForDevices(
+            deviceIds,
+          );
         if (maintResult.total === -1) {
           toast.error(
             "Không tải được danh sách bảo trì — dừng xóa bãi. Thử lại sau.",
@@ -501,7 +503,7 @@ function ParkingLots() {
           </div>
           <Button
             onClick={handleAddNew}
-            className="gap-2 shrink-0 bg-primary-600 hover:bg-primary-700 text-white"
+            className="gap-2 rounded-2xl shrink-0 bg-primary-600 hover:bg-primary-700 text-white"
           >
             <Plus className="w-4 h-4" /> Thêm bãi đỗ
           </Button>
@@ -531,7 +533,7 @@ function ParkingLots() {
           <CardContent className="flex flex-col items-center py-12 text-center">
             <Search className="w-10 h-10 text-gray-300 mb-3" />
             <p className="text-gray-500 text-sm">
-              Không tìm thấy bãi xe nào khớp với "{searchQuery}"
+              Không tìm thấy bãi xe nào khớp với &quot;{searchQuery}&quot;
             </p>
           </CardContent>
         </Card>

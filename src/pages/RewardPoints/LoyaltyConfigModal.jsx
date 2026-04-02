@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { X, Loader2, Calendar } from "lucide-react";
 import { format, parseISO, isValid, isBefore, isEqual } from "date-fns";
@@ -21,7 +21,9 @@ const formatForDisplay = (val) => {
 const parseFromDisplay = (str) => {
   if (!str || !str.trim()) return "";
   const s = str.trim();
-  const match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\s+(\d{1,2}):(\d{2})$/);
+  const match = s.match(
+    /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})\s+(\d{1,2}):(\d{2})$/,
+  );
   if (!match) return "";
   const [, dd, mm, yyyy, hh, min] = match;
   const d = new Date(+yyyy, +mm - 1, +dd, +hh, +min);
@@ -140,18 +142,35 @@ function LoyaltyConfigModal({
   const isEdit = Boolean(config);
 
   /* Bãi xe đã có cấu hình (khi edit: loại trừ cấu hình đang sửa) */
-  const configsExcludingCurrent = existingConfigs.filter(
-    (c) => (c.id ?? c.configId) !== (config?.id ?? config?.configId),
+  const configsExcludingCurrent = useMemo(
+    () =>
+      existingConfigs.filter(
+        (c) => (c.id ?? c.configId) !== (config?.id ?? config?.configId),
+      ),
+    [existingConfigs, config],
   );
-  const lotIdsWithConfig = new Set(
-    configsExcludingCurrent.map((c) => String(c.lotId ?? c.parkingLotId ?? "")),
+  const lotIdsWithConfig = useMemo(
+    () =>
+      new Set(
+        configsExcludingCurrent.map((c) =>
+          String(c.lotId ?? c.parkingLotId ?? ""),
+        ),
+      ),
+    [configsExcludingCurrent],
   );
-  const lotsWithoutConfig = (lots ?? []).filter((lot) => {
-    const id = String(lot.lotId ?? lot.id ?? "");
-    return !lotIdsWithConfig.has(id);
-  });
+  const lotsWithoutConfig = useMemo(
+    () =>
+      (lots ?? []).filter((lot) => {
+        const id = String(lot.lotId ?? lot.id ?? "");
+        return !lotIdsWithConfig.has(id);
+      }),
+    [lots, lotIdsWithConfig],
+  );
   const currentLotId = String(config?.lotId ?? config?.parkingLotId ?? "");
-  const availableLots = isEdit ? (lots ?? []) : lotsWithoutConfig;
+  const availableLots = useMemo(
+    () => (isEdit ? (lots ?? []) : lotsWithoutConfig),
+    [isEdit, lots, lotsWithoutConfig],
+  );
 
   const initNum = (val) =>
     val != null && val !== "" ? formatNumberInput(Number(val)) : "";
@@ -174,7 +193,7 @@ function LoyaltyConfigModal({
       const firstId = availableLots[0].lotId ?? availableLots[0].id ?? "";
       setFormData((prev) => ({ ...prev, lotId: firstId }));
     }
-  }, [availableLots]);
+  }, [availableLots, formData.lotId]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -348,7 +367,7 @@ function LoyaltyConfigModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tỷ lệ tích điểm (Điểm / 1.000đ){" "}
+                Tỷ lệ tích điểm (Điểm / 1.000VNĐ){" "}
                 <span className="text-red-500">*</span>
               </label>
               <input

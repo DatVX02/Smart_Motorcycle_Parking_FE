@@ -23,6 +23,7 @@ import {
   LogOut,
   Loader2,
   PowerOff,
+  CalendarDays,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -49,6 +50,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const RANGE_PRESET_OPTIONS = [
+  { value: "today", label: "Hôm nay" },
+  { value: "yesterday", label: "Hôm qua" },
+  { value: "last7", label: "7 ngày qua" },
+  { value: "last30", label: "30 ngày qua" },
+  { value: "custom", label: "Chọn khoảng ngày" },
+];
 
 /* formatters */
 const fmtVND = (v) =>
@@ -130,19 +139,24 @@ const getConn = (r) =>
     Icon: Cpu,
   };
 
-/* simulated hourly traffic */
-function makeHourlyData(seed) {
-  const peak = [7, 8, 12, 17, 18, 19];
-  return Array.from({ length: 24 }, (_, h) => {
-    const base = peak.includes(h)
-      ? 60 + ((seed * (h + 1)) % 30)
-      : 10 + ((seed * (h + 3)) % 20);
-    return {
-      hour: `${String(h).padStart(2, "0")}:00`,
-      vào: Math.round(base),
-      ra: Math.round(base * 0.85),
-    };
-  });
+function adjustApiDate(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (isNaN(d)) return null;
+  // Đồng bộ với cách hiển thị timestamp ở phần nhật ký (trừ 7h).
+  return new Date(d.getTime() - 7 * 60 * 60 * 1000);
+}
+
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
 }
 
 /* small shared components */
@@ -168,6 +182,11 @@ function ParkingLotDetailModal({ lot, onClose }) {
   const [statistics, setStatistics] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [trafficSessions, setTrafficSessions] = useState([]);
+  const [trafficLoading, setTrafficLoading] = useState(true);
+  const [trafficPreset, setTrafficPreset] = useState("today");
+  const [customFromDate, setCustomFromDate] = useState("");
+  const [customToDate, setCustomToDate] = useState("");
   const [addDeviceGate, setAddDeviceGate] = useState(null);
 
   const loadData = useCallback(async () => {
@@ -209,11 +228,31 @@ function ParkingLotDetailModal({ lot, onClose }) {
     }
   }, [lot?.id]);
 
+  const loadTrafficSessions = useCallback(async () => {
+    try {
+      setTrafficLoading(true);
+      const data = await parkingSessionService
+        .getAll({
+          lotId: lot.id,
+          pageNumber: 1,
+          pageSize: 9999,
+        })
+        .catch(() => []);
+      setTrafficSessions(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("[TrafficSessions] catch:", err);
+      setTrafficSessions([]);
+    } finally {
+      setTrafficLoading(false);
+    }
+  }, [lot?.id]);
+
   useEffect(() => {
     if (!lot?.id) return;
     loadData();
     loadSessions();
-  }, [lot?.id, loadData, loadSessions]);
+    loadTrafficSessions();
+  }, [lot?.id, loadData, loadSessions, loadTrafficSessions]);
 
   /* flatten all devices */
   const allDevices = useMemo(() => {
@@ -271,12 +310,143 @@ function ParkingLotDetailModal({ lot, onClose }) {
   const aiConfig = d.cameraSetup?.aiConfig || d.aiConfig;
   const rawStatus = d.status ?? lot.status;
 
-  // seed cho chart từ lot.id string
-  const seed = useMemo(() => {
-    const s = String(lot.id ?? "");
-    return s.split("").reduce((acc, c) => acc + c.charCodeAt(0), 1);
-  }, [lot.id]);
-  const hourlyData = useMemo(() => makeHourlyData(seed), [seed]);
+  const trafficRange = useMemo(() => {
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const todayEnd = endOfDay(now);
+
+    if (trafficPreset === "today") {
+      return { start: todayStart, end: todayEnd, valid: true };
+    }
+
+    if (trafficPreset === "yesterday") {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      return { start: startOfDay(y), end: endOfDay(y), valid: true };
+    }
+
+    if (trafficPreset === "last7") {
+      const start = new Date(todayStart);
+      start.setDate(start.getDate() - 6);
+      return { start, end: todayEnd, valid: true };
+    }
+
+    if (trafficPreset === "last30") {
+      const start = new Date(todayStart);
+      start.setDate(start.getDate() - 29);
+      return { start, end: todayEnd, valid: true };
+    }
+
+    if (!customFromDate || !customToDate) {
+      return { start: null, end: null, valid: false };
+    }
+
+    const from = startOfDay(new Date(customFromDate));
+    const to = endOfDay(new Date(customToDate));
+    if (isNaN(from) || isNaN(to) || from > to) {
+      return { start: null, end: null, valid: false };
+    }
+    return { start: from, end: to, valid: true };
+  }, [trafficPreset, customFromDate, customToDate]);
+
+  const { trafficChartData, trafficXAxisInterval } = useMemo(() => {
+    if (!trafficRange.valid) {
+      return { trafficChartData: [], trafficXAxisInterval: 0 };
+    }
+
+    const start = trafficRange.start;
+    const end = trafficRange.end;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const days =
+      Math.floor(
+        (endOfDay(end).getTime() - startOfDay(start).getTime()) / dayMs,
+      ) + 1;
+
+    if (days <= 2) {
+      const startHour = new Date(start);
+      startHour.setMinutes(0, 0, 0);
+      const endHour = new Date(end);
+      endHour.setMinutes(0, 0, 0);
+
+      const bucket = new Map();
+      const c = new Date(startHour);
+      while (c <= endHour) {
+        const k = c.toISOString();
+        bucket.set(k, {
+          label: c.toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
+          vào: 0,
+          ra: 0,
+        });
+        c.setHours(c.getHours() + 1);
+      }
+
+      for (const s of trafficSessions) {
+        const inAt = adjustApiDate(s.entryTime ?? s.checkInTime ?? s.createdAt);
+        if (inAt && inAt >= start && inAt <= end) {
+          const h = new Date(inAt);
+          h.setMinutes(0, 0, 0);
+          const key = h.toISOString();
+          if (bucket.has(key)) bucket.get(key).vào += 1;
+        }
+
+        const outAt = adjustApiDate(
+          s.exitTime ?? s.checkOutTime ?? s.completedAt,
+        );
+        if (outAt && outAt >= start && outAt <= end) {
+          const h = new Date(outAt);
+          h.setMinutes(0, 0, 0);
+          const key = h.toISOString();
+          if (bucket.has(key)) bucket.get(key).ra += 1;
+        }
+      }
+
+      return {
+        trafficChartData: Array.from(bucket.values()),
+        trafficXAxisInterval: 3,
+      };
+    }
+
+    const bucket = new Map();
+    const c = startOfDay(start);
+    const endDay = startOfDay(end);
+    while (c <= endDay) {
+      const key = c.toISOString().slice(0, 10);
+      bucket.set(key, {
+        label: c.toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: "2-digit",
+        }),
+        vào: 0,
+        ra: 0,
+      });
+      c.setDate(c.getDate() + 1);
+    }
+
+    for (const s of trafficSessions) {
+      const inAt = adjustApiDate(s.entryTime ?? s.checkInTime ?? s.createdAt);
+      if (inAt && inAt >= start && inAt <= end) {
+        const key = startOfDay(inAt).toISOString().slice(0, 10);
+        if (bucket.has(key)) bucket.get(key).vào += 1;
+      }
+
+      const outAt = adjustApiDate(
+        s.exitTime ?? s.checkOutTime ?? s.completedAt,
+      );
+      if (outAt && outAt >= start && outAt <= end) {
+        const key = startOfDay(outAt).toISOString().slice(0, 10);
+        if (bucket.has(key)) bucket.get(key).ra += 1;
+      }
+    }
+
+    return {
+      trafficChartData: Array.from(bucket.values()),
+      trafficXAxisInterval: days > 14 ? 2 : 0,
+    };
+  }, [trafficRange, trafficSessions]);
 
   const isCritical = occupancy >= 90;
   const barColor = isCritical
@@ -566,113 +736,165 @@ function ParkingLotDetailModal({ lot, onClose }) {
                 {/* Traffic chart */}
                 <div>
                   <SectionTitle icon={BarChart3}>
-                    Lưu lượng xe theo giờ (mô phỏng)
+                    Lưu lượng xe theo phiên đỗ xe
                   </SectionTitle>
                   <div className="bg-white border border-gray-100 rounded-2xl p-4">
-                    <ResponsiveContainer width="100%" height={180}>
-                      <AreaChart
-                        data={hourlyData}
-                        margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
-                      >
-                        <defs>
-                          <linearGradient
-                            id="colorVao"
-                            x1="0"
-                            y1="0"
-                            x2="0"
-                            y2="1"
-                          >
-                            <stop
-                              offset="5%"
-                              stopColor="#3b82f6"
-                              stopOpacity={0.2}
-                            />
-                            <stop
-                              offset="95%"
-                              stopColor="#3b82f6"
-                              stopOpacity={0}
-                            />
-                          </linearGradient>
-                          <linearGradient
-                            id="colorRa"
-                            x1="0"
-                            y1="0"
-                            x2="0"
-                            y2="1"
-                          >
-                            <stop
-                              offset="5%"
-                              stopColor="#22c55e"
-                              stopOpacity={0.2}
-                            />
-                            <stop
-                              offset="95%"
-                              stopColor="#22c55e"
-                              stopOpacity={0}
-                            />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis
-                          dataKey="hour"
-                          tick={{ fontSize: 9, fill: "#94a3b8" }}
-                          tickLine={false}
-                          interval={3}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 9, fill: "#94a3b8" }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <ReTooltip
-                          contentStyle={{
-                            fontSize: 11,
-                            borderRadius: 10,
-                            border: "1px solid #e2e8f0",
-                            padding: "6px 12px",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                          }}
-                          labelStyle={{
-                            color: "#64748b",
-                            fontWeight: 600,
-                            marginBottom: 4,
-                          }}
-                          labelFormatter={(label) => `⏱ ${label}`}
-                          formatter={(v, name) => [
-                            `${v} xe`,
-                            name === "vào" ? "Xe vào" : "Xe ra",
-                          ]}
-                          cursor={{
-                            stroke: "#cbd5e1",
-                            strokeWidth: 1,
-                            strokeDasharray: "4 2",
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="vào"
-                          stroke="#3b82f6"
-                          strokeWidth={2}
-                          fill="url(#colorVao)"
-                          dot={false}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="ra"
-                          stroke="#22c55e"
-                          strokeWidth={2}
-                          fill="url(#colorRa)"
-                          dot={false}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    <div className="mb-3 flex flex-col md:flex-row md:items-center md:justify-end gap-2">
+                      <div className="relative w-full md:w-[220px]">
+                        <CalendarDays className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <select
+                          value={trafficPreset}
+                          onChange={(e) => setTrafficPreset(e.target.value)}
+                          className="input text-xs w-full pl-8"
+                        >
+                          {RANGE_PRESET_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {trafficPreset === "custom" && (
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                          <input
+                            type="date"
+                            value={customFromDate}
+                            onChange={(e) => setCustomFromDate(e.target.value)}
+                            className="input text-xs w-full md:w-[140px]"
+                          />
+                          <span className="text-xs text-gray-400">đến</span>
+                          <input
+                            type="date"
+                            value={customToDate}
+                            onChange={(e) => setCustomToDate(e.target.value)}
+                            className="input text-xs w-full md:w-[140px]"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {trafficLoading ? (
+                      <div className="h-[180px] flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-gray-300 animate-spin" />
+                      </div>
+                    ) : !trafficRange.valid ? (
+                      <div className="h-[180px] flex items-center justify-center text-sm text-gray-400 text-center px-4">
+                        Vui lòng chọn khoảng ngày hợp lệ để xem biểu đồ.
+                      </div>
+                    ) : trafficChartData.length === 0 ? (
+                      <div className="h-[180px] flex items-center justify-center text-sm text-gray-400 text-center px-4">
+                        Chưa có dữ liệu phiên đỗ xe trong khoảng thời gian đã
+                        chọn.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={180}>
+                        <AreaChart
+                          data={trafficChartData}
+                          margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+                        >
+                          <defs>
+                            <linearGradient
+                              id="colorVao"
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="1"
+                            >
+                              <stop
+                                offset="5%"
+                                stopColor="#22c55e"
+                                stopOpacity={0.2}
+                              />
+                              <stop
+                                offset="95%"
+                                stopColor="#22c55e"
+                                stopOpacity={0}
+                              />
+                            </linearGradient>
+                            <linearGradient
+                              id="colorRa"
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="1"
+                            >
+                              <stop
+                                offset="5%"
+                                stopColor="#3b82f6"
+                                stopOpacity={0.2}
+                              />
+                              <stop
+                                offset="95%"
+                                stopColor="#3b82f6"
+                                stopOpacity={0}
+                              />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="#f1f5f9"
+                          />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 9, fill: "#94a3b8" }}
+                            tickLine={false}
+                            interval={trafficXAxisInterval}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 9, fill: "#94a3b8" }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <ReTooltip
+                            contentStyle={{
+                              fontSize: 11,
+                              borderRadius: 10,
+                              border: "1px solid #e2e8f0",
+                              padding: "6px 12px",
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                            }}
+                            labelStyle={{
+                              color: "#64748b",
+                              fontWeight: 600,
+                              marginBottom: 4,
+                            }}
+                            labelFormatter={(label) => `⏱ ${label}`}
+                            formatter={(v, name) => [
+                              `${v} xe`,
+                              name === "vào" ? "Xe vào" : "Xe ra",
+                            ]}
+                            cursor={{
+                              stroke: "#cbd5e1",
+                              strokeWidth: 1,
+                              strokeDasharray: "4 2",
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="vào"
+                            stroke="#22c55e"
+                            strokeWidth={2}
+                            fill="url(#colorVao)"
+                            dot={false}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="ra"
+                            stroke="#3b82f6"
+                            strokeWidth={2}
+                            fill="url(#colorRa)"
+                            dot={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
                     <div className="flex items-center gap-4 mt-2 justify-center">
                       <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                        <span className="w-3 h-0.5 bg-blue-500 inline-block rounded" />{" "}
+                        <span className="w-3 h-0.5 bg-green-500 inline-block rounded" />{" "}
                         Xe vào
                       </span>
                       <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                        <span className="w-3 h-0.5 bg-green-500 inline-block rounded" />{" "}
+                        <span className="w-3 h-0.5 bg-blue-500 inline-block rounded" />{" "}
                         Xe ra
                       </span>
                     </div>

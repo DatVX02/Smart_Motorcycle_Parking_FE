@@ -88,37 +88,6 @@ const PAYMENT_STATUS_MAP = {
   },
 };
 
-const TX_TYPE_LABELS = {
-  // Đỗ xe
-  parking: "Đỗ xe",
-  Parking: "Đỗ xe",
-  PARKING: "Đỗ xe",
-  // Vé tháng
-  monthly_pass: "Vé tháng",
-  MonthlyPass: "Vé tháng",
-  MONTHLY_PASS: "Vé tháng",
-  // Nạp tiền
-  deposit: "Nạp tiền",
-  Deposit: "Nạp tiền",
-  DEPOSIT: "Nạp tiền",
-  // Hoàn tiền
-  refund: "Hoàn tiền",
-  Refund: "Hoàn tiền",
-  REFUND: "Hoàn tiền",
-  // Rút tiền
-  withdrawal: "Rút tiền",
-  Withdrawal: "Rút tiền",
-  WITHDRAWAL: "Rút tiền",
-  // Thanh toán
-  payment: "Thanh toán",
-  Payment: "Thanh toán",
-  PAYMENT: "Thanh toán",
-  // Thưởng điểm
-  reward: "Thưởng điểm",
-  Reward: "Thưởng điểm",
-  REWARD: "Thưởng điểm",
-};
-
 /* Helpers */
 function formatCurrency(amount) {
   if (amount == null || amount === "") return "-";
@@ -136,6 +105,34 @@ function formatDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatTargetTypeLabel(type, empty = "—") {
+  if (!type) return empty;
+  const normalized = String(type).trim().toLowerCase();
+  if (normalized === "parking-session") return "Phiên gửi xe";
+  if (normalized === "monthly-pass") return "Vé tháng";
+  return String(type);
+}
+
+function formatCompositionLabel(value, empty = "—") {
+  if (!value) return empty;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "single") return "Thanh toán đơn";
+  if (normalized === "mixed") return "Thanh toán mixed";
+  return String(value);
+}
+
+function normalizeTargetTypeParam(type) {
+  if (!type) return "";
+  const normalized = String(type).trim().toLowerCase();
+  if (["parking", "parking_session", "parkingsession"].includes(normalized)) {
+    return "parking-session";
+  }
+  if (["monthly", "monthly_pass", "monthlypass"].includes(normalized)) {
+    return "monthly-pass";
+  }
+  return normalized;
 }
 
 /** Hiển thị phương thức thanh toán (API có thể trả mã tiếng Anh). */
@@ -156,7 +153,13 @@ function toApiDateParam(dateStr, endOfDay = false) {
 
 function getStatusInfo(tx) {
   const raw =
-    tx.paymentStatus ?? tx.status ?? tx.PaymentStatus ?? tx.Status ?? null;
+    tx.paymentStatus ??
+    tx.status ??
+    tx.paymentState ??
+    tx.state ??
+    tx.PaymentStatus ??
+    tx.Status ??
+    null;
   if (!raw) return null;
   return {
     raw,
@@ -174,6 +177,82 @@ function normalizeStatus(value) {
     .replace(/[\s_-]+/g, "");
 }
 
+function pickFirst(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return undefined;
+}
+
+function getTargetTypeValue(item) {
+  if (!item || typeof item !== "object") return undefined;
+  return normalizeTargetTypeParam(
+    pickFirst(item.targetType, item.referenceType, item.entityType),
+  );
+}
+
+function getTargetIdValue(item) {
+  if (!item || typeof item !== "object") return undefined;
+  return pickFirst(
+    item.targetId,
+    item.referenceId,
+    item.entityId,
+    item.parkingSessionId,
+    item.monthlyPassId,
+    item.passId,
+    item.orderId,
+  );
+}
+
+function extractItems(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.content)) return payload.content;
+  return [];
+}
+
+function formatPaymentMethods(value, fallbackItem) {
+  if (Array.isArray(value) && value.length) {
+    return value.map((item) => formatPaymentMethodLabel(item)).join(" + ");
+  }
+
+  if (
+    Array.isArray(fallbackItem?.components) &&
+    fallbackItem.components.length
+  ) {
+    const methods = [
+      ...new Set(fallbackItem.components.map((c) => c?.method).filter(Boolean)),
+    ];
+    if (methods.length) {
+      return methods.map((item) => formatPaymentMethodLabel(item)).join(" + ");
+    }
+  }
+
+  return formatPaymentMethodLabel(
+    fallbackItem?.paymentMethod ??
+      fallbackItem?.method ??
+      fallbackItem?.channel,
+  );
+}
+
+function getCashAmount(item) {
+  return Number(
+    pickFirst(
+      item?.cashAmount,
+      item?.amount,
+      item?.totalAmount,
+      item?.paidAmount,
+      0,
+    ),
+  );
+}
+
+function getPointsUsed(item) {
+  return Number(pickFirst(item?.pointsUsed, item?.points, 0));
+}
+
 function StatusBadge({ tx }) {
   const info = getStatusInfo(tx);
   if (!info) return <span className="text-gray-400 text-xs">—</span>;
@@ -187,31 +266,63 @@ function StatusBadge({ tx }) {
 }
 
 /* Detail Modal */
-function DetailModal({ id, onClose }) {
+function DetailModal({ targetType, targetId, onClose }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    transactionService
-      .getById(id)
-      .then((data) => {
-        setDetail(data);
-      })
-      .catch(() => toast.error("Không thể tải chi tiết giao dịch"))
-      .finally(() => setLoading(false));
-  }, [id]);
+    if (!targetType || !targetId) return;
+    let cancelled = false;
+
+    const loadDetail = async () => {
+      setLoading(true);
+      try {
+        const data = await transactionService.getPaymentBreakdownsByTarget(
+          targetType,
+          targetId,
+        );
+        const firstItem = extractItems(data)[0];
+        const picked =
+          firstItem ?? (data && typeof data === "object" ? data : null);
+
+        if (!cancelled) setDetail(picked);
+      } catch {
+        if (!cancelled) {
+          setDetail(null);
+          toast.error("Không thể tải chi tiết breakdown");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [targetType, targetId]);
 
   const rows = detail
     ? [
         [
-          "Biển số xe",
-          detail.licensePlate ??
-            detail.vehicleLicensePlate ??
-            detail.plate ??
-            "-",
+          "Đối tượng thanh toán",
+          detail.targetLabel ?? detail.licensePlate ?? detail.plate ?? "-",
         ],
+        ["Target ID", detail.targetId ?? targetId ?? "-"],
+        [
+          "Target type",
+          formatTargetTypeLabel(detail.targetType ?? targetType, "-"),
+        ],
+        [
+          "Kiểu thanh toán",
+          formatCompositionLabel(detail.paymentComposition, "-"),
+        ],
+        ["Phương thức", formatPaymentMethods(detail.paymentMethods, detail)],
+        ["Tiền mặt", formatCurrency(getCashAmount(detail))],
+        ["Điểm sử dụng", getPointsUsed(detail).toLocaleString("vi-VN")],
+        ["Thời gian tạo", formatDateTime(detail.createdAt)],
+        ["Hoàn tất lúc", formatDateTime(detail.completedAt)],
         [
           "Người dùng",
           detail.userName ??
@@ -224,27 +335,10 @@ function DetailModal({ id, onClose }) {
           "Bãi đỗ xe",
           detail.parkingLotName ?? detail.lotName ?? detail.lotId ?? "-",
         ],
-        [
-          "Loại giao dịch",
-          TX_TYPE_LABELS[detail.transactionType ?? detail.type ?? ""] ??
-            detail.transactionType ??
-            detail.type ??
-            "-",
-        ],
-        [
-          "Thời gian vào",
-          formatDateTime(
-            detail.entryTime ?? detail.checkInTime ?? detail.createdAt,
-          ),
-        ],
-        [
-          "Thời gian ra",
-          formatDateTime(detail.exitTime ?? detail.checkOutTime),
-        ],
-        ["Phương thức TT", formatPaymentMethodLabel(detail.paymentMethod, "-")],
-        ["Số tiền", formatCurrency(detail.amount ?? detail.totalAmount)],
       ]
     : [];
+
+  const components = Array.isArray(detail?.components) ? detail.components : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -305,6 +399,64 @@ function DetailModal({ id, onClose }) {
                   Trạng thái
                 </p>
                 <StatusBadge tx={detail} />
+              </div>
+
+              <div className="pt-3 border-t border-gray-100">
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-2">
+                  Chi tiết thành phần thanh toán
+                </p>
+
+                {components.length === 0 ? (
+                  <p className="text-sm text-gray-400">Không có components</p>
+                ) : (
+                  <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 text-gray-600">
+                          <th className="px-3 py-2 text-left">Phương thức</th>
+                          <th className="px-3 py-2 text-right">Số tiền</th>
+                          <th className="px-3 py-2 text-right">Điểm</th>
+                          <th className="px-3 py-2 text-center">Trạng thái</th>
+                          <th className="px-3 py-2 text-left">PayOS Txn</th>
+                          <th className="px-3 py-2 text-left">Mô tả</th>
+                          <th className="px-3 py-2 text-left">Thời gian</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {components.map((component, index) => (
+                          <tr
+                            key={`${component.method ?? "method"}-${index}`}
+                            className="border-t border-gray-100"
+                          >
+                            <td className="px-3 py-2">
+                              {formatPaymentMethodLabel(component.method)}
+                            </td>
+                            <td className="px-3 py-2 text-right font-semibold">
+                              {formatCurrency(component.amount ?? 0)}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {Number(component.points ?? 0).toLocaleString(
+                                "vi-VN",
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <StatusBadge tx={component} />
+                            </td>
+                            <td className="px-3 py-2 break-all text-xs text-gray-600">
+                              {component.payosTransactionId ?? "-"}
+                            </td>
+                            <td className="px-3 py-2 text-gray-700">
+                              {component.description ?? "-"}
+                            </td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                              {formatDateTime(component.createdAt)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               {/* Update status
@@ -397,7 +549,8 @@ export default function Transactions() {
   const [search, setSearch] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
-  const [transactionType, setTransactionType] = useState("");
+  const [targetType, setTargetType] = useState("");
+  const [composition, setComposition] = useState("");
   const [lotId, setLotId] = useState("");
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
@@ -407,7 +560,7 @@ export default function Transactions() {
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize] = useState(10);
 
-  const [detailId, setDetailId] = useState(null);
+  const [detailTarget, setDetailTarget] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -431,7 +584,7 @@ export default function Transactions() {
     pageNumber * pageSize,
   );
 
-  /* Load transactions – lấy toàn bộ 1 lần, phân trang phía client */
+  /* Load payment breakdown list – lấy toàn bộ 1 lần, phân trang phía client */
   const loadTransactions = useCallback(async () => {
     setLoading(true);
     setStatsLoading(true);
@@ -444,30 +597,66 @@ export default function Transactions() {
         : "";
 
       const params = { pageSize: 9999 }; // lấy hết để phân trang client-side
-      if (search) params.search = search;
-      // Tránh phụ thuộc backend lọc phân biệt hoa/thường cho paymentStatus.
+      if (targetType) params.targetType = targetType;
       if (paymentMethod) params.paymentMethod = paymentMethod;
-      if (transactionType) params.transactionType = transactionType;
+      if (composition) params.composition = composition;
       if (lotId) params.lotId = lotId;
       if (fromDateParam) params.fromDate = fromDateParam;
       if (toDateParam) params.toDate = toDateParam;
 
-      const data = await transactionService.getAll(params);
+      const data = await transactionService.getPaymentBreakdowns(params);
 
-      let items = [];
-      if (Array.isArray(data)) {
-        items = data;
-      } else if (data?.items) {
-        items = data.items;
-      } else if (data?.data && Array.isArray(data.data)) {
-        items = data.data;
+      let items = extractItems(data);
+
+      if (search) {
+        const keyword = search.trim().toLowerCase();
+        if (keyword) {
+          items = items.filter((tx) => {
+            const haystacks = [
+              tx.targetId,
+              tx.targetLabel,
+              tx.targetType,
+              tx.transactionId,
+              tx.id,
+              tx.licensePlate,
+              tx.vehicleLicensePlate,
+              tx.plate,
+              tx.userName,
+              tx.customerName,
+              tx.fullName,
+              tx.accountName,
+              formatPaymentMethods(tx.paymentMethods, tx),
+            ]
+              .filter((v) => v != null)
+              .map((v) => String(v).toLowerCase());
+            return haystacks.some((v) => v.includes(keyword));
+          });
+        }
       }
 
       // Client-side filter fallback nếu API chưa lọc server-side
       if (paymentStatus) {
         const needle = normalizeStatus(paymentStatus);
         const filtered = items.filter(
-          (tx) => normalizeStatus(tx.paymentStatus ?? tx.status) === needle,
+          (tx) =>
+            normalizeStatus(
+              tx.paymentStatus ?? tx.status ?? tx.paymentState ?? tx.state,
+            ) === needle,
+        );
+        if (filtered.length !== items.length) items = filtered;
+      }
+
+      if (targetType) {
+        const filtered = items.filter(
+          (tx) => getTargetTypeValue(tx) === targetType,
+        );
+        if (filtered.length !== items.length) items = filtered;
+      }
+
+      if (composition) {
+        const needle = normalizeStatus(composition);
+        const filtered = items.filter(
+          (tx) => normalizeStatus(tx.paymentComposition) === needle,
         );
         if (filtered.length !== items.length) items = filtered;
       }
@@ -484,12 +673,14 @@ export default function Transactions() {
       setPageNumber(1); // reset về trang 1 khi filter thay đổi
 
       const statusLower = (tx) =>
-        normalizeStatus(tx.paymentStatus ?? tx.status);
+        normalizeStatus(
+          tx.paymentStatus ?? tx.status ?? tx.paymentState ?? tx.state,
+        );
 
       // Doanh thu: chỉ giao dịch thanh toán thành công (Hoàn thành)
       const totalRevenue = items.reduce((s, tx) => {
         if (statusLower(tx) !== "completed") return s;
-        return s + Number(tx.amount ?? tx.totalAmount ?? 0);
+        return s + getCashAmount(tx);
       }, 0);
 
       setStatistics({
@@ -516,7 +707,8 @@ export default function Transactions() {
     search,
     paymentStatus,
     paymentMethod,
-    transactionType,
+    targetType,
+    composition,
     lotId,
     fromDate,
     toDate,
@@ -530,7 +722,8 @@ export default function Transactions() {
     setSearch("");
     setPaymentStatus("");
     setPaymentMethod("");
-    setTransactionType("");
+    setTargetType("");
+    setComposition("");
     setLotId("");
     setFromDate(null);
     setToDate(null);
@@ -634,7 +827,7 @@ export default function Transactions() {
         </div>
 
         {/* Row 2: Dropdowns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
               Trạng thái
@@ -669,34 +862,46 @@ export default function Transactions() {
               className="input text-sm"
             >
               <option value="">Tất cả phương thức</option>
-              <option value="Momo">Momo</option>
-              <option value="VNPay">VNPay</option>
-              <option value="payos">PayOS</option>
+              <option value="points">Points</option>
               <option value="wallet">Ví điện tử</option>
-              <option value="Cash">Tiền mặt</option>
+              <option value="payos">PayOS</option>
+              <option value="cash">Tiền mặt</option>
             </select>
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
-              Hình thức
+              Target type
             </label>
             <select
-              value={transactionType}
+              value={targetType}
               onChange={(e) => {
-                setTransactionType(e.target.value);
+                setTargetType(e.target.value);
                 setPageNumber(1);
               }}
               className="input text-sm"
             >
-              <option value="">Tất cả hình thức</option>
-              <option value="parking">Đỗ xe</option>
-              <option value="monthly_pass">Vé tháng</option>
-              <option value="deposit">Nạp tiền</option>
-              <option value="refund">Hoàn tiền</option>
-              <option value="withdrawal">Rút tiền</option>
-              <option value="payment">Thanh toán</option>
-              <option value="reward">Thưởng điểm</option>
+              <option value="">Tất cả target</option>
+              <option value="parking-session">Parking session</option>
+              <option value="monthly-pass">Monthly pass</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">
+              Composition
+            </label>
+            <select
+              value={composition}
+              onChange={(e) => {
+                setComposition(e.target.value);
+                setPageNumber(1);
+              }}
+              className="input text-sm"
+            >
+              <option value="">Tất cả kiểu</option>
+              <option value="single">Single</option>
+              <option value="mixed">Mixed</option>
             </select>
           </div>
 
@@ -777,11 +982,11 @@ export default function Transactions() {
               <tr className="bg-gray-100 text-gray-600 text-center">
                 {[
                   "STT",
-                  "Biển số",
+                  "Đối tượng",
                   "Người dùng",
                   "Hình thức",
-                  "Thời gian vào",
-                  "Thời gian ra",
+                  "Thời gian tạo",
+                  "Hoàn tất",
                   "Số tiền",
                   "Phương thức",
                   "Trạng thái",
@@ -823,11 +1028,13 @@ export default function Transactions() {
                 </tr>
               ) : (
                 transactions.map((tx, idx) => {
-                  const txId = tx.id ?? tx.transactionId;
+                  const targetId = getTargetIdValue(tx);
+                  const targetTypeValue = getTargetTypeValue(tx);
+                  const txKey = `${targetTypeValue || "unknown"}-${targetId || idx}`;
                   const isLast = idx === transactions.length - 1;
                   return (
                     <tr
-                      key={txId ?? idx}
+                      key={txKey}
                       className={`hover:bg-blue-50/40 transition-colors cursor-default ${!isLast ? "border-b border-gray-50" : ""}`}
                     >
                       {/* STT */}
@@ -836,39 +1043,55 @@ export default function Transactions() {
                       </td>
                       {/* Biển số */}
                       <td className="p-3 text-center font-semibold text-gray-900">
-                        {tx.licensePlate ??
+                        {tx.targetLabel ??
+                          tx.licensePlate ??
                           tx.vehicleLicensePlate ??
+                          tx.vehiclePlate ??
                           tx.plate ??
                           "—"}
                       </td>
                       {/* Người dùng */}
                       <td className="p-3 text-center text-gray-600 max-w-[140px] truncate">
-                        {tx.userName ?? tx.customerName ?? tx.fullName ?? "—"}
+                        {tx.userName ??
+                          tx.customerName ??
+                          tx.fullName ??
+                          tx.accountName ??
+                          tx.payerName ??
+                          "—"}
                       </td>
                       {/* Loại GD */}
                       <td className="p-3 text-center text-gray-500">
-                        {TX_TYPE_LABELS[tx.transactionType ?? tx.type ?? ""] ??
-                          tx.transactionType ??
-                          tx.type ??
-                          "—"}
+                        <div className="flex flex-col items-center leading-tight gap-0.5">
+                          <span className="font-medium text-gray-700">
+                            {formatCompositionLabel(tx.paymentComposition, "—")}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {formatTargetTypeLabel(targetTypeValue, "—")}
+                          </span>
+                        </div>
                       </td>
                       {/* Thời gian vào */}
                       <td className="p-3 text-center text-gray-500 whitespace-nowrap">
-                        {formatDateTime(
-                          tx.entryTime ?? tx.checkInTime ?? tx.createdAt,
-                        )}
+                        {formatDateTime(tx.createdAt)}
                       </td>
                       {/* Thời gian ra */}
                       <td className="p-3 text-center text-gray-500 whitespace-nowrap">
-                        {formatDateTime(tx.exitTime ?? tx.checkOutTime)}
+                        {formatDateTime(tx.completedAt)}
                       </td>
                       {/* Số tiền */}
                       <td className="p-3 text-center font-semibold text-gray-900">
-                        {formatCurrency(tx.amount ?? tx.totalAmount)}
+                        <div className="flex flex-col items-center leading-tight">
+                          <span>{formatCurrency(getCashAmount(tx))}</span>
+                          {getPointsUsed(tx) > 0 && (
+                            <span className="text-xs text-blue-600">
+                              {getPointsUsed(tx).toLocaleString("vi-VN")} điểm
+                            </span>
+                          )}
+                        </div>
                       </td>
                       {/* Phương thức */}
                       <td className="p-3 text-center text-gray-600">
-                        {formatPaymentMethodLabel(tx.paymentMethod)}
+                        {formatPaymentMethods(tx.paymentMethods, tx)}
                       </td>
                       {/* Trạng thái */}
                       <td className="p-3 text-center">
@@ -877,9 +1100,15 @@ export default function Transactions() {
                       {/* Action */}
                       <td className="p-3 text-center">
                         <button
-                          onClick={() => setDetailId(txId)}
+                          onClick={() =>
+                            setDetailTarget({
+                              targetType: targetTypeValue,
+                              targetId,
+                            })
+                          }
                           className="p-1.5 text-blue-500 hover:bg-blue-100 rounded-lg transition-colors"
                           title="Xem chi tiết"
+                          disabled={!targetTypeValue || !targetId}
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -940,8 +1169,12 @@ export default function Transactions() {
       </div>
 
       {/* Detail Modal */}
-      {detailId && (
-        <DetailModal id={detailId} onClose={() => setDetailId(null)} />
+      {detailTarget?.targetType && detailTarget?.targetId && (
+        <DetailModal
+          targetType={detailTarget.targetType}
+          targetId={detailTarget.targetId}
+          onClose={() => setDetailTarget(null)}
+        />
       )}
     </div>
   );

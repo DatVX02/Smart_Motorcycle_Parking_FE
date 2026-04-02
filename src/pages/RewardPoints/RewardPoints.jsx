@@ -8,7 +8,6 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  AlertCircle,
   Search,
   RefreshCw,
 } from "lucide-react";
@@ -397,7 +396,7 @@ function RewardPoints() {
                   <th className="table-header-cell !text-right">
                     <span className="block">Tỷ lệ tích điểm</span>
                     <span className="block text-xs font-normal text-gray-500">
-                      (/1.000đ)
+                      (/1.000 VNĐ)
                     </span>
                   </th>
                   <th className="table-header-cell !text-right">
