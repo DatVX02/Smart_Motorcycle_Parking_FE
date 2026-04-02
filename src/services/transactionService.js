@@ -51,12 +51,37 @@ const transactionService = {
   },
 
   /**
+   * GET /api/v1/transactions/payment-breakdowns - Lấy danh sách breakdown thanh toán
+   * @param {Object} params - bộ lọc tương tự danh sách giao dịch
+   */
+  getPaymentBreakdowns: async (params = {}) => {
+    const response = await apiClient.get(`${BASE}/payment-breakdowns`, {
+      params,
+    });
+    return unwrap(response.data);
+  },
+
+  /**
+   * GET /api/v1/transactions/payment-breakdowns/{targetType}/{targetId}
+   * - Lấy breakdown theo thực thể đích
+   */
+  getPaymentBreakdownsByTarget: async (targetType, targetId, params = {}) => {
+    const response = await apiClient.get(
+      `${BASE}/payment-breakdowns/${targetType}/${targetId}`,
+      { params },
+    );
+    return unwrap(response.data);
+  },
+
+  /**
    * GET /api/v1/transactions/user/{userId}/history - Lịch sử giao dịch của người dùng
    * @param {string|number} userId
    * @param {Object} params - { page, pageSize }
    */
   getUserHistory: async (userId, params = {}) => {
-    const response = await apiClient.get(`${BASE}/user/${userId}/history`, { params });
+    const response = await apiClient.get(`${BASE}/user/${userId}/history`, {
+      params,
+    });
     return unwrap(response.data);
   },
 };
