@@ -289,7 +289,7 @@ export default function ParkingSessions() {
             <StatCard
               icon={LogIn}
               iconColor="text-emerald-700"
-              label="Đã vào"
+              label="Đã vào bãi"
               value={statistics.active}
               valueSuffix="Phiên"
               bgTint="bg-emerald-500/25"
@@ -297,7 +297,7 @@ export default function ParkingSessions() {
             <StatCard
               icon={LogOut}
               iconColor="text-amber-700"
-              label="Đã ra"
+              label="Đã ra bãi"
               value={statistics.completed}
               valueSuffix="Phiên"
               bgTint="bg-amber-500/25"
@@ -479,10 +479,10 @@ export default function ParkingSessions() {
                   const k = sessionKind(s);
                   const statusLabel =
                     k === "active"
-                      ? "Đã vào"
+                      ? "Đã vào bãi"
                       : k === "cancelled"
                         ? "Đã hủy"
-                        : "Đã ra";
+                        : "Đã ra bãi";
                   return (
                     <tr
                       key={s.sessionId ?? s.id ?? idx}
@@ -593,7 +593,7 @@ export default function ParkingSessions() {
         onOpenChange={() => setDetailSession(null)}
       >
         <DialogContent
-          className="max-w-3xl rounded-2xl px-0 py-0 overflow-hidden"
+          className="w-[40vw] max-w-[40vw] rounded-2xl px-0 py-0 overflow-hidden"
           onClose={() => setDetailSession(null)}
         >
           <DialogHeader className="px-5 py-4 border-b border-gray-100 bg-gray-50/70">
@@ -670,10 +670,10 @@ export default function ParkingSessions() {
                     )}
                   >
                     {sessionKind(detailSession) === "active"
-                      ? "Đã vào"
+                      ? "Đã vào bãi"
                       : sessionKind(detailSession) === "cancelled"
                         ? "Đã hủy"
-                        : "Đã ra"}
+                        : "Đã ra bãi"}
                   </span>
                 </div>
               </div>

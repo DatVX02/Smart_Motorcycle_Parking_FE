@@ -1,4 +1,4 @@
-import { Bell, LogOut, Settings, Menu } from "lucide-react";
+import { LogOut, Settings, Menu } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -44,7 +44,7 @@ function Header({ onMenuClick }) {
   const pageInfo = PAGE_TITLES[pathMatch || "/dashboard"] || {
     title: "Dashboard",
   };
-  const [showNotifications, setShowNotifications] = useState(false);
+  // const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const currentUser = authService.getCurrentUser();
@@ -76,26 +76,26 @@ function Header({ onMenuClick }) {
     }
   };
 
-  const notifications = [
-    {
-      id: 1,
-      message: "Có phương tiện mới vào bãi đỗ",
-      time: "2 phút trước",
-      unread: true,
-    },
-    {
-      id: 2,
-      message: "Thanh toán thành công #TX-1234",
-      time: "15 phút trước",
-      unread: true,
-    },
-    {
-      id: 3,
-      message: "Phát hiện bất thường tại cổng A",
-      time: "1 giờ trước",
-      unread: false,
-    },
-  ];
+  // const notifications = [
+  //   {
+  //     id: 1,
+  //     message: "Có phương tiện mới vào bãi đỗ",
+  //     time: "2 phút trước",
+  //     unread: true,
+  //   },
+  //   {
+  //     id: 2,
+  //     message: "Thanh toán thành công #TX-1234",
+  //     time: "15 phút trước",
+  //     unread: true,
+  //   },
+  //   {
+  //     id: 3,
+  //     message: "Phát hiện bất thường tại cổng A",
+  //     time: "1 giờ trước",
+  //     unread: false,
+  //   },
+  // ];
 
   return (
     <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-4 md:py-5">
@@ -138,7 +138,7 @@ function Header({ onMenuClick }) {
         {/* Right Section */}
         <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
           {/* Notifications */}
-          <div className="relative">
+          {/* <div className="relative">
             <button
               onClick={() => {
                 setShowNotifications(!showNotifications);
@@ -181,14 +181,14 @@ function Header({ onMenuClick }) {
                 </div>
               </>
             )}
-          </div>
+          </div> */}
 
           {/* User Menu */}
           <div className="relative">
             <button
               onClick={() => {
                 setShowUserMenu(!showUserMenu);
-                setShowNotifications(false);
+                // setShowNotifications(false);
               }}
               className="flex items-center gap-2 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             >

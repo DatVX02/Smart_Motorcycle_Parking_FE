@@ -123,7 +123,7 @@ function toStatusKey(statusRaw) {
   }
   if (s === "inprogress" || s === "processing") return "PROCESSING";
   if (s === "resolved" || s === "done") return "RESOLVED";
-  if (s === "closed" || s === "cancelled") return "CLOSED";
+  if (s === "rejected" || s === "cancelled") return "REJECTED";
   return "OTHER";
 }
 
@@ -142,9 +142,9 @@ function statusInfo(statusRaw) {
       label: "Đã xử lý",
       cls: "bg-green-100 text-green-700 border border-green-200",
     },
-    CLOSED: {
-      label: "Đã đóng",
-      cls: "bg-gray-100 text-gray-600 border border-gray-200",
+    REJECTED: {
+      label: "Từ chối",
+      cls: "bg-red-100 text-red-700 border border-red-200",
     },
     OTHER: {
       label: statusRaw || "Không xác định",
@@ -233,7 +233,7 @@ function toApiStatusValue(statusRaw) {
   if (key === "PENDING") return "pending";
   if (key === "PROCESSING") return "in_progress";
   if (key === "RESOLVED") return "resolved";
-  if (key === "CLOSED") return "closed";
+  if (key === "REJECTED") return "rejected";
   return "pending";
 }
 
@@ -305,7 +305,7 @@ function UpdateIncidentModal({ report, onClose, onUpdated }) {
         status,
         resolution_notes: resolutionNote.trim() || null,
       };
-      if (status === "resolved" || status === "closed") {
+      if (status === "resolved" || status === "rejected") {
         payload.resolved_at = new Date().toISOString();
       }
 
@@ -388,7 +388,7 @@ function UpdateIncidentModal({ report, onClose, onUpdated }) {
               <option value="pending">Chờ xử lý</option>
               <option value="in_progress">Đang xử lý</option>
               <option value="resolved">Đã xử lý</option>
-              <option value="closed">Đã đóng</option>
+              <option value="rejected">Từ chối</option>
             </select>
           </div>
 
@@ -600,14 +600,14 @@ export default function IncidentReports() {
     const resolved = reports.filter(
       (r) => toStatusKey(r.status) === "RESOLVED",
     ).length;
-    const closed = reports.filter(
-      (r) => toStatusKey(r.status) === "CLOSED",
+    const rejected = reports.filter(
+      (r) => toStatusKey(r.status) === "REJECTED",
     ).length;
     return {
       pending,
       processing,
       resolved,
-      closed,
+      rejected,
     };
   }, [reports]);
 
@@ -753,11 +753,11 @@ export default function IncidentReports() {
         <div className="flex-shrink-0 w-[180px] sm:w-auto sm:min-w-0">
           <StatCard
             icon={XCircle}
-            iconColor="text-slate-600"
-            label="Đã đóng"
-            value={stats.closed}
+            iconColor="text-red-600"
+            label="Từ chối"
+            value={stats.rejected}
             valueSuffix="Sự cố"
-            bgTint="bg-slate-400/25"
+            bgTint="bg-red-500/30"
           />
         </div>
       </div>
@@ -817,7 +817,7 @@ export default function IncidentReports() {
               <option value="Open">Chờ xử lý</option>
               <option value="InProgress">Đang xử lý</option>
               <option value="Resolved">Đã xử lý</option>
-              <option value="Closed">Đã đóng</option>
+              <option value="Rejected">Từ chối</option>
             </select>
           </div>
 
