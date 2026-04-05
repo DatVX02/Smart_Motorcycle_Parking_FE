@@ -20,6 +20,7 @@ import viVN from "antd/es/locale/vi_VN";
 import "dayjs/locale/vi";
 import transactionService from "../../services/transactionService";
 import parkingLotService from "../../services/parkingLotService";
+import userService from "../../services/userService";
 
 dayjs.locale("vi");
 
@@ -37,6 +38,22 @@ const PAYMENT_STATUS_MAP = {
   COMPLETED: {
     label: "Hoàn thành",
     cls: "bg-green-100 text-green-700 border border-green-200",
+  },
+  OvertimePaid: {
+    label: "Đã thanh toán quá giờ",
+    cls: "bg-gray-100 text-gray-700 border border-gray-200",
+  },
+  overtimepaid: {
+    label: "Đã thanh toán quá giờ",
+    cls: "bg-gray-100 text-gray-700 border border-gray-200",
+  },
+  "overtime-paid": {
+    label: "Đã thanh toán quá giờ",
+    cls: "bg-gray-100 text-gray-700 border border-gray-200",
+  },
+  OVERTIME_PAID: {
+    label: "Đã thanh toán quá giờ",
+    cls: "bg-gray-100 text-gray-700 border border-gray-200",
   },
   Pending: {
     label: "Chờ thanh toán",
@@ -107,11 +124,33 @@ function formatDateTime(value) {
   });
 }
 
+function formatCompletedDateTime(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (isNaN(d)) return String(value);
+  d.setHours(d.getHours() + 7);
+  return d.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function formatTargetTypeLabel(type, empty = "—") {
   if (!type) return empty;
   const normalized = String(type).trim().toLowerCase();
-  if (normalized === "parking-session") return "Phiên gửi xe";
-  if (normalized === "monthly-pass") return "Vé tháng";
+  if (["parking-session", "parkingsession"].includes(normalized)) {
+    return "Phí gửi xe";
+  }
+  if (["monthly-pass", "monthlypass"].includes(normalized)) return "Vé tháng";
+  if (["wallet-deposit", "walletdeposit"].includes(normalized)) {
+    return "Nạp ví";
+  }
+  if (["wallet-withdraw", "walletwithdraw"].includes(normalized)) {
+    return "Rút ví";
+  }
   return String(type);
 }
 
@@ -119,7 +158,7 @@ function formatCompositionLabel(value, empty = "—") {
   if (!value) return empty;
   const normalized = String(value).trim().toLowerCase();
   if (normalized === "single") return "Thanh toán đơn";
-  if (normalized === "mixed") return "Thanh toán mixed";
+  if (normalized === "mixed") return "Thanh toán nhiều";
   return String(value);
 }
 
@@ -132,15 +171,67 @@ function normalizeTargetTypeParam(type) {
   if (["monthly", "monthly_pass", "monthlypass"].includes(normalized)) {
     return "monthly-pass";
   }
+  if (["wallet", "wallet_deposit", "walletdeposit"].includes(normalized)) {
+    return "wallet-deposit";
+  }
+  if (["wallet_withdraw", "walletwithdraw"].includes(normalized)) {
+    return "wallet-withdraw";
+  }
   return normalized;
+}
+
+/** Làm sạch mô tả component: bỏ phần ID tiền tố và Việt hóa loại giao dịch. */
+function formatComponentDescription(value, empty = "-") {
+  if (value == null || value === "") return empty;
+
+  const raw = String(value).trim();
+  if (!raw) return empty;
+
+  const parts = raw
+    .split("_")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  let candidate = raw;
+  if (parts.length > 1) {
+    const prefix = parts.slice(0, -1).join("_");
+    const isIdLikePrefix = /^[a-z0-9-]{12,}$/i.test(prefix);
+    if (isIdLikePrefix) {
+      candidate = parts[parts.length - 1];
+    }
+  }
+
+  // Xoa UUID xuat hien trong mo ta de text gon hon.
+  candidate = candidate
+    .replace(
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+      "",
+    )
+    .replace(/\s{2,}/g, " ")
+    .replace(/[,_-]+$/g, "")
+    .trim();
+
+  if (!candidate) return empty;
+
+  const normalizedTargetType = normalizeTargetTypeParam(candidate);
+  const translated = formatTargetTypeLabel(normalizedTargetType, "");
+  if (translated && translated !== normalizedTargetType) return translated;
+
+  return candidate;
 }
 
 /** Hiển thị phương thức thanh toán (API có thể trả mã tiếng Anh). */
 function formatPaymentMethodLabel(method, empty = "—") {
   if (method == null || method === "") return empty;
   const s = String(method).trim();
-  if (s.toLowerCase() === "wallet") return "Ví điện tử";
-  if (s.toLowerCase() === "payos") return "PayOS";
+  const normalized = s.toLowerCase().replace(/[\s_-]+/g, "");
+
+  if (normalized === "wallet") return "Ví điện tử";
+  if (normalized === "payos") return "PayOS";
+  if (normalized === "cash") return "Tiền mặt";
+  if (normalized === "points") return "Điểm";
+  if (normalized === "banktransfer") return "Chuyển khoản ngân hàng";
+
   return s;
 }
 
@@ -202,6 +293,35 @@ function getTargetIdValue(item) {
     item.passId,
     item.orderId,
   );
+}
+
+function getTargetDisplay(item) {
+  if (!item || typeof item !== "object") return "—";
+  return (
+    pickFirst(
+      item.licensePlate,
+      item.vehicleLicensePlate,
+      item.vehiclePlate,
+      item.plate,
+      item.targetLabel,
+    ) ?? "—"
+  );
+}
+
+function getUserDisplay(item, userFullNameById = {}) {
+  if (!item || typeof item !== "object") return "—";
+  const fullName = pickFirst(
+    item.fullName,
+    item.customerName,
+    item.userFullName,
+    item.name,
+  );
+  if (fullName) return fullName;
+
+  const userId = pickFirst(item.userId, item.customerId, item.accountId);
+  if (userId && userFullNameById[userId]) return userFullNameById[userId];
+
+  return "—";
 }
 
 function extractItems(payload) {
@@ -266,7 +386,7 @@ function StatusBadge({ tx }) {
 }
 
 /* Detail Modal */
-function DetailModal({ targetType, targetId, onClose }) {
+function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -305,32 +425,21 @@ function DetailModal({ targetType, targetId, onClose }) {
 
   const rows = detail
     ? [
+        ["Biển số thanh toán", getTargetDisplay(detail)],
         [
-          "Đối tượng thanh toán",
-          detail.targetLabel ?? detail.licensePlate ?? detail.plate ?? "-",
-        ],
-        ["Target ID", detail.targetId ?? targetId ?? "-"],
-        [
-          "Target type",
+          "Hình thức",
           formatTargetTypeLabel(detail.targetType ?? targetType, "-"),
         ],
         [
-          "Kiểu thanh toán",
+          "Loại thanh toán",
           formatCompositionLabel(detail.paymentComposition, "-"),
         ],
         ["Phương thức", formatPaymentMethods(detail.paymentMethods, detail)],
-        ["Tiền mặt", formatCurrency(getCashAmount(detail))],
+        ["Tổng tiền giao dịch", formatCurrency(getCashAmount(detail))],
         ["Điểm sử dụng", getPointsUsed(detail).toLocaleString("vi-VN")],
         ["Thời gian tạo", formatDateTime(detail.createdAt)],
-        ["Hoàn tất lúc", formatDateTime(detail.completedAt)],
-        [
-          "Người dùng",
-          detail.userName ??
-            detail.customerName ??
-            detail.fullName ??
-            detail.userId ??
-            "-",
-        ],
+        ["Hoàn tất cuối lúc", formatCompletedDateTime(detail.completedAt)],
+        ["Người dùng", getUserDisplay(detail, userFullNameById)],
         [
           "Bãi đỗ xe",
           detail.parkingLotName ?? detail.lotName ?? detail.lotId ?? "-",
@@ -341,12 +450,12 @@ function DetailModal({ targetType, targetId, onClose }) {
   const components = Array.isArray(detail?.components) ? detail.components : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative mt-2 sm:mt-4 bg-white rounded-2xl shadow-2xl w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-6xl max-h-[94vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -367,7 +476,7 @@ function DetailModal({ targetType, targetId, onClose }) {
           </button>
         </div>
 
-        <div className="p-5 space-y-5">
+        <div className="px-5 pb-5 pt-4 space-y-4">
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -446,7 +555,10 @@ function DetailModal({ targetType, targetId, onClose }) {
                               {component.payosTransactionId ?? "-"}
                             </td>
                             <td className="px-3 py-2 text-gray-700">
-                              {component.description ?? "-"}
+                              {formatComponentDescription(
+                                component.description,
+                                "-",
+                              )}
                             </td>
                             <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
                               {formatDateTime(component.createdAt)}
@@ -496,7 +608,8 @@ function DetailModal({ targetType, targetId, onClose }) {
                     Ghi chú
                   </p>
                   <p className="text-sm text-gray-700">
-                    {detail.note ?? detail.description}
+                    {detail.note ??
+                      formatComponentDescription(detail.description)}
                   </p>
                 </div>
               )}
@@ -555,6 +668,7 @@ export default function Transactions() {
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
   const [parkingLots, setParkingLots] = useState([]);
+  const [userFullNameById, setUserFullNameById] = useState({});
 
   // Pagination (client-side)
   const [pageNumber, setPageNumber] = useState(1);
@@ -572,6 +686,42 @@ export default function Transactions() {
       .catch(() => {
         if (!cancelled) setParkingLots([]);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUsers = async () => {
+      try {
+        const response = await userService.getAllUser();
+        const payload = response?.data?.data ?? response?.data ?? response;
+        const users = extractItems(payload);
+        const nextLookup = {};
+
+        users.forEach((user) => {
+          const id = pickFirst(user?.userId, user?.id, user?.accountId);
+          const fullName = pickFirst(
+            user?.fullName,
+            user?.name,
+            user?.displayName,
+          );
+
+          if (id && fullName) {
+            nextLookup[String(id)] = String(fullName);
+          }
+        });
+
+        if (!cancelled) setUserFullNameById(nextLookup);
+      } catch {
+        if (!cancelled) setUserFullNameById({});
+      }
+    };
+
+    loadUsers();
+
     return () => {
       cancelled = true;
     };
@@ -597,6 +747,7 @@ export default function Transactions() {
         : "";
 
       const params = { pageSize: 9999 }; // lấy hết để phân trang client-side
+      if (paymentStatus) params.paymentStatus = paymentStatus;
       if (targetType) params.targetType = targetType;
       if (paymentMethod) params.paymentMethod = paymentMethod;
       if (composition) params.composition = composition;
@@ -613,6 +764,7 @@ export default function Transactions() {
         if (keyword) {
           items = items.filter((tx) => {
             const haystacks = [
+              tx.userId,
               tx.targetId,
               tx.targetLabel,
               tx.targetType,
@@ -625,6 +777,8 @@ export default function Transactions() {
               tx.customerName,
               tx.fullName,
               tx.accountName,
+              tx.lotName,
+              tx.paymentStatus,
               formatPaymentMethods(tx.paymentMethods, tx),
             ]
               .filter((v) => v != null)
@@ -637,12 +791,33 @@ export default function Transactions() {
       // Client-side filter fallback nếu API chưa lọc server-side
       if (paymentStatus) {
         const needle = normalizeStatus(paymentStatus);
-        const filtered = items.filter(
-          (tx) =>
-            normalizeStatus(
-              tx.paymentStatus ?? tx.status ?? tx.paymentState ?? tx.state,
-            ) === needle,
-        );
+        const filtered = items.filter((tx) => {
+          const candidates = [
+            tx.paymentStatus,
+            tx.status,
+            tx.paymentState,
+            tx.state,
+            tx.PaymentStatus,
+            tx.Status,
+          ];
+
+          if (Array.isArray(tx.components) && tx.components.length) {
+            tx.components.forEach((component) => {
+              candidates.push(
+                component?.paymentStatus,
+                component?.status,
+                component?.paymentState,
+                component?.state,
+                component?.PaymentStatus,
+                component?.Status,
+              );
+            });
+          }
+
+          return candidates
+            .filter((status) => status != null && status !== "")
+            .some((status) => normalizeStatus(status) === needle);
+        });
         if (filtered.length !== items.length) items = filtered;
       }
 
@@ -843,6 +1018,7 @@ export default function Transactions() {
               <option value="">Tất cả trạng thái</option>
               <option value="Completed">Hoàn thành</option>
               <option value="Pending">Chờ thanh toán</option>
+              <option value="OvertimePaid">Đã thanh toán quá giờ</option>
               <option value="InProgress">Đang đỗ</option>
               <option value="Failed">Thất bại</option>
               <option value="Cancelled">Đã hủy</option>
@@ -862,16 +1038,17 @@ export default function Transactions() {
               className="input text-sm"
             >
               <option value="">Tất cả phương thức</option>
-              <option value="points">Points</option>
+              <option value="points">Điểm</option>
               <option value="wallet">Ví điện tử</option>
               <option value="payos">PayOS</option>
               <option value="cash">Tiền mặt</option>
+              <option value="bank_transfer">Chuyển khoản ngân hàng</option>
             </select>
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
-              Target type
+              Hình thức
             </label>
             <select
               value={targetType}
@@ -881,15 +1058,17 @@ export default function Transactions() {
               }}
               className="input text-sm"
             >
-              <option value="">Tất cả target</option>
-              <option value="parking-session">Parking session</option>
-              <option value="monthly-pass">Monthly pass</option>
+              <option value="">Tất cả hình thức</option>
+              <option value="parking-session">Phí đỗ xe</option>
+              <option value="monthly-pass">Vé tháng</option>
+              <option value="wallet-deposit">Nạp ví</option>
+              <option value="wallet-withdraw">Rút ví</option>
             </select>
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
-              Composition
+              Loại thanh toán
             </label>
             <select
               value={composition}
@@ -899,9 +1078,9 @@ export default function Transactions() {
               }}
               className="input text-sm"
             >
-              <option value="">Tất cả kiểu</option>
-              <option value="single">Single</option>
-              <option value="mixed">Mixed</option>
+              <option value="">Tất cả loại</option>
+              <option value="single">Đơn</option>
+              <option value="mixed">Nhiều</option>
             </select>
           </div>
 
@@ -982,9 +1161,10 @@ export default function Transactions() {
               <tr className="bg-gray-100 text-gray-600 text-center">
                 {[
                   "STT",
-                  "Đối tượng",
+                  "Biển số",
                   "Người dùng",
                   "Hình thức",
+                  "Loại thanh toán",
                   "Thời gian tạo",
                   "Hoàn tất",
                   "Số tiền",
@@ -1005,7 +1185,7 @@ export default function Transactions() {
               {loading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-50 animate-pulse">
-                    {Array.from({ length: 10 }).map((__, j) => (
+                    {Array.from({ length: 11 }).map((__, j) => (
                       <td key={j} className="px-4 py-3.5">
                         <div
                           className="h-3.5 bg-gray-100 rounded"
@@ -1017,7 +1197,7 @@ export default function Transactions() {
                 ))
               ) : transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-20 text-center">
+                  <td colSpan={11} className="py-20 text-center">
                     <div className="flex flex-col items-center gap-3 text-gray-300">
                       <XCircle className="w-12 h-12" />
                       <p className="text-gray-400 text-sm font-medium">
@@ -1043,32 +1223,19 @@ export default function Transactions() {
                       </td>
                       {/* Biển số */}
                       <td className="p-3 text-center font-semibold text-gray-900">
-                        {tx.targetLabel ??
-                          tx.licensePlate ??
-                          tx.vehicleLicensePlate ??
-                          tx.vehiclePlate ??
-                          tx.plate ??
-                          "—"}
+                        {getTargetDisplay(tx)}
                       </td>
                       {/* Người dùng */}
                       <td className="p-3 text-center text-gray-600 max-w-[140px] truncate">
-                        {tx.userName ??
-                          tx.customerName ??
-                          tx.fullName ??
-                          tx.accountName ??
-                          tx.payerName ??
-                          "—"}
+                        {getUserDisplay(tx, userFullNameById)}
                       </td>
-                      {/* Loại GD */}
+                      {/* Hình thức */}
                       <td className="p-3 text-center text-gray-500">
-                        <div className="flex flex-col items-center leading-tight gap-0.5">
-                          <span className="font-medium text-gray-700">
-                            {formatCompositionLabel(tx.paymentComposition, "—")}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {formatTargetTypeLabel(targetTypeValue, "—")}
-                          </span>
-                        </div>
+                        {formatTargetTypeLabel(targetTypeValue, "—")}
+                      </td>
+                      {/* Loại thanh toán */}
+                      <td className="p-3 text-center text-gray-700 font-medium">
+                        {formatCompositionLabel(tx.paymentComposition, "—")}
                       </td>
                       {/* Thời gian vào */}
                       <td className="p-3 text-center text-gray-500 whitespace-nowrap">
@@ -1076,7 +1243,7 @@ export default function Transactions() {
                       </td>
                       {/* Thời gian ra */}
                       <td className="p-3 text-center text-gray-500 whitespace-nowrap">
-                        {formatDateTime(tx.completedAt)}
+                        {formatCompletedDateTime(tx.completedAt)}
                       </td>
                       {/* Số tiền */}
                       <td className="p-3 text-center font-semibold text-gray-900">
@@ -1173,6 +1340,7 @@ export default function Transactions() {
         <DetailModal
           targetType={detailTarget.targetType}
           targetId={detailTarget.targetId}
+          userFullNameById={userFullNameById}
           onClose={() => setDetailTarget(null)}
         />
       )}
