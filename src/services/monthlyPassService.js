@@ -1,8 +1,15 @@
 import apiClient from "../config/api";
 
 const MONTHLY_PASS_BASE_PATH = "/api/v1/monthly-pass-packages";
+const MONTHLY_PASS_USER_BASE_PATH = "/api/v1/monthly-passes";
 
 const unwrap = (data) => data?.data ?? data;
+const toList = (raw) => {
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.items)) return raw.items;
+  if (Array.isArray(raw?.data)) return raw.data;
+  return [];
+};
 
 const monthlyPassService = {
   /**
@@ -52,6 +59,17 @@ const monthlyPassService = {
   delete: async (id) => {
     const response = await apiClient.delete(`${MONTHLY_PASS_BASE_PATH}/${id}`);
     return unwrap(response.data);
+  },
+
+  /**
+   * GET /api/v1/monthly-passes - Lấy danh sách vé tháng của người dùng
+   * @param {Object} params - { lotId?: string, status?: string }
+   */
+  getAllPasses: async (params = {}) => {
+    const response = await apiClient.get(MONTHLY_PASS_USER_BASE_PATH, {
+      params,
+    });
+    return toList(unwrap(response.data));
   },
 };
 
