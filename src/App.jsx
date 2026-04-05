@@ -19,6 +19,8 @@ import IoTDevices from "./pages/IoTDevices/IoTDevices";
 import AccountStaff from "./pages/Accounts/AccountStaff";
 import DeviceMaintenance from "./pages/DeviceMaintenance/DeviceMaintenance";
 import MonthlyPasses from "./pages/MonthlyPasses/MonthlyPasses";
+import MonthlyPassPackages from "./pages/MonthlyPasses/MonthlyPassPackages";
+import UserMonthlyPasses from "./pages/MonthlyPasses/UserMonthlyPasses";
 import ParkingSessions from "./pages/ParkingSessions/ParkingSessions";
 import IncidentReports from "./pages/IncidentReports/IncidentReports";
 
@@ -51,6 +53,11 @@ function App() {
           <Route path="reward-points" element={<RewardPoints />} />
           <Route path="price-list" element={<PriceList />} />
           <Route path="monthly-passes" element={<MonthlyPasses />} />
+          <Route
+            path="monthly-passes/packages"
+            element={<MonthlyPassPackages />}
+          />
+          <Route path="monthly-passes/users" element={<UserMonthlyPasses />} />
           <Route path="iot-devices" element={<IoTDevices />} />
           <Route path="device-maintenance" element={<DeviceMaintenance />} />
         </Route>

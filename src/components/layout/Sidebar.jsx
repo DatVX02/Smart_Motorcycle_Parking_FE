@@ -43,7 +43,14 @@ const menuItems = [
   { title: "Báo cáo sự cố", icon: AlertTriangle, path: "/incident-reports" },
   { title: "Điểm thưởng", icon: Award, path: "/reward-points" },
   { title: "Bảng giá phí", icon: DollarSign, path: "/price-list" },
-  { title: "Vé tháng", icon: Ticket, path: "/monthly-passes" },
+  {
+    title: "Quản lý vé tháng",
+    icon: Ticket,
+    children: [
+      { title: "Quản lý vé tháng bãi xe", path: "/monthly-passes/packages" },
+      { title: "Quản lý vé tháng người dùng", path: "/monthly-passes/users" },
+    ],
+  },
   {
     title: "Thiết bị IoT",
     icon: Cpu,
