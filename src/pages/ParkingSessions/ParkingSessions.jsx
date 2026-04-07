@@ -28,10 +28,16 @@ import {
 dayjs.locale("vi");
 
 /** Offset hiển thị giống ParkingLotDetailModal */
+function sessionReferenceTime(s) {
+  return (
+    s.checkOutTime ?? s.exitTime ?? s.checkInTime ?? s.entryTime ?? s.createdAt
+  );
+}
+
 function formatSessionTimes(s) {
-  const rawTime = s.exitTime ?? s.entryTime ?? s.createdAt ?? s.checkInTime;
+  const rawTime = sessionReferenceTime(s);
   const adjustedDate = rawTime
-    ? new Date(new Date(rawTime).getTime() - 7 * 60 * 60 * 1000)
+    ? new Date(new Date(rawTime).getTime() + 7 * 60 * 60 * 1000)
     : null;
   const timeStr = adjustedDate
     ? adjustedDate.toLocaleTimeString("vi-VN", {
@@ -49,19 +55,96 @@ function plateOf(s) {
 }
 
 function sessionKind(s) {
-  const st = String(s.sessionStatus ?? "").toLowerCase();
-  if (st === "cancelled" || st === "canceled") return "cancelled";
+  const st = String(s?.sessionStatus ?? "")
+    .trim()
+    .toLowerCase();
+  if (st === "cancel" || st === "cancelled" || st === "canceled")
+    return "cancel";
+  if (st === "prepaid") return "prepaid";
+  if (st === "overtimepaid" || st === "overtime_paid") return "overtimepaid";
   if (
     st === "completed" ||
+    st === "exited" ||
     st === "ended" ||
-    st === "closed" ||
-    st === "exited"
+    st === "closed"
   )
     return "completed";
-  if (s.exitTime) return "completed";
-  if (st === "active" || st === "inprogress" || st === "in_progress" || !st)
+  if (st === "active" || st === "inprogress" || st === "in_progress")
     return "active";
+
+  if (s.checkOutTime || s.exitTime) return "completed";
+
+  const paymentStatus = String(s?.paymentStatus ?? "")
+    .trim()
+    .toLowerCase();
+  if (paymentStatus === "overtime_paid") {
+    return "overtimepaid";
+  }
+  if (paymentStatus === "completed") {
+    return "completed";
+  }
+  if (s.isPrepaid) return "prepaid";
+
   return "active";
+}
+
+function sessionStatusLabel(session) {
+  const k = sessionKind(session);
+  const map = {
+    active: "Đang trong bãi",
+    prepaid: "Thanh toán trước",
+    completed: "Đã ra bãi",
+    overtimepaid: "Thanh toán quá giờ",
+    cancel: "Hủy",
+  };
+
+  return map[k] ?? formatValue(session?.sessionStatus);
+}
+
+function paymentStatusLabel(value) {
+  const st = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (!st) return "—";
+  const map = {
+    pending: "Chờ thanh toán",
+    completed: "Đã thanh toán",
+    overtime_paid: "Đã thanh toán quá giờ",
+    failed: "Thanh toán thất bại",
+  };
+  return map[st] ?? value;
+}
+
+function paymentMethodLabel(value) {
+  const st = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (!st) return "—";
+  const map = {
+    wallet: "Ví điện tử",
+    cash: "Tiền mặt",
+    points: "Điểm thưởng",
+    bank_transfer: "Chuyển khoản",
+    vnpay: "VNPay",
+    momo: "MoMo",
+  };
+  return map[st] ?? value;
+}
+
+function paymentTypeLabel(value) {
+  const st = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (!st) return "—";
+  const map = {
+    parking_prepayment: "Thanh toán giữ xe trả trước",
+    parking_overtime: "Phí quá giờ",
+    parking_checkout: "Thanh toán khi ra bãi",
+    parking_session: "Phí giữ xe",
+    monthly_pass: "Vé tháng",
+    additional_fee: "Phụ phí",
+  };
+  return map[st] ?? value;
 }
 
 function firstImageValue(source, keys) {
@@ -80,18 +163,63 @@ function resolveImageUrl(url) {
 
 function formatDateTime(value) {
   if (!value) return "—";
-  const adjusted = dayjs(value).subtract(7, "hour");
+  const adjusted = dayjs(value).add(7, "hour");
   return adjusted.isValid() ? adjusted.format("HH:mm:ss DD/MM/YYYY") : "—";
+}
+
+function formatCurrency(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const amount = Number(value);
+  if (Number.isNaN(amount)) return "—";
+  return `${amount.toLocaleString("vi-VN")} VNĐ`;
+}
+
+function formatValue(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
+}
+
+function formatBool(value) {
+  if (value === null || value === undefined) return "—";
+  return value ? "Có" : "Không";
 }
 
 function modalStatusBadgeClass(kind) {
   if (kind === "active") {
-    return "inline-flex rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700";
+    return "inline-flex rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700";
   }
-  if (kind === "cancelled") {
+  if (kind === "prepaid") {
+    return "inline-flex rounded-full border border-blue-200 bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700";
+  }
+  if (kind === "completed") {
     return "inline-flex rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700";
   }
-  return "inline-flex rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700";
+  if (kind === "overtimepaid") {
+    return "inline-flex rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700";
+  }
+  if (kind === "cancel") {
+    return "inline-flex rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700";
+  }
+  return "inline-flex rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700";
+}
+
+function tableStatusBadgeClass(kind) {
+  if (kind === "active") {
+    return "inline-flex min-w-[140px] justify-center rounded-full border border-green-200 bg-green-100 px-3 py-1 text-xs font-semibold text-green-700";
+  }
+  if (kind === "prepaid") {
+    return "inline-flex min-w-[140px] justify-center rounded-full border border-blue-200 bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700";
+  }
+  if (kind === "completed") {
+    return "inline-flex min-w-[140px] justify-center rounded-full border border-red-200 bg-red-100 px-3 py-1 text-xs font-semibold text-red-700";
+  }
+  if (kind === "overtimepaid") {
+    return "inline-flex min-w-[140px] justify-center rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700";
+  }
+  if (kind === "cancel") {
+    return "inline-flex min-w-[140px] justify-center rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700";
+  }
+  return "inline-flex min-w-[140px] justify-center rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700";
 }
 
 function StatCard({
@@ -141,6 +269,7 @@ export default function ParkingSessions() {
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize] = useState(10);
   const [detailSession, setDetailSession] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     setLotFilter(lotIdFromUrl);
@@ -204,14 +333,14 @@ export default function ParkingSessions() {
 
     if (fromDate) {
       list = list.filter((s) => {
-        const raw = s.entryTime ?? s.checkInTime ?? s.createdAt;
+        const raw = sessionReferenceTime(s);
         if (!raw) return false;
         return !dayjs(raw).isBefore(fromDate);
       });
     }
     if (toDate) {
       list = list.filter((s) => {
-        const raw = s.entryTime ?? s.checkInTime ?? s.createdAt;
+        const raw = sessionReferenceTime(s);
         if (!raw) return false;
         return !dayjs(raw).isAfter(toDate);
       });
@@ -221,15 +350,27 @@ export default function ParkingSessions() {
   }, [allSessions, search, statusFilter, fromDate, toDate]);
 
   const statistics = useMemo(() => {
-    const total = filteredSessions.length;
-    let active = 0;
-    let completed = 0;
+    const counts = {
+      active: 0,
+      prepaid: 0,
+      completed: 0,
+      overtimepaid: 0,
+      cancel: 0,
+    };
+
     for (const s of filteredSessions) {
       const k = sessionKind(s);
-      if (k === "active") active += 1;
-      else if (k === "completed") completed += 1;
+      if (counts[k] !== undefined) counts[k] += 1;
     }
-    return { total, active, completed };
+
+    return {
+      total: filteredSessions.length,
+      active: counts.active,
+      prepaid: counts.prepaid,
+      completed: counts.completed,
+      overtimepaid: counts.overtimepaid,
+      cancel: counts.cancel,
+    };
   }, [filteredSessions]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSessions.length / pageSize));
@@ -263,9 +404,9 @@ export default function ParkingSessions() {
   return (
     <div className="space-y-5">
       {/* Thống kê */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {statsLoading ? (
-          Array.from({ length: 3 }).map((_, i) => (
+          Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
               className="bg-white rounded-3xl border p-6 shadow flex items-center gap-3 animate-pulse"
@@ -289,18 +430,42 @@ export default function ParkingSessions() {
             <StatCard
               icon={LogIn}
               iconColor="text-emerald-700"
-              label="Đã vào bãi"
+              label="Đang trong bãi"
               value={statistics.active}
               valueSuffix="Phiên"
-              bgTint="bg-emerald-500/25"
+              bgTint="bg-green-500/30"
+            />
+            <StatCard
+              icon={LogIn}
+              iconColor="text-blue-700"
+              label="Thanh toán trước"
+              value={statistics.prepaid}
+              valueSuffix="Phiên"
+              bgTint="bg-blue-500/30"
+            />
+            <StatCard
+              icon={LogIn}
+              iconColor="text-red-700"
+              label="Đã ra bãi"
+              value={statistics.completed}
+              valueSuffix="Phiên"
+              bgTint="bg-red-500/30"
             />
             <StatCard
               icon={LogOut}
               iconColor="text-amber-700"
-              label="Đã ra bãi"
-              value={statistics.completed}
+              label="Thanh toán quá giờ"
+              value={statistics.overtimepaid}
               valueSuffix="Phiên"
-              bgTint="bg-amber-500/25"
+              bgTint="bg-amber-500/30"
+            />
+            <StatCard
+              icon={XCircle}
+              iconColor="text-slate-700"
+              label="Hủy"
+              value={statistics.cancel}
+              valueSuffix="Phiên"
+              bgTint="bg-slate-500/20"
             />
           </>
         )}
@@ -328,7 +493,7 @@ export default function ParkingSessions() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
-              Trạng thái phiên
+              Trạng thái
             </label>
             <select
               value={statusFilter}
@@ -339,8 +504,11 @@ export default function ParkingSessions() {
               className="input text-sm"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="active">Đã vào bãi</option>
-              <option value="cancelled">Đã ra bãi</option>
+              <option value="active">Đang trong bãi</option>
+              <option value="prepaid">Thanh toán trước</option>
+              <option value="completed">Đã ra bãi</option>
+              <option value="overtimepaid">Thanh toán quá giờ</option>
+              <option value="cancel">Hủy</option>
             </select>
           </div>
 
@@ -477,12 +645,6 @@ export default function ParkingSessions() {
                 pageRows.map((s, idx) => {
                   const { timeStr, dateStr } = formatSessionTimes(s);
                   const k = sessionKind(s);
-                  const statusLabel =
-                    k === "active"
-                      ? "Đã vào bãi"
-                      : k === "cancelled"
-                        ? "Đã hủy"
-                        : "Đã ra bãi";
                   return (
                     <tr
                       key={s.sessionId ?? s.id ?? idx}
@@ -512,16 +674,8 @@ export default function ParkingSessions() {
                         )}
                       </td>
                       <td className="p-3 text-center">
-                        <span
-                          className={
-                            k === "active"
-                              ? "inline-flex min-w-[75px] justify-center rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700"
-                              : k === "cancelled"
-                                ? "inline-flex min-w-[75px] justify-center rounded-full border border-red-200 bg-red-100 px-3 py-1 text-xs font-semibold text-red-700"
-                                : "inline-flex min-w-[75px] justify-center rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700"
-                          }
-                        >
-                          {statusLabel}
+                        <span className={tableStatusBadgeClass(k)}>
+                          {sessionStatusLabel(s)}
                         </span>
                       </td>
                       <td className="p-3 text-center">
@@ -590,11 +744,19 @@ export default function ParkingSessions() {
 
       <Dialog
         open={Boolean(detailSession)}
-        onOpenChange={() => setDetailSession(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailSession(null);
+            setPreviewImage(null);
+          }
+        }}
       >
         <DialogContent
-          className="w-[40vw] max-w-[40vw] rounded-2xl px-0 py-0 overflow-hidden"
-          onClose={() => setDetailSession(null)}
+          className="w-[92vw] max-w-6xl rounded-2xl px-0 py-0 overflow-hidden"
+          onClose={() => {
+            setDetailSession(null);
+            setPreviewImage(null);
+          }}
         >
           <DialogHeader className="px-5 py-4 border-b border-gray-100 bg-gray-50/70">
             <div className="flex items-center gap-3 pr-8">
@@ -609,7 +771,7 @@ export default function ParkingSessions() {
 
           {detailSession && (
             <div className="space-y-4 px-5 pb-5 pt-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
                     Người dùng
@@ -623,6 +785,14 @@ export default function ParkingSessions() {
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Email
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatValue(detailSession.userEmail)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
                     Biển số xe
                   </p>
                   <p className="text-sm font-medium text-gray-900 break-words">
@@ -631,14 +801,38 @@ export default function ParkingSessions() {
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Cổng vào
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatValue(detailSession.entryGateName)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Cổng ra
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatValue(detailSession.exitGateName)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
                     Thời gian vào
                   </p>
                   <p className="text-sm font-medium text-gray-900 break-words">
                     {formatDateTime(
-                      detailSession.entryTime ??
-                        detailSession.checkInTime ??
+                      detailSession.checkInTime ??
+                        detailSession.entryTime ??
                         detailSession.createdAt,
                     )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Dự kiến ra
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatDateTime(detailSession.expectedCheckoutTime)}
                   </p>
                 </div>
                 <div>
@@ -646,7 +840,9 @@ export default function ParkingSessions() {
                     Thời gian ra
                   </p>
                   <p className="text-sm font-medium text-gray-900 break-words">
-                    {formatDateTime(detailSession.exitTime)}
+                    {formatDateTime(
+                      detailSession.checkOutTime ?? detailSession.exitTime,
+                    )}
                   </p>
                 </div>
                 <div>
@@ -669,12 +865,94 @@ export default function ParkingSessions() {
                       sessionKind(detailSession),
                     )}
                   >
-                    {sessionKind(detailSession) === "active"
-                      ? "Đã vào bãi"
-                      : sessionKind(detailSession) === "cancelled"
-                        ? "Đã hủy"
-                        : "Đã ra bãi"}
+                    {sessionStatusLabel(detailSession)}
                   </span>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Trạng thái thanh toán
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {paymentStatusLabel(detailSession.paymentStatus)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Phương thức thanh toán
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {paymentMethodLabel(detailSession.paymentMethod)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Loại thanh toán
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {paymentTypeLabel(detailSession.paymentType)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Đơn giá theo giờ
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatCurrency(detailSession.hourlyRate)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Tổng tiền
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatCurrency(detailSession.totalAmount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Trả trước
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatBool(detailSession.isPrepaid)}
+                    {detailSession.isPrepaid
+                      ? ` (${formatCurrency(detailSession.prepaidAmount)})`
+                      : ""}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Quá giờ
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatBool(detailSession.isOvertime)}
+                    {detailSession.isOvertime
+                      ? ` (${formatValue(detailSession.overtimeHours)} giờ - ${formatCurrency(detailSession.overtimeAmount)})`
+                      : ""}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Còn phải trả
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatCurrency(detailSession.remainingAmount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Điểm thưởng / đã dùng
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {`${formatValue(detailSession.pointsEarned)} / ${formatValue(detailSession.pointsUsed)}`}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Ví / điểm / phụ phí
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {`${formatBool(detailSession.paidWithWallet)} / ${formatBool(detailSession.paidWithPoints)} / ${formatBool(detailSession.hasAdditionalFee)}`}
+                  </p>
                 </div>
               </div>
 
@@ -683,9 +961,11 @@ export default function ParkingSessions() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
                   {
-                    label: "Hình biển số xe",
+                    label: "Hình biển số vào",
                     src: resolveImageUrl(
                       firstImageValue(detailSession, [
+                        "checkInPlateImageUrl",
+                        "entryPlateImageUrl",
                         "plateImage",
                         "plateImageUrl",
                         "licensePlateImage",
@@ -696,15 +976,39 @@ export default function ParkingSessions() {
                     ),
                   },
                   {
-                    label: "Hình khuôn mặt",
+                    label: "Hình khuôn mặt vào",
                     src: resolveImageUrl(
                       firstImageValue(detailSession, [
+                        "checkInFaceImageUrl",
+                        "entryFaceImageUrl",
                         "faceImage",
                         "faceImageUrl",
                         "customerFaceImage",
                         "customerFaceImageUrl",
                         "userFaceImage",
                         "userFaceImageUrl",
+                      ]),
+                    ),
+                  },
+                  {
+                    label: "Hình biển số ra",
+                    src: resolveImageUrl(
+                      firstImageValue(detailSession, [
+                        "checkOutPlateImageUrl",
+                        "exitPlateImageUrl",
+                        "plateImageOut",
+                        "plateImageOutUrl",
+                      ]),
+                    ),
+                  },
+                  {
+                    label: "Hình khuôn mặt ra",
+                    src: resolveImageUrl(
+                      firstImageValue(detailSession, [
+                        "checkOutFaceImageUrl",
+                        "exitFaceImageUrl",
+                        "faceImageOut",
+                        "faceImageOutUrl",
                       ]),
                     ),
                   },
@@ -717,13 +1021,24 @@ export default function ParkingSessions() {
                       {item.label}
                     </p>
                     {item.src ? (
-                      <img
-                        src={item.src}
-                        alt={item.label}
-                        className="h-44 w-full rounded-lg border border-gray-100 object-cover"
-                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreviewImage({ src: item.src, label: item.label })
+                        }
+                        className="group relative block h-52 w-full overflow-hidden rounded-lg border border-gray-100"
+                        title="Xem ảnh đầy đủ"
+                        aria-label={`Xem ảnh đầy đủ: ${item.label}`}
+                      >
+                        <img
+                          src={item.src}
+                          alt={item.label}
+                          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                        />
+                        <div className="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
+                      </button>
                     ) : (
-                      <div className="h-44 w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-sm text-gray-400">
+                      <div className="h-52 w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-sm text-gray-400">
                         Chưa có hình ảnh
                       </div>
                     )}
@@ -731,6 +1046,27 @@ export default function ParkingSessions() {
                 ))}
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(previewImage)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewImage(null);
+        }}
+      >
+        <DialogContent
+          className="h-[98vh] w-[99vw] max-w-[99vw] rounded-none border-none bg-transparent p-0 shadow-none flex items-center justify-center"
+          onClick={() => setPreviewImage(null)}
+        >
+          {previewImage && (
+            <img
+              src={previewImage.src}
+              alt={previewImage.label}
+              className="max-h-[96vh] max-w-[98vw] h-auto w-auto object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
           )}
         </DialogContent>
       </Dialog>
