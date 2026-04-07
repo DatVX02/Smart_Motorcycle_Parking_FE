@@ -55,6 +55,26 @@ const PAYMENT_STATUS_MAP = {
     label: "Đã thanh toán quá giờ",
     cls: "bg-gray-100 text-gray-700 border border-gray-200",
   },
+  Prepaid: {
+    label: "Hoàn thành",
+    cls: "bg-green-100 text-green-700 border border-green-200",
+  },
+  prepaid: {
+    label: "Hoàn thành",
+    cls: "bg-green-100 text-green-700 border border-green-200",
+  },
+  PREPAID: {
+    label: "Hoàn thành",
+    cls: "bg-green-100 text-green-700 border border-green-200",
+  },
+  "pre-paid": {
+    label: "Hoàn thành",
+    cls: "bg-green-100 text-green-700 border border-green-200",
+  },
+  PRE_PAID: {
+    label: "Hoàn thành",
+    cls: "bg-green-100 text-green-700 border border-green-200",
+  },
   Pending: {
     label: "Chờ thanh toán",
     cls: "bg-yellow-100 text-yellow-700 border border-yellow-200",
@@ -253,7 +273,7 @@ function formatPaymentMethodLabel(method, empty = "—") {
   if (normalized === "payos") return "PayOS";
   if (normalized === "cash") return "Tiền mặt";
   if (normalized === "points") return "Điểm";
-  if (normalized === "banktransfer") return "Chuyển khoản ngân hàng";
+  if (normalized === "banktransfer") return "Chuyển khoản";
 
   return s;
 }
@@ -293,7 +313,11 @@ function normalizeStatus(value) {
 
 function isSuccessfulPaymentStatus(value) {
   const normalized = normalizeStatus(value);
-  return normalized === "completed" || normalized === "overtimepaid";
+  return (
+    normalized === "completed" ||
+    normalized === "overtimepaid" ||
+    normalized === "prepaid"
+  );
 }
 
 function isFailedPaymentStatus(value) {
@@ -353,7 +377,7 @@ function getTargetDisplay(item) {
 }
 
 function getUserDisplay(item, userFullNameById = {}) {
-  if (!item || typeof item !== "object") return "—";
+  if (!item || typeof item !== "object") return "Vãng lai";
   const fullName = pickFirst(
     item.fullName,
     item.customerName,
@@ -365,7 +389,7 @@ function getUserDisplay(item, userFullNameById = {}) {
   const userId = pickFirst(item.userId, item.customerId, item.accountId);
   if (userId && userFullNameById[userId]) return userFullNameById[userId];
 
-  return "—";
+  return "Vãng lai";
 }
 
 function extractItems(payload) {
@@ -584,7 +608,10 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
         ],
         ["Phương thức", formatPaymentMethods(detail.paymentMethods, detail)],
         ["Tổng tiền giao dịch", detailNetCashAmountMeta.text],
-        ["Điểm sử dụng", getPointsUsed(detail).toLocaleString("vi-VN")],
+        [
+          "Điểm sử dụng / tích lũy",
+          getPointsUsed(detail).toLocaleString("vi-VN"),
+        ],
         ["Thời gian tạo", formatCreatedDateTime(detail.createdAt)],
         ["Hoàn tất cuối lúc", formatCompletedDateTime(detail.completedAt)],
         ["Người dùng", getUserDisplay(detail, userFullNameById)],
@@ -902,9 +929,12 @@ export default function Transactions() {
       const toDateParam = toDate
         ? toApiDateParam(toDate.format("YYYY-MM-DD"), true)
         : "";
+      const normalizedPaymentStatus = normalizeStatus(paymentStatus);
 
       const params = { pageSize: 9999 }; // lấy hết để phân trang client-side
-      if (paymentStatus) params.paymentStatus = paymentStatus;
+      if (paymentStatus && normalizedPaymentStatus !== "completed") {
+        params.paymentStatus = paymentStatus;
+      }
       if (targetType) params.targetType = targetType;
       if (paymentMethod) params.paymentMethod = paymentMethod;
       if (composition) params.composition = composition;
@@ -973,7 +1003,16 @@ export default function Transactions() {
 
           return candidates
             .filter((status) => status != null && status !== "")
-            .some((status) => normalizeStatus(status) === needle);
+            .some((status) => {
+              const normalizedStatus = normalizeStatus(status);
+              if (needle === "completed") {
+                return (
+                  normalizedStatus === "completed" ||
+                  normalizedStatus === "prepaid"
+                );
+              }
+              return normalizedStatus === needle;
+            });
         });
         if (filtered.length !== items.length) items = filtered;
       }
@@ -1160,7 +1199,7 @@ export default function Transactions() {
         </div>
 
         {/* Row 2: Dropdowns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
               Trạng thái
@@ -1200,7 +1239,7 @@ export default function Transactions() {
               <option value="wallet">Ví điện tử</option>
               <option value="payos">PayOS</option>
               <option value="cash">Tiền mặt</option>
-              <option value="bank_transfer">Chuyển khoản ngân hàng</option>
+              <option value="bank_transfer">Chuyển khoản</option>
             </select>
           </div>
 
@@ -1224,7 +1263,7 @@ export default function Transactions() {
             </select>
           </div>
 
-          <div className="flex flex-col gap-1">
+          {/* <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
               Loại thanh toán
             </label>
@@ -1240,7 +1279,7 @@ export default function Transactions() {
               <option value="single">Đơn</option>
               <option value="mixed">Nhiều</option>
             </select>
-          </div>
+          </div> */}
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">Bãi xe</label>
@@ -1322,7 +1361,6 @@ export default function Transactions() {
                   "Biển số",
                   "Người dùng",
                   "Hình thức",
-                  "Loại thanh toán",
                   "Thời gian tạo",
                   "Hoàn tất",
                   "Số tiền",
@@ -1395,10 +1433,6 @@ export default function Transactions() {
                       {/* Hình thức */}
                       <td className="p-3 text-center text-gray-500">
                         {formatTargetTypeLabel(targetTypeValue, "—")}
-                      </td>
-                      {/* Loại thanh toán */}
-                      <td className="p-3 text-center text-gray-700 font-medium">
-                        {formatCompositionLabel(tx.paymentComposition, "—")}
                       </td>
                       {/* Thời gian vào */}
                       <td className="p-3 text-center text-gray-500 whitespace-nowrap">
