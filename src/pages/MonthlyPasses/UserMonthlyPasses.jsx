@@ -3,7 +3,6 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronRight,
-  Coins,
   MapPin,
   RefreshCw,
   Search,
@@ -297,9 +296,9 @@ function UserMonthlyPasses() {
           </div>
         </div>
 
-        <div className="rounded-3xl p-6 shadow border bg-emerald-500/30">
+        <div className="rounded-3xl p-6 shadow border bg-green-500/30">
           <div className="flex items-start gap-3">
-            <UserRound className="w-8 h-8 flex-shrink-0 text-emerald-600" />
+            <UserRound className="w-8 h-8 flex-shrink-0 text-green-600" />
             <div>
               <p className="text-sm font-medium text-gray-600 mb-1">
                 Vé đang hoạt động
@@ -493,7 +492,6 @@ function UserMonthlyPasses() {
                         </td>
                         <td className="p-3 text-center font-semibold text-gray-900">
                           <p className="inline-flex items-center gap-1.5">
-                            <Coins className="w-4 h-4 text-emerald-600" />
                             {formatMoney(row.paidAmount)}
                           </p>
                         </td>
