@@ -4,7 +4,6 @@ import {
   X,
   Clock,
   Calendar,
-  User,
   FileText,
   Check,
   XCircle,
@@ -114,10 +113,119 @@ function getNotificationId(req = {}) {
   );
 }
 
+const SHIFT_TIME_PRESETS = {
+  MORNING: { startTime: "06:00", endTime: "14:00" },
+  AFTERNOON: { startTime: "14:00", endTime: "22:00" },
+  NIGHT: { startTime: "22:00", endTime: "06:00" },
+  FULL_DAY: { startTime: "07:00", endTime: "19:00" },
+};
+
+function normalizeText(value = "") {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeShiftTypeKey(value = "") {
+  const raw = normalizeText(value);
+  if (!raw) return "";
+  if (["morning", "ca sang", "sang"].includes(raw)) return "MORNING";
+  if (["afternoon", "ca chieu", "chieu"].includes(raw)) return "AFTERNOON";
+  if (["night", "ca dem", "dem"].includes(raw)) return "NIGHT";
+  if (
+    ["full day", "full_day", "fullday", "ca ngay", "ca toan ngay"].includes(raw)
+  )
+    return "FULL_DAY";
+  return raw.replace(/\s+/g, "_").toUpperCase();
+}
+
+function getShiftIdValue(shift) {
+  return (
+    shift?.shiftId ??
+    shift?.ShiftId ??
+    shift?.workShiftId ??
+    shift?.WorkShiftId ??
+    shift?.id ??
+    ""
+  );
+}
+
+function getLotIdValue(shift) {
+  return (
+    shift?.lotId ??
+    shift?.LotId ??
+    shift?.parkingLotId ??
+    shift?.lot?.lotId ??
+    shift?.lot?.id ??
+    ""
+  );
+}
+
+function getShiftTimes(shiftTypeKey, fallbackShift) {
+  const preset = SHIFT_TIME_PRESETS[shiftTypeKey];
+  if (preset) return preset;
+
+  const start = String(
+    fallbackShift?.startTime ?? fallbackShift?.StartTime ?? "06:00",
+  )
+    .trim()
+    .slice(0, 5);
+  const end = String(
+    fallbackShift?.endTime ?? fallbackShift?.EndTime ?? "14:00",
+  )
+    .trim()
+    .slice(0, 5);
+
+  return {
+    startTime: start || "06:00",
+    endTime: end || "14:00",
+  };
+}
+
+function resolveLotIdForCreation({
+  request,
+  currentShiftData,
+  lotName,
+  parkingLots,
+}) {
+  const directLotId =
+    request?.lotId ??
+    request?.LotId ??
+    request?.parkingLotId ??
+    request?.parkingLot?.id;
+  if (directLotId) return String(directLotId);
+
+  const lotIdFromShift = getLotIdValue(currentShiftData);
+  if (lotIdFromShift) return String(lotIdFromShift);
+
+  const normalizedLotName = normalizeText(lotName);
+  if (normalizedLotName) {
+    const matched = (parkingLots ?? []).find(
+      (lot) =>
+        normalizeText(lot?.name ?? lot?.lotName ?? "") === normalizedLotName,
+    );
+    if (matched?.id ?? matched?.lotId)
+      return String(matched?.id ?? matched?.lotId);
+  }
+
+  return "";
+}
+
+function toArray(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data?.items)) return data.data.items;
+  return [];
+}
+
 async function processThenUpdateStatus({
   notificationId,
   decisionType,
   newShiftId,
+  currentShiftId,
   adminNote,
 }) {
   const id = String(notificationId ?? "").trim();
@@ -135,6 +243,7 @@ async function processThenUpdateStatus({
         notificationId: id,
         decision,
         newShiftId: newShiftId || null,
+        currentShiftId: currentShiftId || null,
         adminNote: adminNote?.trim() || "",
       });
       processErr = null;
@@ -157,6 +266,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [shiftsOnDate, setShiftsOnDate] = useState([]);
   const [loadingShifts, setLoadingShifts] = useState(true);
+  const [currentShiftData, setCurrentShiftData] = useState(null);
   const [currentShiftId, setCurrentShiftId] = useState(
     String(
       request?.shiftId ?? request?.workShiftId ?? request?.currentShiftId ?? "",
@@ -192,22 +302,18 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
 
   // Nếu request không có shiftId sẵn → tìm từ API theo staffId + ngày hiện tại
   useEffect(() => {
-    if (currentShiftId || !staffId || !currentDateIso) return;
+    if (!staffId || !currentDateIso || currentShiftData) return;
     let cancelled = false;
     (async () => {
       try {
         const data = await workShiftService.getByStaff(staffId);
-        const arr = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.data)
-            ? data.data
-            : (data?.items ?? data?.data?.items ?? []);
+        const arr = toArray(data);
         const match = arr.find(
           (s) =>
             (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0] ===
             currentDateIso,
         );
-        if (process.env.NODE_ENV === "development") {
+        if (import.meta.env.DEV) {
           console.log("[ApproveModal] getByStaff result:", arr);
           console.log(
             "[ApproveModal] currentDateIso:",
@@ -217,16 +323,8 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
           );
         }
         if (!cancelled && match) {
-          setCurrentShiftId(
-            String(
-              match.shiftId ??
-                match.ShiftId ??
-                match.workShiftId ??
-                match.WorkShiftId ??
-                match.id ??
-                "",
-            ),
-          );
+          setCurrentShiftId(String(getShiftIdValue(match)));
+          setCurrentShiftData(match);
         }
       } catch {
         // silent
@@ -235,7 +333,23 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
     return () => {
       cancelled = true;
     };
-  }, [staffId, currentDateIso, currentShiftId]);
+  }, [staffId, currentDateIso, currentShiftData]);
+
+  useEffect(() => {
+    if (!currentShiftId || currentShiftData) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const detail = await workShiftService.getById(currentShiftId);
+        if (!cancelled && detail) setCurrentShiftData(detail);
+      } catch {
+        // silent
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentShiftId, currentShiftData]);
 
   // Load các ca trực trên ngày đề xuất từ tất cả bãi xe
   useEffect(() => {
@@ -261,7 +375,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
             : Array.isArray(data?.data)
               ? data.data
               : (data?.items ?? data?.data?.items ?? []);
-          if (process.env.NODE_ENV === "development") {
+          if (import.meta.env.DEV) {
             console.log(
               `[ApproveModal] getByLot(${id}) shifts:`,
               arr.map((s) => ({
@@ -302,25 +416,103 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
     return () => {
       cancelled = true;
     };
-  }, [proposedDateIso, parkingLots]);
+  }, [proposedDateIso, parkingLots, staffId]);
 
   const handleSubmit = async () => {
     if (!notificationId) {
       toast.error("Không tìm thấy notificationId của yêu cầu đổi ca");
       return;
     }
+    if (hasShifts && !selectedShiftId) {
+      toast.error("Vui lòng chọn ca để hoán đổi trước khi duyệt");
+      return;
+    }
     setLoading(true);
+    let createdShiftId = "";
     try {
+      let newShiftId = selectedShiftId || null;
+
+      if (!hasShifts) {
+        if (!staffId) {
+          throw new Error("Thiếu nhân viên để tạo ca mới");
+        }
+        if (!proposedDateIso) {
+          throw new Error("Thiếu ngày đề xuất để tạo ca mới");
+        }
+
+        const lotId = resolveLotIdForCreation({
+          request,
+          currentShiftData,
+          lotName,
+          parkingLots,
+        });
+        if (!lotId) {
+          throw new Error("Không xác định được bãi xe để tạo ca mới");
+        }
+
+        const shiftType =
+          normalizeShiftTypeKey(
+            proposedShiftType ||
+              currentShiftData?.shiftType ||
+              currentShiftData?.ShiftType ||
+              currentShiftType,
+          ) || "MORNING";
+        const times = getShiftTimes(shiftType, currentShiftData);
+
+        const created = await workShiftService.create({
+          staffId: String(staffId),
+          lotId: String(lotId),
+          shiftDate: proposedDateIso,
+          shiftType,
+          startTime: times.startTime,
+          endTime: times.endTime,
+          shiftStatus: "SCHEDULED",
+        });
+
+        createdShiftId = String(getShiftIdValue(created) || "");
+
+        if (!createdShiftId) {
+          const latestByStaff = toArray(
+            await workShiftService.getByStaff(staffId),
+          );
+          const found = latestByStaff.find((s) => {
+            const d = (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0];
+            if (d !== proposedDateIso) return false;
+            const sLotId = String(getLotIdValue(s) || "");
+            if (sLotId && sLotId !== String(lotId)) return false;
+            const sType = normalizeShiftTypeKey(
+              s.shiftType ?? s.ShiftType ?? "",
+            );
+            return !sType || sType === shiftType;
+          });
+          createdShiftId = String(getShiftIdValue(found) || "");
+        }
+
+        if (!createdShiftId) {
+          throw new Error("Tạo ca mới thành công nhưng không lấy được mã ca");
+        }
+
+        newShiftId = createdShiftId;
+      }
+
       await processThenUpdateStatus({
         notificationId,
         decisionType: "approve",
-        newShiftId: selectedShiftId || null,
+        newShiftId,
+        currentShiftId: currentShiftId || null,
         adminNote,
       });
 
       toast.success("Đã duyệt yêu cầu đổi ca");
       onSuccess();
     } catch (err) {
+      if (createdShiftId) {
+        try {
+          await workShiftService.delete(createdShiftId);
+        } catch {
+          // bỏ qua rollback lỗi phụ
+        }
+      }
       toast.error(
         err?.response?.data?.message ??
           err?.response?.data?.title ??
@@ -459,11 +651,9 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
                   Không có ca nào vào ngày này
                 </p>
                 <p className="text-xs text-amber-600 mt-1">
-                  Khi bấm Xác nhận, ca hiện tại của nhân viên sẽ được
-                  <br />
-                  <span className="font-semibold">
-                    chuyển sang ngày đề xuất
-                  </span>
+                  Khi bấm Xác nhận, hệ thống sẽ
+                  <span className="font-semibold"> tạo một ca mới </span>
+                  theo ngày/ca đề xuất rồi duyệt yêu cầu.
                 </p>
               </div>
             ) : (
@@ -545,9 +735,8 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
             )}
 
             {hasShifts && !selectedShiftId && (
-              <p className="text-[11px] text-gray-400 mt-1.5">
-                Chọn ca để hoán đổi, hoặc bỏ qua để chỉ chuyển ngày ca của nhân
-                viên.
+              <p className="text-[11px] text-amber-600 mt-1.5">
+                Vui lòng chọn một ca để hoán đổi trước khi duyệt.
               </p>
             )}
           </div>
@@ -577,7 +766,9 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || loadingShifts}
+            disabled={
+              loading || loadingShifts || (hasShifts && !selectedShiftId)
+            }
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
           >
             {loading ? (
@@ -585,9 +776,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                {hasShifts && selectedShiftId
-                  ? "Hoán đổi ca"
-                  : "Xác nhận duyệt"}
+                {hasShifts ? "Hoán đổi ca" : "Tạo ca mới & duyệt"}
               </>
             )}
           </button>
@@ -630,6 +819,7 @@ function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
         notificationId,
         decisionType: "reject",
         newShiftId: null,
+        currentShiftId: null,
         adminNote: rejectNote,
       });
       toast.success("Đã từ chối yêu cầu");
