@@ -3,8 +3,8 @@ import {
   Receipt,
   Eye,
   Search,
-  TrendingUp,
   CheckCircle,
+  CircleDollarSign,
   Clock,
   XCircle,
   ChevronLeft,
@@ -12,6 +12,8 @@ import {
   X,
   RefreshCw,
   AlertCircle,
+  ClockAlert,
+  Banknote,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { DatePicker, ConfigProvider } from "antd";
@@ -40,40 +42,56 @@ const PAYMENT_STATUS_MAP = {
     cls: "bg-green-100 text-green-700 border border-green-200",
   },
   OvertimePaid: {
+    label: "Thanh toán quá giờ",
+    cls: "bg-purple-100 text-purple-700 border border-purple-200",
+  },
+  Overtimepaid: {
     label: "Đã thanh toán quá giờ",
-    cls: "bg-gray-100 text-gray-700 border border-gray-200",
+    cls: "bg-purple-100 text-purple-700 border border-purple-200",
   },
   overtimepaid: {
     label: "Đã thanh toán quá giờ",
-    cls: "bg-gray-100 text-gray-700 border border-gray-200",
+    cls: "bg-purple-100 text-purple-700 border border-purple-200",
   },
   "overtime-paid": {
     label: "Đã thanh toán quá giờ",
-    cls: "bg-gray-100 text-gray-700 border border-gray-200",
+    cls: "bg-purple-100 text-purple-700 border border-purple-200",
+  },
+  overtime_paid: {
+    label: "Đã thanh toán quá giờ",
+    cls: "bg-purple-100 text-purple-700 border border-purple-200",
   },
   OVERTIME_PAID: {
     label: "Đã thanh toán quá giờ",
-    cls: "bg-gray-100 text-gray-700 border border-gray-200",
+    cls: "bg-purple-100 text-purple-700 border border-purple-200",
   },
   Prepaid: {
-    label: "Hoàn thành",
-    cls: "bg-green-100 text-green-700 border border-green-200",
+    label: "Thanh toán trước",
+    cls: "bg-blue-100 text-blue-700 border border-blue-200",
+  },
+  PrePaid: {
+    label: "Thanh toán trước",
+    cls: "bg-blue-100 text-blue-700 border border-blue-200",
   },
   prepaid: {
-    label: "Hoàn thành",
-    cls: "bg-green-100 text-green-700 border border-green-200",
+    label: "Thanh toán trước",
+    cls: "bg-blue-100 text-blue-700 border border-blue-200",
   },
   PREPAID: {
-    label: "Hoàn thành",
-    cls: "bg-green-100 text-green-700 border border-green-200",
+    label: "Thanh toán trước",
+    cls: "bg-blue-100 text-blue-700 border border-blue-200",
   },
   "pre-paid": {
-    label: "Hoàn thành",
-    cls: "bg-green-100 text-green-700 border border-green-200",
+    label: "Thanh toán trước",
+    cls: "bg-blue-100 text-blue-700 border border-blue-200",
+  },
+  pre_paid: {
+    label: "Thanh toán trước",
+    cls: "bg-blue-100 text-blue-700 border border-blue-200",
   },
   PRE_PAID: {
-    label: "Hoàn thành",
-    cls: "bg-green-100 text-green-700 border border-green-200",
+    label: "Thanh toán trước",
+    cls: "bg-blue-100 text-blue-700 border border-blue-200",
   },
   Pending: {
     label: "Chờ thanh toán",
@@ -125,52 +143,70 @@ const PAYMENT_STATUS_MAP = {
   },
 };
 
+const STATUS_FILTER_OPTIONS = [
+  { value: "Completed", label: "Hoàn thành" },
+  { value: "Pending", label: "Chờ thanh toán" },
+  { value: "Prepaid", label: "Thanh toán trước" },
+  { value: "OvertimePaid", label: "Thanh toán quá giờ" },
+  { value: "Cancelled", label: "Đã hủy" },
+];
+
 /* Helpers */
 function formatCurrency(amount) {
   if (amount == null || amount === "") return "-";
   return `${Number(amount).toLocaleString("vi-VN")} VNĐ`;
 }
 
-function formatBackendDateTime(value) {
+function formatDateTimeInVietnam(value) {
   if (!value) return "-";
 
   const raw = String(value).trim();
-  const matched = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+  const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
 
-  if (matched) {
-    const [, year, month, day, hour, minute] = matched;
-    return `${hour}:${minute} ${day}/${month}/${year}`;
+  // Handle backend format like YYYY-MM-DDTHH:mm[:ss] safely.
+  const matched = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/,
+  );
+
+  let date;
+  if (hasTimezone) {
+    date = new Date(raw);
+  } else if (matched) {
+    const [, year, month, day, hour, minute, second = "00"] = matched;
+    // If timezone is missing, treat source as UTC from DB then display in VN timezone.
+    date = new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second),
+      ),
+    );
+  } else {
+    date = new Date(raw);
   }
 
-  const d = new Date(value);
-  if (isNaN(d)) return raw;
-  return d.toLocaleString("vi-VN", {
+  if (Number.isNaN(date.getTime())) return raw;
+
+  return date.toLocaleString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 }
 
+function formatBackendDateTime(value) {
+  return formatDateTimeInVietnam(value);
+}
+
 function formatCreatedDateTime(value) {
-  if (!value) return "-";
-
-  const raw = String(value).trim();
-  const hasTimezone = /([zZ]|[+-]\d{1,2}(?::?\d{2})?)$/.test(raw);
-  if (!hasTimezone) return formatBackendDateTime(raw);
-
-  const d = new Date(raw);
-  if (isNaN(d)) return formatBackendDateTime(raw);
-
-  return d.toLocaleString("vi-VN", {
-    timeZone: "UTC",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDateTimeInVietnam(value);
 }
 
 function formatDateTime(value) {
@@ -197,13 +233,13 @@ function formatTargetTypeLabel(type, empty = "—") {
   return String(type);
 }
 
-function formatCompositionLabel(value, empty = "—") {
-  if (!value) return empty;
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized === "single") return "Thanh toán đơn";
-  if (normalized === "mixed") return "Thanh toán nhiều";
-  return String(value);
-}
+// function formatCompositionLabel(value, empty = "—") {
+//   if (!value) return empty;
+//   const normalized = String(value).trim().toLowerCase();
+//   if (normalized === "single") return "Thanh toán đơn";
+//   if (normalized === "mixed") return "Thanh toán nhiều";
+//   return String(value);
+// }
 
 function normalizeTargetTypeParam(type) {
   if (!type) return "";
@@ -279,6 +315,53 @@ function formatPaymentMethodLabel(method, empty = "—") {
   return s;
 }
 
+function normalizePaymentMethodKey(value) {
+  const normalized = normalizeStatus(value);
+  if (!normalized) return "";
+
+  if (normalized === "wallet") return "wallet";
+  if (normalized === "payos") return "payos";
+  if (normalized === "cash") return "cash";
+  if (normalized === "points") return "points";
+  if (normalized === "banktransfer") return "banktransfer";
+  if (normalized === "monthlypass") return "monthlypass";
+
+  return normalized;
+}
+
+function parseBackendDateToMs(value) {
+  if (!value) return NaN;
+  const raw = String(value).trim();
+  if (!raw) return NaN;
+
+  const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
+  const matched = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/,
+  );
+
+  let date;
+  if (hasTimezone) {
+    date = new Date(raw);
+  } else if (matched) {
+    const [, year, month, day, hour, minute, second = "00"] = matched;
+    date = new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second),
+      ),
+    );
+  } else {
+    date = new Date(raw);
+  }
+
+  const ms = date.getTime();
+  return Number.isFinite(ms) ? ms : NaN;
+}
+
 /** Chuyển ngày thành tham số API: YYYY-MM-DDTHH:mm */
 function toApiDateParam(dateStr, endOfDay = false) {
   if (!dateStr) return "";
@@ -289,8 +372,10 @@ function toApiDateParam(dateStr, endOfDay = false) {
 function getStatusInfo(tx) {
   const raw =
     tx.paymentStatus ??
+    tx.payment_status ??
     tx.status ??
     tx.paymentState ??
+    tx.payment_state ??
     tx.state ??
     tx.PaymentStatus ??
     tx.Status ??
@@ -329,8 +414,10 @@ function getPaymentStatusValue(item) {
   if (!item || typeof item !== "object") return "";
   return normalizeStatus(
     item.paymentStatus ??
+      item.payment_status ??
       item.status ??
       item.paymentState ??
+      item.payment_state ??
       item.state ??
       item.PaymentStatus ??
       item.Status,
@@ -553,6 +640,71 @@ function StatusBadge({ tx }) {
   );
 }
 
+function toStatusTimeMs(item) {
+  const rawTime = pickFirst(
+    item?.completedAt,
+    item?.updatedAt,
+    item?.createdAt,
+    item?.paymentTime,
+    item?.timestamp,
+  );
+  if (!rawTime) return NaN;
+
+  const ms = Date.parse(rawTime);
+  return Number.isFinite(ms) ? ms : NaN;
+}
+
+function getLatestStatusSource(detail, components) {
+  if (!Array.isArray(components) || components.length === 0) return detail;
+
+  const latest = components.reduce((best, component, index) => {
+    if (!getStatusInfo(component)) return best;
+
+    const current = {
+      source: component,
+      index,
+      time: toStatusTimeMs(component),
+    };
+
+    if (!best) return current;
+
+    const bestHasTime = Number.isFinite(best.time);
+    const currentHasTime = Number.isFinite(current.time);
+
+    if (bestHasTime && currentHasTime) {
+      if (current.time > best.time) return current;
+      if (current.time === best.time && current.index > best.index) {
+        return current;
+      }
+      return best;
+    }
+
+    if (currentHasTime && !bestHasTime) return current;
+    if (!currentHasTime && !bestHasTime && current.index > best.index) {
+      return current;
+    }
+
+    return best;
+  }, null);
+
+  return latest?.source ?? detail;
+}
+
+function getLatestStatusValue(tx) {
+  const components = Array.isArray(tx?.components) ? tx.components : [];
+  const source = getLatestStatusSource(tx, components);
+  return normalizeStatus(
+    source?.paymentStatus ??
+      source?.payment_status ??
+      source?.status ??
+      source?.paymentState ??
+      source?.payment_state ??
+      source?.state ??
+      source?.PaymentStatus ??
+      source?.Status,
+  );
+}
+
 /* Detail Modal */
 function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
   const [detail, setDetail] = useState(null);
@@ -596,6 +748,9 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
     : 0;
   const detailNetCashAmountMeta = getSignedAmountMeta(detailNetCashAmount);
 
+  const components = Array.isArray(detail?.components) ? detail.components : [];
+  const statusSource = getLatestStatusSource(detail, components);
+
   const rows = detail
     ? [
         ["Biển số thanh toán", getTargetDisplay(detail)],
@@ -603,10 +758,10 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
           "Hình thức",
           formatTargetTypeLabel(detail.targetType ?? targetType, "-"),
         ],
-        [
-          "Loại thanh toán",
-          formatCompositionLabel(detail.paymentComposition, "-"),
-        ],
+        // [
+        //   "Loại thanh toán",
+        //   formatCompositionLabel(detail.paymentComposition, "-"),
+        // ],
         ["Phương thức", formatPaymentMethods(detail.paymentMethods, detail)],
         ["Tổng tiền giao dịch", detailNetCashAmountMeta.text],
         [
@@ -617,13 +772,11 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
         ["Hoàn tất cuối lúc", formatCompletedDateTime(detail.completedAt)],
         ["Người dùng", getUserDisplay(detail, userFullNameById)],
         [
-          "Bãi đỗ xe",
+          "Bãi gửi xe",
           detail.parkingLotName ?? detail.lotName ?? detail.lotId ?? "-",
         ],
       ]
     : [];
-
-  const components = Array.isArray(detail?.components) ? detail.components : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto">
@@ -683,7 +836,7 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
                 <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-2">
                   Trạng thái
                 </p>
-                <StatusBadge tx={detail} />
+                <StatusBadge tx={statusSource} />
               </div>
 
               <div className="pt-3 border-t border-gray-100">
@@ -814,18 +967,31 @@ function StatCard({
   value,
   valueSuffix,
   bgTint,
+  compact = false,
+  className = "",
 }) {
   const bgClass = bgTint ?? "bg-white";
+  const wrapperPadding = compact ? "p-4" : "p-6";
+  const iconSizeClass = compact ? "w-6 h-6" : "w-8 h-8";
+  const valueSizeClass = compact
+    ? "text-xl lg:text-2xl"
+    : "text-2xl lg:text-3xl";
+  const suffixSizeClass = compact ? "text-sm" : "text-base";
+
   return (
-    <div className={`rounded-3xl p-6 shadow border ${bgClass}`}>
+    <div
+      className={`rounded-3xl shadow border ${wrapperPadding} ${bgClass} ${className}`}
+    >
       <div className="flex items-start gap-3">
-        <Icon className={`w-8 h-8 flex-shrink-0 ${iconColor}`} />
+        <Icon className={`${iconSizeClass} flex-shrink-0 ${iconColor}`} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
-          <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+          <p
+            className={`${valueSizeClass} font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1`}
+          >
             {value}
             {valueSuffix && (
-              <span className="text-base font-medium text-gray-600">
+              <span className={`${suffixSizeClass} font-medium text-gray-600`}>
                 {valueSuffix}
               </span>
             )}
@@ -930,10 +1096,9 @@ export default function Transactions() {
       const toDateParam = toDate
         ? toApiDateParam(toDate.format("YYYY-MM-DD"), true)
         : "";
-      const normalizedPaymentStatus = normalizeStatus(paymentStatus);
 
       const params = { pageSize: 9999 }; // lấy hết để phân trang client-side
-      if (paymentStatus && normalizedPaymentStatus !== "completed") {
+      if (paymentStatus) {
         params.paymentStatus = paymentStatus;
       }
       if (targetType) params.targetType = targetType;
@@ -979,42 +1144,34 @@ export default function Transactions() {
       // Client-side filter fallback nếu API chưa lọc server-side
       if (paymentStatus) {
         const needle = normalizeStatus(paymentStatus);
+        const filtered = items.filter(
+          (tx) => getLatestStatusValue(tx) === needle,
+        );
+        if (filtered.length !== items.length) items = filtered;
+      }
+
+      if (paymentMethod) {
+        const needle = normalizePaymentMethodKey(paymentMethod);
         const filtered = items.filter((tx) => {
-          const candidates = [
-            tx.paymentStatus,
-            tx.status,
-            tx.paymentState,
-            tx.state,
-            tx.PaymentStatus,
-            tx.Status,
-          ];
+          const methods = [];
+
+          if (Array.isArray(tx.paymentMethods)) {
+            methods.push(...tx.paymentMethods);
+          }
+
+          methods.push(tx.paymentMethod, tx.method, tx.channel);
 
           if (Array.isArray(tx.components) && tx.components.length) {
             tx.components.forEach((component) => {
-              candidates.push(
-                component?.paymentStatus,
-                component?.status,
-                component?.paymentState,
-                component?.state,
-                component?.PaymentStatus,
-                component?.Status,
-              );
+              methods.push(component?.method, component?.paymentMethod);
             });
           }
 
-          return candidates
-            .filter((status) => status != null && status !== "")
-            .some((status) => {
-              const normalizedStatus = normalizeStatus(status);
-              if (needle === "completed") {
-                return (
-                  normalizedStatus === "completed" ||
-                  normalizedStatus === "prepaid"
-                );
-              }
-              return normalizedStatus === needle;
-            });
+          return methods
+            .filter((m) => m != null && m !== "")
+            .some((m) => normalizePaymentMethodKey(m) === needle);
         });
+
         if (filtered.length !== items.length) items = filtered;
       }
 
@@ -1041,16 +1198,21 @@ export default function Transactions() {
         if (filtered.length !== items.length) items = filtered;
       }
 
+      if (fromDate || toDate) {
+        const fromMs = fromDate ? fromDate.startOf("day").valueOf() : -Infinity;
+        const toMs = toDate ? toDate.endOf("day").valueOf() : Infinity;
+
+        const filtered = items.filter((tx) => {
+          const createdMs = parseBackendDateToMs(tx.createdAt);
+          if (!Number.isFinite(createdMs)) return false;
+          return createdMs >= fromMs && createdMs <= toMs;
+        });
+
+        if (filtered.length !== items.length) items = filtered;
+      }
+
       setAllTransactions(items);
       setPageNumber(1); // reset về trang 1 khi filter thay đổi
-
-      const statusLower = (tx) =>
-        normalizeStatus(
-          tx.paymentStatus ?? tx.status ?? tx.paymentState ?? tx.state,
-        );
-
-      const isSuccessfulTopLevel = (tx) =>
-        isSuccessfulPaymentStatus(statusLower(tx));
 
       // Doanh thu: cộng toàn bộ khoản đã thanh toán thành công ở từng breakdown/component.
       const totalRevenue = items.reduce((s, tx) => {
@@ -1060,12 +1222,20 @@ export default function Transactions() {
       setStatistics({
         totalTransactions: items.length,
         totalRevenue,
-        completedTransactions: items.filter((tx) => isSuccessfulTopLevel(tx))
-          .length,
-        pendingTransactions: items.filter((tx) => statusLower(tx) === "pending")
-          .length,
+        completedTransactions: items.filter(
+          (tx) => getLatestStatusValue(tx) === "completed",
+        ).length,
+        prepaidTransactions: items.filter(
+          (tx) => getLatestStatusValue(tx) === "prepaid",
+        ).length,
+        overtimePaidTransactions: items.filter(
+          (tx) => getLatestStatusValue(tx) === "overtimepaid",
+        ).length,
+        pendingTransactions: items.filter(
+          (tx) => getLatestStatusValue(tx) === "pending",
+        ).length,
         failedOrCancelledTransactions: items.filter((tx) => {
-          const s = statusLower(tx);
+          const s = getLatestStatusValue(tx);
           return s === "failed" || s === "cancelled";
         }).length,
       });
@@ -1109,6 +1279,8 @@ export default function Transactions() {
     statistics?.totalRevenue ?? 0,
   ).toLocaleString("vi-VN");
   const statCompleted = statistics?.completedTransactions ?? 0;
+  const statPrepaid = statistics?.prepaidTransactions ?? 0;
+  const statOvertimePaid = statistics?.overtimePaidTransactions ?? 0;
   const statPending = statistics?.pendingTransactions ?? 0;
   const statFailedOrCancelled = statistics?.failedOrCancelledTransactions ?? 0;
 
@@ -1121,60 +1293,100 @@ export default function Transactions() {
   return (
     <div className="space-y-5">
       {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="space-y-4">
         {statsLoading ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <div
-              key={i}
-              className="bg-white rounded-3xl border p-6 shadow flex items-center gap-3 animate-pulse"
-            >
-              <div className="w-8 h-8 bg-gray-100 rounded-full flex-shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-8 bg-gray-100 rounded w-16" />
-                <div className="h-4 bg-gray-100 rounded w-24" />
-              </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full xl:w-3/5 mx-auto">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div
+                  key={`stats-top-skeleton-${i}`}
+                  className="bg-white rounded-3xl border p-4 shadow flex items-center gap-3 animate-pulse"
+                >
+                  <div className="w-6 h-6 bg-gray-100 rounded-full flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-6 bg-gray-100 rounded w-16" />
+                    <div className="h-4 bg-gray-100 rounded w-24" />
+                  </div>
+                </div>
+              ))}
             </div>
-          ))
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={`stats-bottom-skeleton-${i}`}
+                  className="bg-white rounded-3xl border p-6 shadow flex items-center gap-3 animate-pulse"
+                >
+                  <div className="w-8 h-8 bg-gray-100 rounded-full flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-8 bg-gray-100 rounded w-16" />
+                    <div className="h-4 bg-gray-100 rounded w-24" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         ) : (
           <>
-            <StatCard
-              icon={Receipt}
-              iconColor="text-blue-600"
-              label="Tổng giao dịch"
-              value={statTotal}
-              valueSuffix="Giao dịch"
-            />
-            <StatCard
-              icon={TrendingUp}
-              iconColor="text-green-600"
-              label="Tổng doanh thu"
-              value={statRevenueNumber}
-              valueSuffix="VNĐ"
-            />
-            <StatCard
-              icon={CheckCircle}
-              iconColor="text-green-600"
-              label="Hoàn thành"
-              value={statCompleted}
-              valueSuffix="Giao dịch"
-              bgTint="bg-green-500/30"
-            />
-            <StatCard
-              icon={Clock}
-              iconColor="text-orange-600"
-              label="Chờ thanh toán"
-              value={statPending}
-              valueSuffix="Giao dịch"
-              bgTint="bg-amber-500/30"
-            />
-            <StatCard
-              icon={XCircle}
-              iconColor="text-red-600"
-              label="Thất bại / Đã hủy"
-              value={statFailedOrCancelled}
-              valueSuffix="Giao dịch"
-              bgTint="bg-red-500/30"
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full xl:w-3/5 mx-auto">
+              <StatCard
+                icon={Receipt}
+                iconColor="text-blue-600"
+                label="Tổng giao dịch"
+                value={statTotal}
+                valueSuffix="Giao dịch"
+              />
+              <StatCard
+                icon={Banknote}
+                iconColor="text-green-600"
+                label="Tổng doanh thu"
+                value={statRevenueNumber}
+                valueSuffix="VNĐ"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+              <StatCard
+                icon={CheckCircle}
+                iconColor="text-green-600"
+                label="Hoàn thành"
+                value={statCompleted}
+                valueSuffix="Giao dịch"
+                bgTint="bg-green-500/30"
+              />
+              <StatCard
+                icon={CircleDollarSign}
+                iconColor="text-cyan-600"
+                label="Thanh toán trước"
+                value={statPrepaid}
+                valueSuffix="Giao dịch"
+                bgTint="bg-cyan-500/30"
+              />
+              <StatCard
+                icon={ClockAlert}
+                iconColor="text-purple-600"
+                label="Thanh toán quá giờ"
+                value={statOvertimePaid}
+                valueSuffix="Giao dịch"
+                bgTint="bg-purple-500/30"
+              />
+              <StatCard
+                icon={Clock}
+                iconColor="text-orange-600"
+                label="Chờ thanh toán"
+                value={statPending}
+                valueSuffix="Giao dịch"
+                bgTint="bg-amber-500/30"
+              />
+              <StatCard
+                icon={XCircle}
+                iconColor="text-red-600"
+                label="Thất bại / Đã hủy"
+                value={statFailedOrCancelled}
+                valueSuffix="Giao dịch"
+                bgTint="bg-red-500/30"
+              />
+            </div>
           </>
         )}
       </div>
@@ -1214,12 +1426,11 @@ export default function Transactions() {
               className="input text-sm"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="Completed">Hoàn thành</option>
-              <option value="Pending">Chờ thanh toán</option>
-              <option value="OvertimePaid">Đã thanh toán quá giờ</option>
-              <option value="InProgress">Đang đỗ</option>
-              <option value="Failed">Thất bại</option>
-              <option value="Cancelled">Đã hủy</option>
+              {STATUS_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -1365,6 +1576,7 @@ export default function Transactions() {
                   "Thời gian tạo",
                   "Hoàn tất",
                   "Số tiền",
+                  "Điểm",
                   "Phương thức",
                   "Trạng thái",
                   "",
@@ -1405,6 +1617,13 @@ export default function Transactions() {
                 </tr>
               ) : (
                 transactions.map((tx, idx) => {
+                  const rowComponents = Array.isArray(tx?.components)
+                    ? tx.components
+                    : [];
+                  const rowStatusSource = getLatestStatusSource(
+                    tx,
+                    rowComponents,
+                  );
                   const targetId = getTargetIdValue(tx);
                   const targetTypeValue = getTargetTypeValue(tx);
                   const netCashAmount = getNetCashAmountWithFailed(
@@ -1445,16 +1664,13 @@ export default function Transactions() {
                       </td>
                       {/* Số tiền */}
                       <td className="p-3 text-center font-semibold text-gray-900">
-                        <div className="flex flex-col items-center leading-tight">
-                          <span className={cashflowAmountMeta.cls}>
-                            {cashflowAmountMeta.text}
-                          </span>
-                          {getPointsUsed(tx) > 0 && (
-                            <span className="text-xs text-blue-600">
-                              {getPointsUsed(tx).toLocaleString("vi-VN")} điểm
-                            </span>
-                          )}
-                        </div>
+                        <span className={cashflowAmountMeta.cls}>
+                          {cashflowAmountMeta.text}
+                        </span>
+                      </td>
+                      {/* Điểm */}
+                      <td className="p-3 text-center font-medium text-blue-700 whitespace-nowrap">
+                        {getPointsUsed(tx).toLocaleString("vi-VN")}
                       </td>
                       {/* Phương thức */}
                       <td className="p-3 text-center text-gray-600">
@@ -1462,7 +1678,7 @@ export default function Transactions() {
                       </td>
                       {/* Trạng thái */}
                       <td className="p-3 text-center">
-                        <StatusBadge tx={tx} />
+                        <StatusBadge tx={rowStatusSource} />
                       </td>
                       {/* Action */}
                       <td className="p-3 text-center">

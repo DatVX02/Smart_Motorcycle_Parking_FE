@@ -111,10 +111,12 @@ function ShiftModal({ shift, onClose, onSave }) {
               className="input"
               required
             >
-              <option value="">Chọn bãi đỗ</option>
-              <option value="Bãi đỗ Tòa A">Bãi đỗ Tòa A</option>
-              <option value="Bãi đỗ Tòa B">Bãi đỗ Tòa B</option>
-              <option value="Bãi đỗ ngoài trời">Bãi đỗ ngoài trời</option>
+              <option value="">Chọn bãi gửi xe</option>
+              <option value="Bãi gửi xe Tòa A">Bãi gửi xe Tòa A</option>
+              <option value="Bãi gửi xe Tòa B">Bãi gửi xe Tòa B</option>
+              <option value="Bãi gửi xe ngoài trời">
+                Bãi gửi xe ngoài trời
+              </option>
             </select>
           </div>
 
@@ -171,7 +173,7 @@ function ShiftModal({ shift, onClose, onSave }) {
         </form>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 

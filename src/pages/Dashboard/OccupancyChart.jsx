@@ -11,7 +11,7 @@ import { BarChart3 } from "lucide-react";
 
 function normalizeOccupancyData(raw) {
   if (!raw) return [];
-  const arr = Array.isArray(raw) ? raw : raw?.data ?? raw?.items ?? [];
+  const arr = Array.isArray(raw) ? raw : (raw?.data ?? raw?.items ?? []);
   if (arr.length === 0) return [];
   return arr.map((item) => ({
     time: item.time ?? item.hour ?? `${item.label ?? item.x ?? ""}h`,
@@ -20,15 +20,18 @@ function normalizeOccupancyData(raw) {
 }
 
 function OccupancyChart({ data: rawData, loading }) {
-  const chartData = rawData && rawData.length > 0 ? normalizeOccupancyData(rawData) : [
-    { time: "6h", vehicles: 0 },
-    { time: "9h", vehicles: 0 },
-    { time: "12h", vehicles: 0 },
-    { time: "15h", vehicles: 0 },
-    { time: "18h", vehicles: 0 },
-    { time: "21h", vehicles: 0 },
-    { time: "24h", vehicles: 0 },
-  ];
+  const chartData =
+    rawData && rawData.length > 0
+      ? normalizeOccupancyData(rawData)
+      : [
+          { time: "6h", vehicles: 0 },
+          { time: "9h", vehicles: 0 },
+          { time: "12h", vehicles: 0 },
+          { time: "15h", vehicles: 0 },
+          { time: "18h", vehicles: 0 },
+          { time: "21h", vehicles: 0 },
+          { time: "24h", vehicles: 0 },
+        ];
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
@@ -38,7 +41,7 @@ function OccupancyChart({ data: rawData, loading }) {
         </div>
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
-            Mức độ sử dụng bãi đỗ
+            Mức độ sử dụng bãi gửi xe
           </h2>
           <p className="text-xs text-slate-500">Số xe theo giờ</p>
         </div>
@@ -52,10 +55,28 @@ function OccupancyChart({ data: rawData, loading }) {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-            <XAxis dataKey="time" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-            <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+          <BarChart
+            data={chartData}
+            margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="#e2e8f0"
+              vertical={false}
+            />
+            <XAxis
+              dataKey="time"
+              stroke="#64748b"
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              stroke="#64748b"
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+            />
             <Tooltip
               contentStyle={{
                 backgroundColor: "#fff",

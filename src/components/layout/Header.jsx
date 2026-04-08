@@ -8,8 +8,8 @@ const PAGE_TITLES = {
   "/dashboard": { title: "Dashboard" },
   "/accounts": { title: "Quản Lý Tài Khoản Khách Hàng" },
   "/accounts/staff": { title: "Quản Lý Tài Khoản Nhân Viên" },
-  "/parking-lots": { title: "Quản Lý Bãi Đỗ Xe" },
-  "/parking-sessions": { title: "Quản Lý Phiên Đỗ Xe" },
+  "/parking-lots": { title: "Quản Lý Bãi Gửi Xe" },
+  "/parking-sessions": { title: "Quản Lý Phiên Gửi Xe" },
   "/transactions": { title: "Quản Lý Giao Dịch" },
   "/shifts": { title: "Quản Lý Lịch Bãi Xe" },
   "/device-events": { title: "Nhật Ký Thiết Bị" },
@@ -83,7 +83,7 @@ function Header({ onMenuClick }) {
   // const notifications = [
   //   {
   //     id: 1,
-  //     message: "Có phương tiện mới vào bãi đỗ",
+  //     message: "Có phương tiện mới vào bãi gửi",
   //     time: "2 phút trước",
   //     unread: true,
   //   },

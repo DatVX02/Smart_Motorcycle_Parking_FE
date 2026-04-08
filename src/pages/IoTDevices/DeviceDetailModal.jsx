@@ -253,7 +253,11 @@ function DeviceDetailModal({ device, onClose }) {
                   value={d.macAddress}
                   mono
                 />
-                <InfoRow icon={Cpu} label="Firmware" value={d.firmwareVersion} />
+                <InfoRow
+                  icon={Cpu}
+                  label="Firmware"
+                  value={d.firmwareVersion}
+                />
                 <InfoRow
                   icon={DoorOpen}
                   label="Cổng"
@@ -266,7 +270,7 @@ function DeviceDetailModal({ device, onClose }) {
                 />
                 <InfoRow
                   icon={MapPin}
-                  label="Bãi đỗ xe"
+                  label="Bãi gửi xe"
                   value={d.lotName || d.parkingLotName}
                 />
                 <InfoRow
@@ -302,7 +306,7 @@ function DeviceDetailModal({ device, onClose }) {
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 

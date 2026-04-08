@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bike, TrendingUp, AlertTriangle } from "lucide-react";
+import { Motorbike, TrendingUp, AlertTriangle } from "lucide-react";
 import { useAdminHub } from "../../hooks/useAdminHub";
 import StatCard from "./StatCard";
 import parkingLotService from "../../services/parkingLotService";
@@ -127,7 +127,7 @@ export default function Dashboard() {
     {
       title: "Tổng chỗ trống",
       value: totalAvailableSpots || "0",
-      icon: Bike,
+      icon: Motorbike,
       color: "bg-blue-500",
       bgTint: "white",
       iconColor: "text-blue-600",

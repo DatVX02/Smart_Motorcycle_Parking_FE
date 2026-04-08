@@ -1,5 +1,5 @@
 /**
- * Dữ liệu mẫu cho form Thêm bãi đỗ - dùng khi bấm Auto fill
+ * Dữ liệu mẫu cho form Thêm bãi gửi - dùng khi bấm Auto fill
  */
 
 const newId = () => crypto.randomUUID();

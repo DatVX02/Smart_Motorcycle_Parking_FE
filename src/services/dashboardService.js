@@ -13,7 +13,7 @@ const dashboardService = {
   getSessions: () =>
     apiClient.get(`${BASE}/sessions`).then((r) => unwrap(r.data)),
 
-  /** GET /api/v1/dashboard/occupancy - Mức độ sử dụng bãi đỗ */
+  /** GET /api/v1/dashboard/occupancy - Mức độ sử dụng bãi gửi */
   getOccupancy: () =>
     apiClient.get(`${BASE}/occupancy`).then((r) => unwrap(r.data)),
 
