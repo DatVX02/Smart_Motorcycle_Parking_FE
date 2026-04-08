@@ -224,7 +224,7 @@ function LoyaltyConfigModal({
     setError("");
 
     if (!formData.lotId) {
-      setError("Vui lòng chọn bãi đỗ xe.");
+      setError("Vui lòng chọn bãi gửi xe.");
       return;
     }
 
@@ -324,7 +324,7 @@ function LoyaltyConfigModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Bãi đỗ xe <span className="text-red-500">*</span>
+              Bãi gửi xe <span className="text-red-500">*</span>
             </label>
             <select
               value={formData.lotId}
@@ -332,10 +332,10 @@ function LoyaltyConfigModal({
               className="input"
               required
             >
-              <option value="">-- Chọn bãi đỗ xe --</option>
+              <option value="">-- Chọn bãi gửi xe --</option>
               {!isEdit && availableLots.length === 0 ? (
                 <option value="" disabled>
-                  Tất cả bãi xe đã có cấu hình
+                  Tất cả bãi gửi xe đã có cấu hình
                 </option>
               ) : (
                 availableLots.map((lot) => {

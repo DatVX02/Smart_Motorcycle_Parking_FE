@@ -567,7 +567,7 @@ function IoTDevices() {
             onChange={(e) => setFilterLot(e.target.value)}
             className="input text-sm w-48"
           >
-            <option value="all">Tất cả bãi đỗ</option>
+            <option value="all">Tất cả bãi gửi</option>
             {lots.map((l) => (
               <option key={l.id ?? l.lotId} value={l.id ?? l.lotId}>
                 {l.name ?? l.lotName}

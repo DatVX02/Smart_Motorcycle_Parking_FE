@@ -392,7 +392,7 @@ function RewardPoints() {
               <thead className="table-header">
                 <tr>
                   <th className="table-header-cell">STT</th>
-                  <th className="table-header-cell">Bãi đỗ xe</th>
+                  <th className="table-header-cell">Bãi gửi xe</th>
                   <th className="table-header-cell !text-right">
                     <span className="block">Tỷ lệ tích điểm</span>
                     <span className="block text-xs font-normal text-gray-500">

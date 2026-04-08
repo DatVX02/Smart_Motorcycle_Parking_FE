@@ -119,7 +119,7 @@ function ParkingLots() {
       setParkingLots(transformedData);
 
       if (showToast) {
-        toast.success(`Đã tải ${transformedData.length} bãi đỗ xe`);
+        toast.success(`Đã tải ${transformedData.length} bãi gửi xe`);
       }
     } catch (error) {
       const isNetworkError =
@@ -133,7 +133,8 @@ function ParkingLots() {
         );
       } else {
         toast.error(
-          error?.response?.data?.message || "Không thể tải danh sách bãi đỗ xe",
+          error?.response?.data?.message ||
+            "Không thể tải danh sách bãi gửi xe",
         );
       }
       console.error(
@@ -173,7 +174,7 @@ function ParkingLots() {
             info.reason ??
             info.Reason ??
             info.detail ??
-            "Bãi đỗ không thể xóa (còn cổng hoặc dữ liệu liên quan).";
+            "Bãi gửi không thể xóa (còn cổng hoặc dữ liệu liên quan).";
           toast.error(String(msg), { duration: 7000 });
           return;
         }
@@ -196,7 +197,7 @@ function ParkingLots() {
           .map((g) => g.gateName || g.name || `Cổng ${g.gateId ?? g.id}`)
           .join(", ");
         toast.error(
-          `Không thể xóa bãi đỗ vì còn ${gates.length} cổng chưa được xóa: ${gateNames}. Vui lòng xóa tất cả cổng trước.`,
+          `Không thể xóa bãi gửi vì còn ${gates.length} cổng chưa được xóa: ${gateNames}. Vui lòng xóa tất cả cổng trước.`,
           { duration: 6000 },
         );
         return;
@@ -242,7 +243,7 @@ function ParkingLots() {
         maintenanceDeleted > 0
           ? ` (đã gỡ ${maintenanceDeleted} lịch bảo trì)`
           : "";
-      toast.success(`Đã xóa bãi đỗ "${lot.name}" thành công${maintHint}`);
+      toast.success(`Đã xóa bãi gửi "${lot.name}" thành công${maintHint}`);
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       const data = error.response?.data;
@@ -251,8 +252,8 @@ function ParkingLots() {
         data?.title ||
         data?.detail ||
         (error.response?.status === 500
-          ? "Lỗi máy chủ — Bãi đỗ có thể vẫn còn cổng hoặc dữ liệu liên quan. Vui lòng kiểm tra lại."
-          : "Không thể xóa bãi đỗ xe");
+          ? "Lỗi máy chủ — Bãi gửi có thể vẫn còn cổng hoặc dữ liệu liên quan. Vui lòng kiểm tra lại."
+          : "Không thể xóa bãi gửi xe");
       toast.error(errorMessage, { duration: 6000 });
       console.error("Error deleting parking lot:", error);
       console.error("Backend response:", JSON.stringify(data, null, 2));
@@ -270,10 +271,10 @@ function ParkingLots() {
         // PUT endpoint chỉ nhận flat lotInfo (không có wrapper lotInfo/cameraSetup)
         const updatePayload = formData.lotInfo ?? formData;
         await parkingLotService.updateParkingLot(selectedLot.id, updatePayload);
-        toast.success("Đã cập nhật bãi đỗ xe thành công");
+        toast.success("Đã cập nhật bãi gửi xe thành công");
       } else {
         const created = await parkingLotService.createParkingLot(formData);
-        toast.success("Đã thêm bãi đỗ xe mới thành công");
+        toast.success("Đã thêm bãi gửi xe mới thành công");
         const lotId = created?.lotId ?? created?.id;
         if (lotId) {
           try {
@@ -303,7 +304,7 @@ function ParkingLots() {
       const data = error.response?.data;
       const statusCode = error.response?.status;
 
-      let errorMessage = `Không thể ${selectedLot ? "cập nhật" : "tạo"} bãi đỗ xe`;
+      let errorMessage = `Không thể ${selectedLot ? "cập nhật" : "tạo"} bãi gửi xe`;
 
       if (
         data?.message &&
@@ -372,7 +373,7 @@ function ParkingLots() {
       const msg =
         err.response?.data?.message ||
         err.response?.data?.title ||
-        "Không thể chuyển trạng thái bãi đỗ.";
+        "Không thể chuyển trạng thái bãi gửi.";
       toast.error(msg, { duration: 5000 });
     } finally {
       setTogglingLotId(null);
@@ -419,7 +420,7 @@ function ParkingLots() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           {
-            label: "Tổng bãi đỗ",
+            label: "Tổng bãi gửi",
             value: totalLots,
             unit: "Bãi",
             Icon: ParkingCircle,
@@ -473,7 +474,7 @@ function ParkingLots() {
         ))}
       </div>
 
-      {/* Search & Sort Bar + Thêm bãi đỗ */}
+      {/* Search & Sort Bar + Thêm bãi gửi */}
       {parkingLots.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -505,7 +506,7 @@ function ParkingLots() {
             onClick={handleAddNew}
             className="gap-2 rounded-2xl shrink-0 bg-primary-600 hover:bg-primary-700 text-white"
           >
-            <Plus className="w-4 h-4" /> Thêm bãi đỗ
+            <Plus className="w-4 h-4" /> Thêm bãi gửi xe
           </Button>
         </div>
       )}
@@ -518,13 +519,13 @@ function ParkingLots() {
               <ParkingCircle className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-1">
-              Chưa có bãi đỗ xe nào
+              Chưa có bãi gửi xe nào
             </h3>
             <p className="text-gray-500 text-sm mb-6">
-              Bắt đầu bằng cách thêm bãi đỗ xe đầu tiên của bạn
+              Bắt đầu bằng cách thêm bãi gửi xe đầu tiên của bạn
             </p>
             <Button onClick={handleAddNew} className="gap-2">
-              <Plus className="w-4 h-4" /> Thêm bãi đỗ
+              <Plus className="w-4 h-4" /> Thêm bãi gửi xe
             </Button>
           </CardContent>
         </Card>
@@ -819,8 +820,8 @@ function ParkingLots() {
         open={confirm.open}
         onClose={() => setConfirm({ open: false, lot: null })}
         onConfirm={handleConfirmDelete}
-        title="Xóa bãi đỗ xe"
-        description={`Bạn có chắc muốn xóa bãi đỗ "${confirm.lot?.name}"? Hành động này không thể hoàn tác.`}
+        title="Xóa bãi gửi xe"
+        description={`Bạn có chắc muốn xóa bãi gửi "${confirm.lot?.name}"? Hành động này không thể hoàn tác.`}
         confirmLabel="Xóa"
       />
     </div>

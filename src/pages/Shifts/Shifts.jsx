@@ -1800,7 +1800,7 @@ function Shifts() {
                     Chưa có bãi xe nào
                   </p>
                   <p className="text-sm text-gray-400 mt-1">
-                    Thêm bãi đỗ xe trong mục Quản lý bãi đỗ xe
+                    Thêm bãi gửi xe trong mục Quản lý bãi gửi xe
                   </p>
                 </div>
               )}
