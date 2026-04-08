@@ -94,6 +94,18 @@ const SHIFT_TYPE_LABELS = {
   full_day: "Cả ngày",
   Fullday: "Cả ngày",
 };
+
+const HIDDEN_CALENDAR_STATUSES = new Set(["CANCELLED", "REJECTED"]);
+
+function shiftStatusKey(shift) {
+  return String(shift?.shiftStatus ?? shift?.ShiftStatus ?? shift?.status ?? "")
+    .trim()
+    .toUpperCase();
+}
+
+function shouldHideShiftOnCalendar(shift) {
+  return HIDDEN_CALENDAR_STATUSES.has(shiftStatusKey(shift));
+}
 const LEGEND_ITEMS = [
   { type: "MORNING", label: "Ca sáng", color: SHIFT_COLORS.MORNING },
   { type: "AFTERNOON", label: "Ca chiều", color: SHIFT_COLORS.AFTERNOON },
@@ -1188,7 +1200,9 @@ function Shifts() {
   const allShiftsArray = useMemo(() => {
     const raw = Object.values(shiftsByLot).flat();
     return raw.filter(
-      (s) => !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+      (s) =>
+        !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")) &&
+        !shouldHideShiftOnCalendar(s),
     );
   }, [shiftsByLot, inactiveStaffIds]);
 
@@ -1234,6 +1248,7 @@ function Shifts() {
       (shiftsByLot[lotId] ?? []).filter((s) => {
         if (inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")))
           return false;
+        if (shouldHideShiftOnCalendar(s)) return false;
         if (
           filterStaffId &&
           String(s.staffId ?? s.StaffId ?? "") !== String(filterStaffId)
@@ -1286,6 +1301,7 @@ function Shifts() {
         count: (shiftsByLot[lot.id] ?? []).filter((s) => {
           if (inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")))
             return false;
+          if (shouldHideShiftOnCalendar(s)) return false;
           if (
             filterStaffId &&
             String(s.staffId ?? s.StaffId ?? "") !== String(filterStaffId)
@@ -1796,6 +1812,7 @@ function Shifts() {
                     inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? ""))
                   )
                     return false;
+                  if (shouldHideShiftOnCalendar(s)) return false;
                   if (
                     filterShiftType &&
                     (s.shiftType ?? s.ShiftType ?? "").toUpperCase() !==

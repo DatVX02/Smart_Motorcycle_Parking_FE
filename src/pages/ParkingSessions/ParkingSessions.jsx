@@ -116,35 +116,36 @@ function paymentStatusLabel(value) {
 }
 
 function paymentMethodLabel(value) {
-  const st = String(value ?? "")
-    .trim()
-    .toLowerCase();
-  if (!st) return "—";
+  const raw = String(value ?? "").trim();
+  if (!raw) return "—";
+  const st = raw.toLowerCase().replace(/[\s_-]+/g, "");
   const map = {
     wallet: "Ví điện tử",
     cash: "Tiền mặt",
     points: "Điểm thưởng",
-    bank_transfer: "Chuyển khoản",
+    banktransfer: "Chuyển khoản",
     vnpay: "VNPay",
     momo: "MoMo",
+    payos: "PayOS",
+    monthlypass: "Vé tháng",
   };
-  return map[st] ?? value;
+  return map[st] ?? raw;
 }
 
 function paymentTypeLabel(value) {
-  const st = String(value ?? "")
-    .trim()
-    .toLowerCase();
-  if (!st) return "—";
+  const raw = String(value ?? "").trim();
+  if (!raw) return "—";
+  const st = raw.toLowerCase().replace(/[\s_-]+/g, "");
   const map = {
-    parking_prepayment: "Thanh toán giữ xe trả trước",
-    parking_overtime: "Phí quá giờ",
-    parking_checkout: "Thanh toán khi ra bãi",
-    parking_session: "Phí giữ xe",
-    monthly_pass: "Vé tháng",
-    additional_fee: "Phụ phí",
+    parkingprepayment: "Thanh toán giữ xe trả trước",
+    parkingovertime: "Phí quá giờ",
+    parkingcheckout: "Thanh toán khi ra bãi",
+    parkingsession: "Phí giữ xe",
+    monthlypass: "Vé tháng",
+    monthlypasssessionlock: "Giữ xe bằng vé tháng",
+    additionalfee: "Phụ phí",
   };
-  return map[st] ?? value;
+  return map[st] ?? raw;
 }
 
 function firstImageValue(source, keys) {
@@ -958,7 +959,7 @@ export default function ParkingSessions() {
 
               <div className="border-t border-gray-100" />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-1">
                 {[
                   {
                     label: "Hình biển số vào",
@@ -1033,7 +1034,7 @@ export default function ParkingSessions() {
                         <img
                           src={item.src}
                           alt={item.label}
-                          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                          className="h-full w-full bg-gray-50 object-contain transition-transform duration-200 group-hover:scale-[1.02]"
                         />
                         <div className="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
                       </button>
@@ -1057,7 +1058,7 @@ export default function ParkingSessions() {
         }}
       >
         <DialogContent
-          className="h-[98vh] w-[99vw] max-w-[99vw] rounded-none border-none bg-transparent p-0 shadow-none flex items-center justify-center"
+          className="h-full max-w-[99vw] rounded-none border-none bg-transparent p-0 shadow-none flex items-center justify-center"
           onClick={() => setPreviewImage(null)}
         >
           {previewImage && (

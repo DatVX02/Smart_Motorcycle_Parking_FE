@@ -274,6 +274,7 @@ function formatPaymentMethodLabel(method, empty = "—") {
   if (normalized === "cash") return "Tiền mặt";
   if (normalized === "points") return "Điểm";
   if (normalized === "banktransfer") return "Chuyển khoản";
+  if (normalized === "monthlypass") return "Vé tháng";
 
   return s;
 }
