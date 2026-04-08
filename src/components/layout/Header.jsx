@@ -9,7 +9,7 @@ const PAGE_TITLES = {
   "/accounts": { title: "Quản Lý Tài Khoản Khách Hàng" },
   "/accounts/staff": { title: "Quản Lý Tài Khoản Nhân Viên" },
   "/parking-lots": { title: "Quản Lý Bãi Đỗ Xe" },
-  "/parking-sessions": { title: "Quản Lý Phiên Giữ Xe" },
+  "/parking-sessions": { title: "Quản Lý Phiên Đỗ Xe" },
   "/transactions": { title: "Quản Lý Giao Dịch" },
   "/shifts": { title: "Quản Lý Lịch Bãi Xe" },
   "/device-events": { title: "Nhật Ký Thiết Bị" },

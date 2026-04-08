@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CalendarClock,
   ChevronLeft,
   ChevronRight,
+  Eye,
   MapPin,
   RefreshCw,
   Search,
@@ -13,6 +13,13 @@ import toast from "react-hot-toast";
 import monthlyPassService from "../../services/monthlyPassService";
 import parkingLotService from "../../services/parkingLotService";
 import userService from "../../services/userService";
+import apiClient, { API_BASE_URL } from "../../config/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 function formatMoney(value) {
   const num = Number(value);
@@ -57,20 +64,23 @@ function normalizeStatus(value) {
   const raw = String(value ?? "")
     .trim()
     .toLowerCase();
-  if (!raw) return "other";
+  if (!raw) return "active";
   if (["active", "valid", "activated", "inuse", "in_use"].includes(raw)) {
     return "active";
   }
   if (["expired", "inactive", "ended", "done"].includes(raw)) {
     return "expired";
   }
-  if (["cancelled", "canceled", "rejected", "disabled"].includes(raw)) {
-    return "cancelled";
+  return "active";
+}
+
+function resolveStatusByDate(rawStatus, endDate) {
+  const end = endDate ? new Date(endDate) : null;
+  if (end && !Number.isNaN(end.getTime())) {
+    return Date.now() > end.getTime() ? "expired" : "active";
   }
-  if (["pending", "processing", "waiting"].includes(raw)) {
-    return "pending";
-  }
-  return "other";
+
+  return normalizeStatus(rawStatus) === "expired" ? "expired" : "active";
 }
 
 function statusStyle(status) {
@@ -86,25 +96,14 @@ function statusStyle(status) {
       className: "bg-amber-100 text-amber-700 border border-amber-200",
     };
   }
-  if (status === "cancelled") {
-    return {
-      label: "Đã hủy",
-      className: "bg-rose-100 text-rose-700 border border-rose-200",
-    };
-  }
-  if (status === "pending") {
-    return {
-      label: "Chờ xử lý",
-      className: "bg-sky-100 text-sky-700 border border-sky-200",
-    };
-  }
   return {
-    label: "Khác",
-    className: "bg-slate-100 text-slate-700 border border-slate-200",
+    label: "Đang hoạt động",
+    className: "bg-emerald-100 text-emerald-700 border border-emerald-200",
   };
 }
 
 function normalizePass(pass) {
+  const endDate = pass?.endDate ?? pass?.validTo ?? null;
   return {
     passId: pass?.passId ?? pass?.id ?? pass?.monthlyPassId ?? "",
     userId: pass?.userId ?? "",
@@ -113,17 +112,18 @@ function normalizePass(pass) {
     userName: pass?.userName ?? pass?.fullName ?? "",
     vehicleId: pass?.vehicleId ?? "",
     vehiclePlate: pass?.vehiclePlate ?? pass?.licensePlate ?? "",
+    vehicleColor: pass?.color ?? pass?.vehicleColor ?? pass?.carColor ?? "",
     lotId: pass?.lotId ?? "",
     lotName: pass?.lotName ?? pass?.parkingLotName ?? "",
     packageId: pass?.packageId ?? "",
     packageName: pass?.packageName ?? pass?.monthlyPassPackageName ?? "",
     startDate: pass?.startDate ?? pass?.validFrom ?? pass?.createdAt ?? null,
-    endDate: pass?.endDate ?? pass?.validTo ?? null,
+    endDate,
     originalPrice: pass?.originalPrice ?? pass?.price ?? 0,
     paidAmount: pass?.paidAmount ?? pass?.amount ?? 0,
     paymentMethod: pass?.paymentMethod ?? "",
     statusRaw: pass?.status ?? "",
-    statusKey: normalizeStatus(pass?.status),
+    statusKey: resolveStatusByDate(pass?.status, endDate),
     createdAt: pass?.createdAt ?? null,
   };
 }
@@ -137,14 +137,89 @@ function extractItems(payload) {
   return [];
 }
 
-function isNearExpiry(endDate, statusKey) {
-  if (!endDate || statusKey !== "active") return false;
-  const end = new Date(endDate);
-  if (Number.isNaN(end.getTime())) return false;
-  const now = new Date();
-  const diffMs = end.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-  return diffDays >= 0 && diffDays <= 7;
+function firstImageValue(source, keys) {
+  for (const key of keys) {
+    const value = source?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function resolveImageUrl(url) {
+  if (!url) return "";
+  if (/^(https?:|data:image|blob:)/i.test(url)) return url;
+  return `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
+function matchesVehicle(vehicle, vehicleId, vehiclePlate) {
+  const targetId = String(vehicleId ?? "")
+    .trim()
+    .toLowerCase();
+  const targetPlate = String(vehiclePlate ?? "")
+    .trim()
+    .toLowerCase();
+  const candidateIds = [vehicle?.id, vehicle?.vehicleId, vehicle?.uuid]
+    .map((value) =>
+      String(value ?? "")
+        .trim()
+        .toLowerCase(),
+    )
+    .filter(Boolean);
+  const candidatePlates = [
+    vehicle?.licensePlate,
+    vehicle?.vehiclePlate,
+    vehicle?.plateNumber,
+    vehicle?.plate,
+  ]
+    .map((value) =>
+      String(value ?? "")
+        .trim()
+        .toLowerCase(),
+    )
+    .filter(Boolean);
+
+  return (
+    (targetId && candidateIds.includes(targetId)) ||
+    (targetPlate && candidatePlates.includes(targetPlate))
+  );
+}
+
+function findVehicleFromResponse(raw, vehicleId, vehiclePlate) {
+  const items = extractItems(raw);
+  if (items.length > 0) {
+    return (
+      items.find((item) => matchesVehicle(item, vehicleId, vehiclePlate)) ||
+      null
+    );
+  }
+
+  if (raw && typeof raw === "object") {
+    return matchesVehicle(raw, vehicleId, vehiclePlate) ? raw : null;
+  }
+
+  return null;
+}
+
+async function getVehicleFromVehiclesApi(vehicleId, vehiclePlate) {
+  const requestConfigs = [
+    { params: { pageSize: 200, vehicleId } },
+    { params: { pageSize: 200, id: vehicleId } },
+    { params: { pageSize: 200, keyword: vehiclePlate } },
+    { params: { pageSize: 200 } },
+  ];
+
+  for (const config of requestConfigs) {
+    try {
+      const response = await apiClient.get("/api/v1/vehicles", config);
+      const raw = response?.data?.data ?? response?.data;
+      const matched = findVehicleFromResponse(raw, vehicleId, vehiclePlate);
+      if (matched) return matched;
+    } catch {
+      // continue next request shape
+    }
+  }
+
+  return null;
 }
 
 function UserMonthlyPasses() {
@@ -157,6 +232,12 @@ function UserMonthlyPasses() {
   const [statusFilter, setStatusFilter] = useState("");
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize] = useState(10);
+  const [detailPass, setDetailPass] = useState(null);
+  const [vehicleMedia, setVehicleMedia] = useState({
+    loading: false,
+    plateUrl: "",
+    color: "",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -261,10 +342,7 @@ function UserMonthlyPasses() {
     const expired = filteredPasses.filter(
       (item) => item.statusKey === "expired",
     ).length;
-    const nearExpiry = filteredPasses.filter((item) =>
-      isNearExpiry(item.endDate, item.statusKey),
-    ).length;
-    return { total, active, expired, nearExpiry };
+    return { total, active, expired };
   }, [filteredPasses]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPasses.length / pageSize));
@@ -278,9 +356,73 @@ function UserMonthlyPasses() {
     return Array.from({ length: Math.min(5, totalPages) }, (_, i) => start + i);
   }, [pageNumber, totalPages]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const setMediaFromSources = (vehicleData, passData) => {
+      const plateRaw =
+        firstImageValue(vehicleData, [
+          "licensePlateImageUrl",
+          "vehiclePlateImageUrl",
+          "plateImageUrl",
+          "licensePlateImage",
+          "vehiclePlateImage",
+          "plateImage",
+        ]) ||
+        firstImageValue(passData, [
+          "licensePlateImageUrl",
+          "vehiclePlateImageUrl",
+          "plateImageUrl",
+          "licensePlateImage",
+          "vehiclePlateImage",
+          "plateImage",
+        ]);
+
+      const colorRaw =
+        firstImageValue(vehicleData, ["color", "vehicleColor", "carColor"]) ||
+        firstImageValue(passData, ["color", "vehicleColor", "carColor"]);
+
+      setVehicleMedia({
+        loading: false,
+        plateUrl: resolveImageUrl(plateRaw),
+        color: colorRaw,
+      });
+    };
+
+    const loadVehicleMedia = async () => {
+      if (!detailPass) {
+        setVehicleMedia({ loading: false, plateUrl: "", color: "" });
+        return;
+      }
+
+      setVehicleMedia((prev) => ({ ...prev, loading: true }));
+
+      const vehicleId = detailPass.vehicleId;
+      const vehiclePlate = detailPass.vehiclePlate;
+      if (!vehicleId && !vehiclePlate) {
+        setMediaFromSources(null, detailPass);
+        return;
+      }
+
+      const vehicleData = await getVehicleFromVehiclesApi(
+        vehicleId,
+        vehiclePlate,
+      );
+      if (!cancelled) {
+        setMediaFromSources(vehicleData, detailPass);
+      }
+    };
+
+    loadVehicleMedia();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailPass]);
+
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="rounded-3xl p-6 shadow border bg-white">
           <div className="flex items-start gap-3">
             <Ticket className="w-8 h-8 flex-shrink-0 text-blue-600" />
@@ -305,21 +447,6 @@ function UserMonthlyPasses() {
               </p>
               <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
                 {stats.active}
-                <span className="text-base font-medium text-gray-600">Vé</span>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-3xl p-6 shadow border bg-amber-500/30">
-          <div className="flex items-start gap-3">
-            <CalendarClock className="w-8 h-8 flex-shrink-0 text-amber-600" />
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">
-                Sắp hết hạn
-              </p>
-              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
-                {stats.nearExpiry}
                 <span className="text-base font-medium text-gray-600">Vé</span>
               </p>
             </div>
@@ -392,10 +519,7 @@ function UserMonthlyPasses() {
             >
               <option value="">Tất cả trạng thái</option>
               <option value="active">Đang hoạt động</option>
-              <option value="expired">Hết hạn</option>
-              <option value="cancelled">Đã hủy</option>
-              <option value="pending">Chờ xử lý</option>
-              <option value="other">Khác</option>
+              <option value="expired">Đã hết hạn</option>
             </select>
           </div>
         </div>
@@ -435,6 +559,7 @@ function UserMonthlyPasses() {
                       "Thanh toán",
                       "Loại thanh toán",
                       "Trạng thái",
+                      "",
                     ].map((heading) => (
                       <th
                         key={heading}
@@ -505,6 +630,17 @@ function UserMonthlyPasses() {
                             {style.label}
                           </span>
                         </td>
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            title="Xem chi tiết vé tháng"
+                            aria-label="Xem chi tiết vé tháng"
+                            onClick={() => setDetailPass(row)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-blue-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -561,6 +697,165 @@ function UserMonthlyPasses() {
           </>
         )}
       </div>
+
+      <Dialog
+        open={Boolean(detailPass)}
+        onOpenChange={(open) => {
+          if (!open) setDetailPass(null);
+        }}
+      >
+        <DialogContent
+          className="w-[92vw] max-w-5xl rounded-2xl px-0 py-0 overflow-hidden"
+          onClose={() => setDetailPass(null)}
+        >
+          <DialogHeader className="px-5 py-4 border-b border-gray-100 bg-gray-50/70">
+            <DialogTitle className="text-xl font-bold text-gray-900">
+              Chi tiết đăng ký vé tháng
+            </DialogTitle>
+          </DialogHeader>
+
+          {detailPass && (
+            <div className="space-y-4 px-5 pb-5 pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Tên người dùng
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-all">
+                    {detailPass.fullName?.trim() ||
+                      userFullNameById[String(detailPass.userId ?? "")] ||
+                      detailPass.userName?.trim() ||
+                      "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Email
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-all">
+                    {detailPass.userEmail || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Biển số xe
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {detailPass.vehiclePlate || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Màu xe
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {vehicleMedia.color || detailPass.vehicleColor || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Bãi xe
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {detailPass.lotName || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Gói vé
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {detailPass.packageName || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Thời gian bắt đầu
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatDateTime(detailPass.startDate)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Thời gian kết thúc
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatDateTime(detailPass.endDate)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Giá gốc
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatMoney(detailPass.originalPrice)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Thanh toán
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatMoney(detailPass.paidAmount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Loại thanh toán
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatPaymentMethodLabel(detailPass.paymentMethod)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Trạng thái
+                  </p>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusStyle(detailPass.statusKey).className}`}
+                  >
+                    {statusStyle(detailPass.statusKey).label}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    Ngày tạo
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 break-words">
+                    {formatDateTime(detailPass.createdAt)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100" />
+
+              <div className="grid grid-cols-1 gap-4">
+                <div className="rounded-xl border border-gray-200 p-2.5">
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">
+                    Hình ảnh biển số
+                  </p>
+                  {vehicleMedia.loading ? (
+                    <div className="h-60 w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-sm text-gray-400">
+                      Đang tải hình ảnh...
+                    </div>
+                  ) : vehicleMedia.plateUrl ? (
+                    <img
+                      src={vehicleMedia.plateUrl}
+                      alt="Hình ảnh biển số"
+                      className="h-full w-full rounded-lg border border-gray-100 object-cover object-center bg-gray-50"
+                    />
+                  ) : (
+                    <div className="h-60 w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-sm text-gray-400">
+                      Chưa có hình ảnh
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
