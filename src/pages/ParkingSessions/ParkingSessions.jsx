@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   RefreshCw,
-  Car,
+  Motorbike,
   Search,
   LogIn,
   LogOut,
   XCircle,
+  ClockAlert,
   Eye,
+  CircleDollarSign,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { DatePicker, ConfigProvider } from "antd";
@@ -137,12 +139,12 @@ function paymentTypeLabel(value) {
   if (!raw) return "—";
   const st = raw.toLowerCase().replace(/[\s_-]+/g, "");
   const map = {
-    parkingprepayment: "Thanh toán giữ xe trả trước",
+    parkingprepayment: "Thanh toán gửi xe trả trước",
     parkingovertime: "Phí quá giờ",
     parkingcheckout: "Thanh toán khi ra bãi",
-    parkingsession: "Phí giữ xe",
+    parkingsession: "Phí gửi xe",
     monthlypass: "Vé tháng",
-    monthlypasssessionlock: "Giữ xe bằng vé tháng",
+    monthlypasssessionlock: "Gửi xe bằng vé tháng",
     additionalfee: "Phụ phí",
   };
   return map[st] ?? raw;
@@ -187,38 +189,38 @@ function formatBool(value) {
 
 function modalStatusBadgeClass(kind) {
   if (kind === "active") {
-    return "inline-flex rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700";
-  }
-  if (kind === "prepaid") {
     return "inline-flex rounded-full border border-blue-200 bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700";
   }
+  if (kind === "prepaid") {
+    return "inline-flex rounded-full border border-cyan-200 bg-cyan-100 px-2.5 py-0.5 text-xs font-semibold text-cyan-700";
+  }
   if (kind === "completed") {
-    return "inline-flex rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700";
+    return "inline-flex rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700";
   }
   if (kind === "overtimepaid") {
     return "inline-flex rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700";
   }
   if (kind === "cancel") {
-    return "inline-flex rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700";
+    return "inline-flex rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700";
   }
   return "inline-flex rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700";
 }
 
 function tableStatusBadgeClass(kind) {
   if (kind === "active") {
-    return "inline-flex min-w-[140px] justify-center rounded-full border border-green-200 bg-green-100 px-3 py-1 text-xs font-semibold text-green-700";
-  }
-  if (kind === "prepaid") {
     return "inline-flex min-w-[140px] justify-center rounded-full border border-blue-200 bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700";
   }
+  if (kind === "prepaid") {
+    return "inline-flex min-w-[140px] justify-center rounded-full border border-cyan-200 bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-700";
+  }
   if (kind === "completed") {
-    return "inline-flex min-w-[140px] justify-center rounded-full border border-red-200 bg-red-100 px-3 py-1 text-xs font-semibold text-red-700";
+    return "inline-flex min-w-[140px] justify-center rounded-full border border-green-200 bg-green-100 px-3 py-1 text-xs font-semibold text-green-700";
   }
   if (kind === "overtimepaid") {
     return "inline-flex min-w-[140px] justify-center rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700";
   }
   if (kind === "cancel") {
-    return "inline-flex min-w-[140px] justify-center rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700";
+    return "inline-flex min-w-[140px] justify-center rounded-full border border-red-200 bg-red-100 px-3 py-1 text-xs font-semibold text-red-700";
   }
   return "inline-flex min-w-[140px] justify-center rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700";
 }
@@ -300,7 +302,7 @@ export default function ParkingSessions() {
       setAllSessions(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
-      toast.error("Không thể tải danh sách phiên giữ xe");
+      toast.error("Không thể tải danh sách phiên gửi xe");
       setAllSessions([]);
     } finally {
       setLoading(false);
@@ -422,7 +424,7 @@ export default function ParkingSessions() {
         ) : (
           <>
             <StatCard
-              icon={Car}
+              icon={Motorbike}
               iconColor="text-blue-600"
               label="Tổng phiên"
               value={statistics.total}
@@ -430,30 +432,30 @@ export default function ParkingSessions() {
             />
             <StatCard
               icon={LogIn}
-              iconColor="text-emerald-700"
+              iconColor="text-blue-700"
               label="Đang trong bãi"
               value={statistics.active}
-              valueSuffix="Phiên"
-              bgTint="bg-green-500/30"
-            />
-            <StatCard
-              icon={LogIn}
-              iconColor="text-blue-700"
-              label="Thanh toán trước"
-              value={statistics.prepaid}
               valueSuffix="Phiên"
               bgTint="bg-blue-500/30"
             />
             <StatCard
-              icon={LogIn}
-              iconColor="text-red-700"
-              label="Đã ra bãi"
-              value={statistics.completed}
+              icon={CircleDollarSign}
+              iconColor="text-cyan-700"
+              label="Thanh toán trước"
+              value={statistics.prepaid}
               valueSuffix="Phiên"
-              bgTint="bg-red-500/30"
+              bgTint="bg-cyan-500/30"
             />
             <StatCard
               icon={LogOut}
+              iconColor="text-green-700"
+              label="Đã ra bãi"
+              value={statistics.completed}
+              valueSuffix="Phiên"
+              bgTint="bg-green-500/30"
+            />
+            <StatCard
+              icon={ClockAlert}
               iconColor="text-amber-700"
               label="Thanh toán quá giờ"
               value={statistics.overtimepaid}
@@ -462,11 +464,11 @@ export default function ParkingSessions() {
             />
             <StatCard
               icon={XCircle}
-              iconColor="text-slate-700"
+              iconColor="text-red-700"
               label="Hủy"
               value={statistics.cancel}
               valueSuffix="Phiên"
-              bgTint="bg-slate-500/20"
+              bgTint="bg-red-500/30 "
             />
           </>
         )}
@@ -637,7 +639,7 @@ export default function ParkingSessions() {
                     <div className="flex flex-col items-center gap-3 text-gray-300">
                       <XCircle className="w-12 h-12" />
                       <p className="text-gray-400 text-sm font-medium">
-                        Không có phiên giữ xe
+                        Không có phiên gửi xe
                       </p>
                     </div>
                   </td>
@@ -762,10 +764,10 @@ export default function ParkingSessions() {
           <DialogHeader className="px-5 py-4 border-b border-gray-100 bg-gray-50/70">
             <div className="flex items-center gap-3 pr-8">
               <div className="h-9 w-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
-                <Car className="h-4 w-4" />
+                <Motorbike className="h-4 w-4" />
               </div>
               <DialogTitle className="text-xl font-bold text-gray-900">
-                Chi tiết phiên giữ xe
+                Chi tiết phiên gửi xe
               </DialogTitle>
             </div>
           </DialogHeader>
@@ -848,7 +850,7 @@ export default function ParkingSessions() {
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Bãi đỗ xe
+                    Bãi gửi xe
                   </p>
                   <p className="text-sm font-medium text-gray-900 break-words">
                     {detailSession.lotName ??

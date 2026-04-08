@@ -79,7 +79,7 @@ function CreateMonthlyPassModal({
     e?.preventDefault?.();
 
     if (!lotId) {
-      toast.error("Vui lòng chọn bãi đỗ xe");
+      toast.error("Vui lòng chọn bãi gửi xe");
       return;
     }
     if (!packageName?.trim()) {
@@ -157,7 +157,7 @@ function CreateMonthlyPassModal({
             <p className="text-sm text-gray-500">
               {isEdit
                 ? "Chỉnh sửa thông tin gói ưu đãi"
-                : "Thêm gói ưu đãi mới cho bãi đỗ xe"}
+                : "Thêm gói ưu đãi mới cho bãi gửi xe"}
             </p>
           </div>
           <button
@@ -169,11 +169,11 @@ function CreateMonthlyPassModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Bãi đỗ xe */}
+          {/* Bãi gửi xe */}
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
               <MapPin className="w-4 h-4 text-blue-600" />
-              Bãi đỗ xe
+              Bãi gửi xe
             </label>
             <select
               value={lotId}
@@ -181,7 +181,7 @@ function CreateMonthlyPassModal({
               required
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
             >
-              <option value="">-- Chọn bãi đỗ xe --</option>
+              <option value="">-- Chọn bãi gửi xe --</option>
               {lotOptions.map((lot) => (
                 <option key={lot.id ?? lot.lotId} value={lot.id ?? lot.lotId}>
                   {lot.name ?? lot.lotName ?? "Bãi xe"}
@@ -298,7 +298,7 @@ function CreateMonthlyPassModal({
         </form>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 

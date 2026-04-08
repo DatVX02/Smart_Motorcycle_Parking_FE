@@ -274,7 +274,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         });
       } catch (err) {
         console.error("Error fetching parking lot detail:", err);
-        toast.error("Không thể tải thông tin chi tiết bãi đỗ xe");
+        toast.error("Không thể tải thông tin chi tiết bãi gửi xe");
       } finally {
         setLoading(false);
       }
@@ -427,13 +427,13 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     const macRegex = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
     if (!formData.lotName || formData.lotName.trim().length < 3)
-      newErrors.lotName = "Tên bãi đỗ phải có ít nhất 3 ký tự";
+      newErrors.lotName = "Tên bãi gửi phải có ít nhất 3 ký tự";
 
     if (!formData.fullAddress || formData.fullAddress.trim().length < 10)
       newErrors.fullAddress = "Địa chỉ phải có ít nhất 10 ký tự";
 
     if (!formData.totalCapacity || Number(formData.totalCapacity) < 1)
-      newErrors.totalCapacity = "Số chỗ đỗ phải lớn hơn 0";
+      newErrors.totalCapacity = "Số chỗ gửi phải lớn hơn 0";
 
     if (formData.hourlyRate !== "" && Number(formData.hourlyRate) < 0)
       newErrors.hourlyRate = "Giá không hợp lệ";
@@ -728,7 +728,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         {/* Header - cố định */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
-            {lot ? "Chỉnh sửa bãi đỗ" : "Thêm bãi đỗ mới"}
+            {lot ? "Chỉnh sửa bãi gửi" : "Thêm bãi gửi mới"}
           </h2>
           <button
             onClick={onClose}
@@ -752,13 +752,13 @@ function ParkingLotModal({ lot, onClose, onSave }) {
               {/* SECTION 1: Lot info */}
               <section className="border-b pb-5">
                 <h3 className="text-base font-semibold text-gray-900 mb-4">
-                  Thông tin bãi đỗ xe
+                  Thông tin bãi gửi xe
                 </h3>
                 <div className="space-y-3">
                   {/* Name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tên bãi đỗ <span className="text-red-500">*</span>
+                      Tên bãi gửi <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"

@@ -6,7 +6,7 @@ const unwrap = (data) => data?.data ?? data;
 
 const parkingLotService = {
   /**
-   * GET /api/v1/parking-lots - Lấy danh sách tất cả bãi đỗ xe
+   * GET /api/v1/parking-lots - Lấy danh sách tất cả bãi gửi xe
    */
   getAllParkingLots: async () => {
     const response = await apiClient.get(PARKING_LOT_BASE_PATH);
@@ -17,7 +17,7 @@ const parkingLotService = {
   },
 
   /**
-   * GET /api/v1/parking-lots/{id} - Lấy thông tin một bãi đỗ theo ID
+   * GET /api/v1/parking-lots/{id} - Lấy thông tin một bãi gửi theo ID
    */
   getParkingLotById: async (id) => {
     const response = await apiClient.get(`${PARKING_LOT_BASE_PATH}/${id}`);
@@ -48,7 +48,7 @@ const parkingLotService = {
   },
 
   /**
-   * GET /api/v1/parking-lots/{id}/statistics - Lấy thống kê bãi đỗ
+   * GET /api/v1/parking-lots/{id}/statistics - Lấy thống kê bãi gửi
    */
   getParkingLotStatistics: async (id) => {
     const response = await apiClient.get(
@@ -78,7 +78,7 @@ const parkingLotService = {
   },
 
   /**
-   * POST /api/v1/parking-lots - Tạo bãi đỗ xe mới
+   * POST /api/v1/parking-lots - Tạo bãi gửi xe mới
    * @param {Object} payload - { lotInfo?, cameraSetup? } hoặc format backend yêu cầu
    */
   createParkingLot: async (payload) => {
@@ -87,7 +87,7 @@ const parkingLotService = {
   },
 
   /**
-   * PUT /api/v1/parking-lots/{id} - Cập nhật bãi đỗ xe
+   * PUT /api/v1/parking-lots/{id} - Cập nhật bãi gửi xe
    */
   updateParkingLot: async (id, payload) => {
     const response = await apiClient.put(
@@ -98,7 +98,7 @@ const parkingLotService = {
   },
 
   /**
-   * DELETE /api/v1/parking-lots/{id} - Xóa bãi đỗ xe
+   * DELETE /api/v1/parking-lots/{id} - Xóa bãi gửi xe
    */
   deleteParkingLot: async (id) => {
     const response = await apiClient.delete(`${PARKING_LOT_BASE_PATH}/${id}`);

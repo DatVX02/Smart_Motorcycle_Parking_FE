@@ -1,6 +1,6 @@
 # MotoGuard Admin Dashboard
 
-Hệ thống quản lý bãi giữ xe máy thông minh tích hợp nhận dạng biển số và khuôn mặt
+Hệ thống quản lý bãi gửi xe máy thông minh tích hợp nhận dạng biển số và khuôn mặt
 
 ## Tính năng
 
@@ -8,7 +8,7 @@ Hệ thống quản lý bãi giữ xe máy thông minh tích hợp nhận dạng
 
 - Dashboard với thống kê tổng quan
 - Quản lý tài khoản: admin, staff, user
-- Quản lý bãi đỗ xe
+- Quản lý bãi gửi xe
 - Quản lý giao dịch điện tử và hóa đơn
 - Quản lý và lên lịch ca trực cho nhân viên
 - Quản lý nhật ký hệ thống

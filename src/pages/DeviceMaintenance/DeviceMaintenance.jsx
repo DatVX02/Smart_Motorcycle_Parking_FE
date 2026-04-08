@@ -429,7 +429,7 @@ const DeviceMaintenance = () => {
               onChange={(e) => setFilterLot(e.target.value)}
               className="input text-sm w-48"
             >
-              <option value="all">Tất cả bãi đỗ</option>
+              <option value="all">Tất cả bãi gửi xe</option>
               {lotsForSelect.map((lot) => (
                 <option key={lot.lotId} value={lot.lotId}>
                   {lot.lotName}
