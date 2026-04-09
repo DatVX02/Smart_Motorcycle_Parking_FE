@@ -39,7 +39,14 @@ const menuItems = [
   },
   { title: "Giao dịch", icon: Receipt, path: "/transactions" },
   { title: "Lịch ca trực", icon: Calendar, path: "/shifts" },
-  { title: "Nhật ký thiết bị", icon: ScrollText, path: "/device-events" },
+  {
+    title: "Nhật ký",
+    icon: ScrollText,
+    children: [
+      { title: "Nhật ký thiết bị", path: "/device-events" },
+      { title: "Nhật ký công nhận", path: "/recognition-logs" },
+    ],
+  },
   { title: "Báo cáo sự cố", icon: AlertTriangle, path: "/incident-reports" },
   { title: "Điểm thưởng", icon: Award, path: "/reward-points" },
   { title: "Bảng giá phí", icon: DollarSign, path: "/price-list" },
