@@ -23,6 +23,7 @@ import MonthlyPassPackages from "./pages/MonthlyPasses/MonthlyPassPackages";
 import UserMonthlyPasses from "./pages/MonthlyPasses/UserMonthlyPasses";
 import ParkingSessions from "./pages/ParkingSessions/ParkingSessions";
 import IncidentReports from "./pages/IncidentReports/IncidentReports";
+import RecognitionLogs from "./pages/RecognitionLogs/RecognitionLogs";
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function App() {
           <Route path="transactions" element={<Transactions />} />
           <Route path="shifts" element={<Shifts />} />
           <Route path="device-events" element={<DeviceEvents />} />
+          <Route path="recognition-logs" element={<RecognitionLogs />} />
           <Route path="incident-reports" element={<IncidentReports />} />
           <Route path="reward-points" element={<RewardPoints />} />
           <Route path="price-list" element={<PriceList />} />

@@ -422,7 +422,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       }
     };
     fetchLotDetail();
-  }, [lot?.id]);
+  }, [lot?.id, lot?.name, lot?.location, lot?.totalSpots]);
 
   const setField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
