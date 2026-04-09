@@ -14,7 +14,7 @@ const PAGE_TITLES = {
   "/shifts": { title: "Quản Lý Lịch Bãi Xe" },
   "/device-events": { title: "Nhật Ký Thiết Bị" },
   "/reward-points": { title: "Quản Lý Điểm Thưởng" },
-  "/price-list": { title: "Bảng Giá Phí Đỗ Xe" },
+  "/price-list": { title: "Bảng Giá Phí Gửi Xe" },
   "/monthly-passes": { title: "Quản Lý Vé Tháng" },
   "/monthly-passes/packages": { title: "Quản Lý Vé Tháng Bãi Xe" },
   "/monthly-passes/users": { title: "Quản Lý Vé Tháng Người Dùng" },

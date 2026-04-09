@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Form, Input, DatePicker, ConfigProvider } from "antd";
+import { Modal, Form, Input, ConfigProvider } from "antd";
 import toast from "react-hot-toast";
 import dayjs from "dayjs";
 import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
@@ -11,82 +11,75 @@ dayjs.locale("vi");
 const { TextArea } = Input;
 
 function DeviceMaintenanceModal({ device, open, onClose, onSuccess }) {
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
 
-    const [form] = Form.useForm();
-    const [loading, setLoading] = useState(false);
+  const handleSubmit = async () => {
+    try {
+      const deviceId = device?.id ?? device?.deviceId;
+      if (!deviceId) {
+        toast.error("Không tìm thấy thiết bị để tạo bảo trì");
+        return;
+      }
 
-    const handleSubmit = async () => {
-        try {
-      
-          const values = await form.validateFields();
-      
-          const payload = {
-            deviceId: device.id ?? device.deviceId,
-            maintenanceType: values.maintenanceType,
-            description: values.description,
-      
-            // thời gian hiện tại
-            performedAt: new Date().toISOString(),
-      
-            nextMaintenanceDate: values.nextMaintenanceDate
-              ? values.nextMaintenanceDate.toISOString()
-              : null
-          };
-      
-          await DeviceMaintenanceService.create(payload);
-      
-          toast.success("Đã tạo bảo trì", {duration: 1000});
-      
-          form.resetFields();
-          onSuccess();
-          onClose();
-      
-        } catch (err) {
-      
-          console.error(err);
-      
-          toast.error(
-            err?.response?.data?.message ||
-            "Không thể lưu bảo trì"
-          );
-      
-        }
+      setLoading(true);
+      const values = await form.validateFields();
+
+      const payload = {
+        deviceId,
+        maintenanceType: values.maintenanceType,
+        description: values.description,
+
+        // thời gian hiện tại
+        performedAt: new Date().toISOString(),
+
+        nextMaintenanceDate: values.nextMaintenanceDate
+          ? values.nextMaintenanceDate.toISOString()
+          : null,
       };
 
-    return (
-        <ConfigProvider locale={viVN}>
-            <Modal
-                title={`Bảo trì: ${device?.deviceName || device?.name}`}
-                open={open}
-                onCancel={onClose}
-                onOk={handleSubmit}
-                confirmLoading={loading}
-                okText="Lưu"
-                cancelText="Hủy"
-                width={520}
-            >
+      await DeviceMaintenanceService.create(payload);
 
-                <Form
-                    form={form}
-                    layout="vertical"
-                >
+      toast.success("Đã tạo bảo trì", { duration: 1000 });
 
-                    <Form.Item
-                        label="Loại bảo trì"
-                        name="maintenanceType"
-                        rules={[{ required: true, message: "Vui lòng nhập loại bảo trì" }]}
-                    >
-                        <Input placeholder="Ví dụ: Vệ sinh camera" />
-                    </Form.Item>
+      form.resetFields();
+      onSuccess?.();
+      onClose?.();
+    } catch (err) {
+      console.error(err);
 
-                    <Form.Item
-                        label="Mô tả"
-                        name="description"
-                    >
-                        <TextArea rows={3} placeholder="Mô tả chi tiết..." />
-                    </Form.Item>
+      toast.error(err?.response?.data?.message || "Không thể lưu bảo trì");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                    {/* <Form.Item label="Ngày thực hiện">
+  return (
+    <ConfigProvider locale={viVN}>
+      <Modal
+        title={`Bảo trì: ${device?.deviceName || device?.name}`}
+        open={open}
+        onCancel={onClose}
+        onOk={handleSubmit}
+        confirmLoading={loading}
+        okText="Lưu"
+        cancelText="Hủy"
+        width={520}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            label="Loại bảo trì"
+            name="maintenanceType"
+            rules={[{ required: true, message: "Vui lòng nhập loại bảo trì" }]}
+          >
+            <Input placeholder="Ví dụ: Vệ sinh camera" />
+          </Form.Item>
+
+          <Form.Item label="Mô tả" name="description">
+            <TextArea rows={3} placeholder="Mô tả chi tiết..." />
+          </Form.Item>
+
+          {/* <Form.Item label="Ngày thực hiện">
                         <Input
                             value={dayjs().format("DD/MM/YYYY HH:mm")}
                             disabled
@@ -106,12 +99,10 @@ function DeviceMaintenanceModal({ device, open, onClose, onSuccess }) {
 
                         />
                     </Form.Item> */}
-
-                </Form>
-
-            </Modal>
-        </ConfigProvider>
-    );
+        </Form>
+      </Modal>
+    </ConfigProvider>
+  );
 }
 
 export default DeviceMaintenanceModal;
