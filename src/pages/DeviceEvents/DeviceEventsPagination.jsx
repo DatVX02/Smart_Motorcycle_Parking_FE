@@ -36,14 +36,13 @@ function pageNumbersWindow(currentPage, totalPages, canGoNext) {
 }
 
 /**
- * Thanh phân trang: trái "Trang **x** / y", phải ◀ [số trang] ▶
+ * Thanh phân trang: trái "Trang x / y", phải ◀ [số trang] ▶
  *
  * @param {number} currentPage — trang hiện tại (bắt đầu 1)
  * @param {number|null|undefined} totalPages — tổng số trang; null nếu API không trả tổng
  * @param {(page: number) => void} onPageChange
  * @param {boolean} [loading]
  * @param {boolean} [canGoNext] — bắt buộc khi totalPages == null (còn trang sau)
- * @param {string} [pageSizeLabel] — ví dụ "· 10 / trang"
  */
 export default function DeviceEventsPagination({
   currentPage,
@@ -51,7 +50,6 @@ export default function DeviceEventsPagination({
   onPageChange,
   loading = false,
   canGoNext = false,
-  pageSizeLabel,
 }) {
   const pageNums = useMemo(
     () => pageNumbersWindow(currentPage, totalPages, canGoNext),
@@ -59,10 +57,11 @@ export default function DeviceEventsPagination({
   );
 
   const hasTotal = totalPages != null && totalPages >= 1;
+  const bestKnownTotal = hasTotal
+    ? totalPages
+    : Math.max(currentPage, pageNums.at(-1) ?? currentPage);
   const canPrev = currentPage > 1;
-  const canNext = hasTotal
-    ? currentPage < totalPages
-    : Boolean(canGoNext);
+  const canNext = hasTotal ? currentPage < totalPages : Boolean(canGoNext);
 
   const go = (p) => {
     if (loading) return;
@@ -70,21 +69,13 @@ export default function DeviceEventsPagination({
   };
 
   return (
-    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex-wrap gap-3">
+    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/50">
       <div className="flex items-center gap-3 text-xs text-gray-500">
         <span>
           Trang{" "}
-          <span className="font-semibold text-gray-900">{currentPage}</span>
-          {hasTotal ? (
-            <>
-              {" "}
-              / {totalPages}
-            </>
-          ) : null}
+          <span className="font-semibold text-gray-700">{currentPage}</span> /{" "}
+          {bestKnownTotal}
         </span>
-        {pageSizeLabel ? (
-          <span className="text-gray-400">{pageSizeLabel}</span>
-        ) : null}
       </div>
 
       <div className="flex items-center gap-1">
@@ -106,10 +97,10 @@ export default function DeviceEventsPagination({
               type="button"
               onClick={() => go(p)}
               disabled={loading}
-              className={`min-w-[1.75rem] h-7 px-1 rounded-lg text-xs font-semibold transition-colors ${
+              className={`w-7 h-7 rounded-lg text-xs font-semibold transition-colors ${
                 isActive
                   ? "bg-blue-600 text-white shadow-sm"
-                  : "text-gray-700 hover:bg-gray-200"
+                  : "hover:bg-gray-200 text-gray-700"
               }`}
             >
               {p}

@@ -59,8 +59,14 @@ const CONN_STATUS = {
 };
 
 const DEVICE_TYPE = {
-  LPR_CAMERA: { label: "Camera LPR", Icon: Camera },
+  CAMERA: { label: "Camera", Icon: Camera },
   BARRIER: { label: "Barie", Icon: Activity },
+};
+
+const normalizeDeviceType = (raw) => {
+  const key = String(raw ?? "").toUpperCase();
+  if (key === "LPR" || key === "LPR_CAMERA") return "CAMERA";
+  return key;
 };
 
 const getStatus = (raw) => {
@@ -75,7 +81,7 @@ const getStatus = (raw) => {
 };
 
 const getType = (raw) => {
-  const key = String(raw ?? "").toUpperCase();
+  const key = normalizeDeviceType(raw);
   return DEVICE_TYPE[key] ?? { label: raw || "—", Icon: Cpu };
 };
 
@@ -151,7 +157,7 @@ function DeviceDetailModal({ device, onClose }) {
       }
     };
     fetch();
-  }, [deviceId]);
+  }, [deviceId, device]);
 
   // Merge card data + detail data (detail takes priority)
   const d = { ...device, ...detail };
@@ -202,8 +208,7 @@ function DeviceDetailModal({ device, onClose }) {
           <div className="p-6">
             {/* Connection status highlight */}
             <div
-              className={`flex items-center gap-3 rounded-xl p-4 mb-5 ${conn.cls.replace("text-", "bg-").split(" ")[0]} bg-opacity-30`}
-              style={{ background: "var(--tw-bg-opacity)" }}
+              className={`flex items-center gap-3 rounded-xl p-4 mb-5 ${conn.cls.split(" ")[0]} bg-opacity-30`}
             >
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center ${conn.cls}`}

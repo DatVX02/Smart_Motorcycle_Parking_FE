@@ -5,14 +5,14 @@ import gateService from "../../services/gateService";
 import parkingLotService from "../../services/parkingLotService";
 
 const DEVICE_TYPE_OPTIONS = [
-  { value: "LPR_CAMERA", label: "Camera LPR (Đọc biển số)" },
-  { value: "BARRIER", label: "Barie (Thanh chắn)" },
+  { value: "CAMERA", label: "Camera" },
+  { value: "BARRIER", label: "Barie" },
 ];
 
 const getDefault = (device) => ({
   deviceCode: device?.deviceCode || device?.code || "",
   deviceName: device?.deviceName || device?.name || "",
-  deviceType: device?.deviceType || "LPR_CAMERA",
+  deviceType: device?.deviceType || "CAMERA",
   gateId: device?.gateId ?? device?.gate_id ?? "",
   gateName: device?.gateName || device?.gate_name || "",
   model: device?.model || "",
@@ -38,11 +38,13 @@ function DeviceModal({ device, onClose, onSave }) {
       setGatesLoading(true);
       try {
         const all = await gateService.getAll().catch(async () => {
-          const lots = await parkingLotService.getAllParkingLots().catch(() => []);
+          const lots = await parkingLotService
+            .getAllParkingLots()
+            .catch(() => []);
           const results = await Promise.all(
             (lots || []).map((lot) =>
-              gateService.getByLot(lot.id ?? lot.lotId).catch(() => [])
-            )
+              gateService.getByLot(lot.id ?? lot.lotId).catch(() => []),
+            ),
           );
           const seen = new Set();
           return results.flat().filter((g) => {
@@ -71,7 +73,17 @@ function DeviceModal({ device, onClose, onSave }) {
           setFormData((prev) => ({ ...prev, gateId, gateName: name }));
           setGates((prev) => {
             const exists = prev.some((g) => (g.gateId ?? g.id) === gateId);
-            return exists ? prev : [{ ...gate, gateId: gate.gateId ?? gate.id, gateName: name, name }, ...prev];
+            return exists
+              ? prev
+              : [
+                  {
+                    ...gate,
+                    gateId: gate.gateId ?? gate.id,
+                    gateName: name,
+                    name,
+                  },
+                  ...prev,
+                ];
           });
         }
       })
@@ -210,7 +222,7 @@ function DeviceModal({ device, onClose, onSave }) {
                 value={formData.deviceName}
                 onChange={(e) => set("deviceName", e.target.value)}
                 className={`input ${errClass("deviceName")}`}
-                placeholder="VD: Camera LPR Cổng Vào"
+                placeholder="VD: Camera Cổng Vào"
               />
               <ErrMsg k="deviceName" />
             </div>
@@ -348,7 +360,7 @@ function DeviceModal({ device, onClose, onSave }) {
         </form>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 

@@ -99,8 +99,8 @@ const GATE_TYPE = {
 };
 
 const DEVICE_TYPE_MAP = {
-  LPR_CAMERA: {
-    label: "Camera LPR",
+  CAMERA: {
+    label: "Camera",
     variant: "default",
     Icon: Camera,
     iconBg: "bg-blue-100",
