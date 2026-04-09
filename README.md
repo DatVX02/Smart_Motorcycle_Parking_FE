@@ -13,7 +13,7 @@ Hệ thống quản lý bãi gửi xe máy thông minh tích hợp nhận dạng
 - Quản lý và lên lịch ca trực cho nhân viên
 - Quản lý nhật ký hệ thống
 - Quản lý điểm thưởng
-- Thiết lập bảng giá phí đỗ xe
+- Thiết lập bảng giá phí gửi xe
 - Quản lý thiết bị IoT
 
 ## Công nghệ sử dụng

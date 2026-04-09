@@ -102,8 +102,8 @@ const CONN_STATUS = {
 };
 
 const DEVICE_TYPE = {
-  LPR_CAMERA: {
-    label: "Camera LPR",
+  CAMERA: {
+    label: "Camera",
     color: "bg-blue-100 text-blue-700",
     icon: Camera,
   },
@@ -112,6 +112,12 @@ const DEVICE_TYPE = {
     color: "bg-purple-100 text-purple-700",
     icon: Activity,
   },
+};
+
+const normalizeDeviceType = (raw) => {
+  const key = String(raw ?? "").toUpperCase();
+  if (key === "LPR" || key === "LPR_CAMERA") return "CAMERA";
+  return key;
 };
 
 const getConnStatus = (raw) => {
@@ -126,7 +132,7 @@ const getConnStatus = (raw) => {
 };
 
 const getDeviceType = (raw) => {
-  const key = String(raw ?? "").toUpperCase();
+  const key = normalizeDeviceType(raw);
   return (
     DEVICE_TYPE[key] ?? {
       label: raw || "—",
@@ -408,7 +414,8 @@ function IoTDevices() {
   };
 
   const filtered = devices.filter((d) => {
-    const typeOk = filterType === "all" || d.deviceType === filterType;
+    const typeOk =
+      filterType === "all" || normalizeDeviceType(d.deviceType) === filterType;
 
     const lotOk =
       filterLot === "all" ||
@@ -558,7 +565,7 @@ function IoTDevices() {
             className="input text-sm w-48"
           >
             <option value="all">Tất cả loại</option>
-            <option value="LPR_CAMERA">Camera LPR</option>
+            <option value="CAMERA">Camera</option>
             <option value="BARRIER">Barie</option>
           </select>
 
@@ -628,7 +635,6 @@ function IoTDevices() {
                   device={device}
                   getConnStatus={getConnStatus}
                   getDeviceType={getDeviceType}
-                  isNeedsAction={false}
                   maintenanceDueSoon={maintenanceDueWithinWeek(
                     deviceNextMaintenance[
                       String(device.deviceId ?? device.id ?? "")
@@ -715,7 +721,6 @@ function IoTDevices() {
                   device={device}
                   getConnStatus={getConnStatus}
                   getDeviceType={getDeviceType}
-                  isNeedsAction={true}
                   maintenanceDueSoon={maintenanceDueWithinWeek(
                     deviceNextMaintenance[
                       String(device.deviceId ?? device.id ?? "")
@@ -849,7 +854,6 @@ function DeviceCard({
   device,
   getConnStatus,
   getDeviceType,
-  isNeedsAction = false,
   maintenanceDueSoon = false,
   onDetail,
   onUnassign,
@@ -874,7 +878,7 @@ function DeviceCard({
         <div className="flex gap-3 items-center min-w-0 flex-1">
           <DevIcon className="w-8 h-8 flex-shrink-0 text-blue-600" />
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm leading-tight truncate">
+            <h3 className="font-semibold text-sm leading-tight whitespace-normal break-words">
               {device.deviceName || device.name}
             </h3>
             <span

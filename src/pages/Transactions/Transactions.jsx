@@ -1468,7 +1468,7 @@ export default function Transactions() {
               className="input text-sm"
             >
               <option value="">Tất cả hình thức</option>
-              <option value="parking-session">Phí đỗ xe</option>
+              <option value="parking-session">Phí gửi xe</option>
               <option value="monthly-pass">Vé tháng</option>
               <option value="wallet-deposit">Nạp ví</option>
               <option value="wallet-withdraw">Rút ví</option>

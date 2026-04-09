@@ -54,9 +54,7 @@ function mapSeverityToLevel(eventType) {
   const s = String(eventType ?? "")
     .trim()
     .toLowerCase();
-  if (
-    ["error", "err", "failed", "failure", "critical", "danger"].includes(s)
-  ) {
+  if (["error", "err", "failed", "failure", "critical", "danger"].includes(s)) {
     return "error";
   }
   if (
@@ -78,6 +76,39 @@ function formatFriendlyDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function inferDeviceNameFromCode(deviceCode) {
+  const c = String(deviceCode ?? "")
+    .trim()
+    .toLowerCase();
+  if (!c) return "";
+
+  if (c.startsWith("face_camera_in_")) return "Face Camera In";
+  if (c.startsWith("plate_camera_in_")) return "Plate Camera In";
+  if (c.startsWith("face_camera_out_")) return "Face Camera Out";
+  if (c.startsWith("plate_camera_out_")) return "Plate Camera Out";
+
+  if (c.startsWith("sensor_in_1_")) return "Sensor In 1";
+  if (c.startsWith("sensor_in_2_")) return "Sensor In 2";
+  if (c.startsWith("barrier_in_")) return "Barrier In";
+  if (c.startsWith("lcd_in_")) return "LCD In";
+
+  if (c.startsWith("sensor_out_1_")) return "Sensor Out 1";
+  if (c.startsWith("sensor_out_2_")) return "Sensor Out 2";
+  if (c.startsWith("barrier_out_")) return "Barrier Out";
+  if (c.startsWith("lcd_out_")) return "LCD Out";
+
+  return "";
+}
+
+function pickText(...values) {
+  for (const value of values) {
+    if (value == null) continue;
+    const s = String(value).trim();
+    if (s) return s;
+  }
+  return "";
 }
 
 /** Không hiển thị khối JSON trùng với dòng chữ đã rút gọn */
@@ -110,21 +141,29 @@ function parseEventData(eventData) {
 
 export function normalizeDeviceEvent(raw, index) {
   const eventId = raw.eventId ?? raw.id ?? `evt-${index}`;
-  const eventType = String(raw.eventType ?? "").trim() || "—";
-  const eventStatus = String(raw.eventStatus ?? "").trim() || "—";
-  const eventSource = String(raw.eventSource ?? "").trim() || "—";
-  const level = mapSeverityToLevel(raw.eventType);
-  const { summary, pretty } = parseEventData(raw.eventData);
+  const eventType =
+    pickText(raw.eventType, raw.event_type, raw.type, raw.eventName) || "—";
+  const eventStatus =
+    pickText(raw.eventStatus, raw.event_status, raw.status, raw.state) || "—";
+  const eventSource =
+    pickText(raw.eventSource, raw.event_source, raw.source) || "—";
+  const level = mapSeverityToLevel(eventType);
+  const { summary, pretty } = parseEventData(raw.eventData ?? raw.event_data);
 
-  const deviceId = raw.deviceId != null ? String(raw.deviceId) : "—";
-  const deviceName = raw.deviceName != null ? String(raw.deviceName) : "—";
-  const lotId = raw.lotId != null ? String(raw.lotId) : "—";
-  const lotName = raw.lotName != null ? String(raw.lotName) : "—";
+  const deviceCode = pickText(raw.deviceCode, raw.device_code, raw.code);
+  const deviceId = pickText(raw.deviceId, raw.device_id, deviceCode) || "—";
+  const inferredName = inferDeviceNameFromCode(deviceCode);
+  const deviceName =
+    pickText(raw.deviceName, raw.device_name, inferredName) || "—";
+  const lotId = pickText(raw.lotId, raw.lot_id, raw.parkingLotId) || "—";
+  const lotName =
+    pickText(raw.lotName, raw.lot_name, raw.parkingLotName) || "—";
 
   return {
     id: eventId,
     eventId,
     deviceId,
+    deviceCode: deviceCode || "—",
     deviceName,
     lotId,
     lotName,
@@ -133,10 +172,12 @@ export function normalizeDeviceEvent(raw, index) {
     eventStatus,
     eventDataSummary: summary,
     eventDataPretty: pretty,
-    occurredAtRaw: raw.occurredAt,
-    createdAtRaw: raw.createdAt,
-    occurredAtFriendly: formatFriendlyDateTime(raw.occurredAt),
-    createdAtFriendly: formatFriendlyDateTime(raw.createdAt),
+    occurredAtRaw: raw.occurredAt ?? raw.occurred_at,
+    createdAtRaw: raw.createdAt ?? raw.created_at,
+    occurredAtFriendly: formatFriendlyDateTime(
+      raw.occurredAt ?? raw.occurred_at,
+    ),
+    createdAtFriendly: formatFriendlyDateTime(raw.createdAt ?? raw.created_at),
     level,
   };
 }

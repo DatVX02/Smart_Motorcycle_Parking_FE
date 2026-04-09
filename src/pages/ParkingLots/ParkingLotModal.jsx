@@ -36,23 +36,99 @@ const GATE_TYPE_OPTIONS = [
 ];
 
 const DEVICE_TYPE_OPTIONS = [
-  { value: "LPR_CAMERA", label: "Camera LPR (Đọc biển số)" },
-  { value: "BARRIER", label: "Barie (Thanh chắn)" },
+  { value: "CAMERA", label: "Camera" },
+  { value: "BARRIER", label: "Barie" },
 ];
 
 const DEVICE_TYPE_LABEL = {
-  LPR_CAMERA: "Camera LPR",
+  CAMERA: "Camera",
   BARRIER: "Barie",
+};
+
+const normalizeDeviceType = (value) => {
+  const v = String(value || "")
+    .trim()
+    .toUpperCase();
+  if (!v) return "";
+  if (v === "LPR" || v === "CAMERA" || v === "LPR_CAMERA") return "CAMERA";
+  if (v === "BARRIER" || v === "BARIE" || v === "BARRIE") return "BARRIER";
+  return v;
+};
+
+const pickDeviceId = (device) =>
+  device?.deviceId ??
+  device?.id ??
+  device?.device_id ??
+  device?.iotDeviceId ??
+  null;
+
+const isEmptyBindingValue = (value) => {
+  if (value == null) return true;
+  const token = String(value).trim().toLowerCase();
+  if (!token) return true;
+  return (
+    token === "null" ||
+    token === "undefined" ||
+    token === "none" ||
+    token === "n/a" ||
+    token === "00000000-0000-0000-0000-000000000000"
+  );
+};
+
+const isUnassignedDevice = (device) => {
+  const assignmentStatus = String(
+    device?.assignmentStatus ??
+      device?.bindingStatus ??
+      device?.assignment_state ??
+      "",
+  ).toLowerCase();
+  if (
+    assignmentStatus.includes("unassigned") ||
+    assignmentStatus.includes("available") ||
+    assignmentStatus.includes("free")
+  ) {
+    return true;
+  }
+  if (
+    assignmentStatus.includes("assigned") ||
+    assignmentStatus.includes("bound") ||
+    assignmentStatus.includes("inuse") ||
+    assignmentStatus.includes("in_use")
+  ) {
+    return false;
+  }
+
+  const gateId =
+    device?.gateId ??
+    device?.gate_id ??
+    device?.gate?.gateId ??
+    device?.gate?.id ??
+    device?.assignedGateId;
+  const gateName =
+    device?.gateName ?? device?.gate_name ?? device?.gate?.gateName ?? "";
+
+  if (typeof device?.isAssigned === "boolean") return !device.isAssigned;
+  if (typeof device?.assigned === "boolean") return !device.assigned;
+
+  // Thực tế nghiệp vụ: thiết bị "đã gán" khi đã gắn vào một cổng.
+  // Vì vậy chỉ cần chưa có gateId/gateName thì vẫn cho phép chọn.
+  if (isEmptyBindingValue(gateId) && isEmptyBindingValue(gateName)) {
+    return true;
+  }
+
+  return false;
 };
 
 const newDevice = () => ({
   _id: crypto.randomUUID(),
+  existingDeviceId: "",
   deviceCode: "",
   deviceName: "",
   deviceType: "",
   model: "",
   ipAddress: "",
   macAddress: "",
+  connectionStatus: "ONLINE",
   firmwareVersion: "",
 });
 
@@ -134,11 +210,75 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   const [loading, setLoading] = useState(!!lot);
   const [formData, setFormData] = useState(getDefaultFormData);
   const [submitting, setSubmitting] = useState(false);
+  const [availableDevices, setAvailableDevices] = useState([]);
+  const [loadingAvailableDevices, setLoadingAvailableDevices] = useState(false);
+  const [deviceSelectorFallback, setDeviceSelectorFallback] = useState(false);
   const [errors, setErrors] = useState({});
   const [collapsed, setCollapsed] = useState({}); // gate _id → bool
   const [deletingGate, setDeletingGate] = useState(null); // gate _id đang xóa
   const [togglingGate, setTogglingGate] = useState(null); // gate _id đang chuyển trạng thái
   const aiConfigIdRef = useRef(null); // lưu configId để update sau
+
+  useEffect(() => {
+    if (lot?.id) {
+      setAvailableDevices([]);
+      setDeviceSelectorFallback(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadAvailableDevices = async () => {
+      try {
+        setLoadingAvailableDevices(true);
+        const all = await iotDeviceService.getAll();
+        if (cancelled) return;
+
+        const allWithId = (Array.isArray(all) ? all : []).filter((d) =>
+          pickDeviceId(d),
+        );
+        const unassignedOnly = allWithId.filter(isUnassignedDevice);
+        const source = unassignedOnly.length > 0 ? unassignedOnly : allWithId;
+        setDeviceSelectorFallback(
+          allWithId.length > 0 && unassignedOnly.length === 0,
+        );
+
+        const options = source
+          .filter((d) => pickDeviceId(d))
+          .map((d) => {
+            const id = pickDeviceId(d);
+            const deviceCode = d.deviceCode || "";
+            const deviceName = d.deviceName || d.name || "";
+            const deviceType = normalizeDeviceType(d.deviceType || d.type);
+            return {
+              id,
+              deviceCode,
+              deviceName,
+              deviceType,
+              model: d.model || "",
+              ipAddress: d.ipAddress || "",
+              macAddress: d.macAddress || "",
+              firmwareVersion: d.firmwareVersion || "",
+              connectionStatus: d.connectionStatus || "ONLINE",
+              label:
+                deviceCode || deviceName
+                  ? `${deviceCode || "NO-CODE"} - ${deviceName || "Chưa có tên"}`
+                  : `Thiết bị ${id}`,
+            };
+          });
+
+        setAvailableDevices(options);
+      } catch (err) {
+        console.warn("Không tải được danh sách thiết bị có sẵn:", err);
+      } finally {
+        if (!cancelled) setLoadingAvailableDevices(false);
+      }
+    };
+
+    loadAvailableDevices();
+    return () => {
+      cancelled = true;
+    };
+  }, [lot?.id]);
 
   useEffect(() => {
     const fetchLotDetail = async () => {
@@ -206,12 +346,14 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           gateMap.get(gId).devices.push({
             _id: d.deviceId ?? d.id ?? crypto.randomUUID(),
             _persisted: true,
+            existingDeviceId: d.deviceId ?? d.id ?? "",
             deviceCode: d.deviceCode || "",
             deviceName: d.deviceName || "",
-            deviceType: d.deviceType || "",
+            deviceType: normalizeDeviceType(d.deviceType || d.type),
             model: d.model || "",
             ipAddress: d.ipAddress || "",
             macAddress: d.macAddress || "",
+            connectionStatus: d.connectionStatus || "ONLINE",
             firmwareVersion: d.firmwareVersion || "",
           });
         });
@@ -421,6 +563,67 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       });
   };
 
+  const isExistingDeviceSelectedElsewhere = (deviceId, currentDeviceId) =>
+    formData.gates.some((g) =>
+      g.devices.some(
+        (d) => d._id !== currentDeviceId && d.existingDeviceId === deviceId,
+      ),
+    );
+
+  const handleExistingDeviceChange = (gId, dId, existingDeviceId) => {
+    const selected = availableDevices.find((d) => d.id === existingDeviceId);
+    setFormData((prev) => ({
+      ...prev,
+      gates: prev.gates.map((g) =>
+        g._id === gId
+          ? {
+              ...g,
+              devices: g.devices.map((d) => {
+                if (d._id !== dId) return d;
+                if (!existingDeviceId) {
+                  return {
+                    ...d,
+                    existingDeviceId: "",
+                    deviceCode: "",
+                    deviceName: "",
+                    deviceType: "",
+                    model: "",
+                    ipAddress: "",
+                    macAddress: "",
+                    connectionStatus: "ONLINE",
+                    firmwareVersion: "",
+                  };
+                }
+                return {
+                  ...d,
+                  existingDeviceId,
+                  deviceCode: selected?.deviceCode || "",
+                  deviceName: selected?.deviceName || "",
+                  deviceType: selected?.deviceType || "",
+                  model: selected?.model || "",
+                  ipAddress: selected?.ipAddress || "",
+                  macAddress: selected?.macAddress || "",
+                  connectionStatus: selected?.connectionStatus || "ONLINE",
+                  firmwareVersion: selected?.firmwareVersion || "",
+                };
+              }),
+            }
+          : g,
+      ),
+    }));
+
+    setErrors((prev) => {
+      const n = { ...prev };
+      delete n[`dev_${dId}_existingDeviceId`];
+      delete n[`dev_${dId}_deviceCode`];
+      delete n[`dev_${dId}_deviceType`];
+      delete n[`dev_${dId}_model`];
+      delete n[`dev_${dId}_ipAddress`];
+      delete n[`dev_${dId}_macAddress`];
+      return n;
+    });
+  };
+
   const validateForm = () => {
     const newErrors = {};
     const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
@@ -435,8 +638,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     if (!formData.totalCapacity || Number(formData.totalCapacity) < 1)
       newErrors.totalCapacity = "Số chỗ gửi phải lớn hơn 0";
 
-    if (formData.hourlyRate !== "" && Number(formData.hourlyRate) < 0)
-      newErrors.hourlyRate = "Giá không hợp lệ";
+    if (formData.hourlyRate === "" || Number(formData.hourlyRate) < 0)
+      newErrors.hourlyRate = "Vui lòng nhập giá theo giờ hợp lệ";
 
     if (formData.monthlyRate !== "" && Number(formData.monthlyRate) < 0)
       newErrors.monthlyRate = "Giá không hợp lệ";
@@ -451,6 +654,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     const seenIps = new Map();
     const seenCodes = new Map();
     const seenMacs = new Map();
+    const seenExisting = new Map();
 
     formData.gates.forEach((g) => {
       if (!g.gateName.trim())
@@ -459,9 +663,21 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         newErrors[`gate_${g._id}_gateType`] = "Vui lòng chọn loại cổng";
 
       g.devices.forEach((d) => {
+        const existingId = (d.existingDeviceId || "").trim();
         const ip = (d.ipAddress || "").trim();
         const code = (d.deviceCode || "").trim();
         const mac = (d.macAddress || "").trim().toUpperCase();
+
+        if (existingId) {
+          if (seenExisting.has(existingId)) {
+            newErrors[`dev_${seenExisting.get(existingId)}_existingDeviceId`] =
+              "Thiết bị có sẵn đã được chọn ở cổng khác";
+            newErrors[`dev_${d._id}_existingDeviceId`] =
+              "Thiết bị có sẵn đã được chọn ở cổng khác";
+          } else {
+            seenExisting.set(existingId, d._id);
+          }
+        }
 
         if (ip) {
           if (!ipRegex.test(ip)) {
@@ -501,9 +717,22 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           }
         }
 
+        if (
+          !d.deviceType &&
+          (existingId || code || d.model.trim() || ip || mac)
+        ) {
+          newErrors[`dev_${d._id}_deviceType`] = "Vui lòng chọn loại thiết bị";
+        }
+
         const hasInfo =
-          code || d.deviceName.trim() || d.model.trim() || ip || mac;
-        if (hasInfo) {
+          existingId ||
+          code ||
+          d.deviceName.trim() ||
+          d.model.trim() ||
+          ip ||
+          mac ||
+          d.deviceType;
+        if (hasInfo && !existingId) {
           if (!d.model.trim())
             newErrors[`dev_${d._id}_model`] = "Vui lòng nhập model";
           if (!ip)
@@ -515,9 +744,9 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     const lp = Number(formData.licensePlateThreshold);
     const fr = Number(formData.faceRecognitionThreshold);
     if (isNaN(lp) || lp < 70 || lp > 100)
-      newErrors.licensePlateThreshold = "Ngưỡng phải từ 0-100";
+      newErrors.licensePlateThreshold = "Ngưỡng phải từ 70-100";
     if (isNaN(fr) || fr < 70 || fr > 100)
-      newErrors.faceRecognitionThreshold = "Ngưỡng phải từ 0-100";
+      newErrors.faceRecognitionThreshold = "Ngưỡng phải từ 70-100";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -535,15 +764,13 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       const lotInfo = {
         lotName: formData.lotName.trim(),
         fullAddress: formData.fullAddress.trim(),
-        totalCapacity: parseInt(formData.totalCapacity),
+        totalCapacity: parseInt(formData.totalCapacity, 10),
         openingTime: formData.is24h ? "00:00" : formData.openingTime || "00:00",
         closingTime: formData.is24h ? "23:59" : formData.closingTime || "23:59",
         is24h: formData.is24h,
       };
       if (formData.hourlyRate !== "")
         lotInfo.hourlyRate = parseFloat(formData.hourlyRate);
-      if (formData.monthlyRate !== "")
-        lotInfo.monthlyRate = parseFloat(formData.monthlyRate);
       if (formData.scheduledActivationDate)
         lotInfo.scheduledActivationDate = new Date(
           formData.scheduledActivationDate,
@@ -551,25 +778,38 @@ function ParkingLotModal({ lot, onClose, onSave }) {
 
       const allDevices = formData.gates.flatMap((g) =>
         g.devices
-          .filter(
-            (d) => d.deviceCode.trim() || d.model.trim() || d.ipAddress.trim(),
-          )
           .map((d) => {
+            const existingDeviceId = (d.existingDeviceId || "").trim();
+            const hasInfo =
+              existingDeviceId ||
+              d.deviceCode.trim() ||
+              d.deviceName.trim() ||
+              d.model.trim() ||
+              d.ipAddress.trim() ||
+              d.macAddress.trim() ||
+              d.firmwareVersion.trim() ||
+              d.deviceType;
+            if (!hasInfo) return null;
+
             const dev = {
+              gateName: g.gateName.trim(),
+              deviceType: d.deviceType,
               deviceCode: d.deviceCode.trim(),
               deviceName: d.deviceName.trim(),
-              deviceType: d.deviceType,
-              gateName: g.gateName.trim(),
               model: d.model.trim(),
               ipAddress: d.ipAddress.trim(),
-              connectionStatus: "ONLINE",
+              connectionStatus: d.connectionStatus || "ONLINE",
             };
+
+            if (existingDeviceId) dev.existingDeviceId = existingDeviceId;
             if (d.macAddress.trim())
               dev.macAddress = d.macAddress.trim().toUpperCase();
             if (d.firmwareVersion.trim())
               dev.firmwareVersion = d.firmwareVersion.trim();
+
             return dev;
-          }),
+          })
+          .filter(Boolean),
       );
 
       const backendData = {
@@ -578,7 +818,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           gates: formData.gates.map((g) => ({
             gateName: g.gateName.trim(),
             gateType: g.gateType,
-            isActive: true,
+            isActive: g.isActive !== false,
           })),
           devices: allDevices,
           aiConfig: {
@@ -615,7 +855,10 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         // Helper: tạo thiết bị mới cho một gateId
         const createNewDevices = async (gateId, devices) => {
           const newDevices = devices.filter(
-            (d) => !d._persisted && (d.model.trim() || d.ipAddress.trim()),
+            (d) =>
+              !d._persisted &&
+              !d.existingDeviceId &&
+              (d.model.trim() || d.ipAddress.trim()),
           );
           for (const d of newDevices) {
             const devPayload = {
@@ -904,7 +1147,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                       Cấu hình cổng & Thiết bị
                     </h3>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Mỗi cổng có thể gắn nhiều thiết bị (Camera LPR, Barie...)
+                      Mỗi cổng có thể gắn nhiều thiết bị (Camera, Barie...)
                     </p>
                   </div>
                   <button
@@ -1084,219 +1327,299 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                               </div>
 
                               <div className="space-y-3">
-                                {gate.devices.map((dev, dIdx) => (
-                                  <div
-                                    key={dev._id}
-                                    className="border border-gray-200 rounded-lg p-3 bg-white"
-                                  >
-                                    {/* Device row header */}
-                                    <div className="flex items-center justify-between mb-3">
-                                      <span className="text-xs font-medium text-gray-500">
-                                        Thiết bị #{dIdx + 1}
-                                        {dev.deviceName && (
-                                          <span className="ml-1.5 text-gray-400 font-normal">
-                                            - {dev.deviceName}
-                                          </span>
-                                        )}
-                                      </span>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">
-                                          {DEVICE_TYPE_LABEL[dev.deviceType] ||
-                                            dev.deviceType}
+                                {gate.devices.map((dev, dIdx) => {
+                                  const canPickExisting =
+                                    !lot && !dev._persisted;
+                                  const lockedByExisting =
+                                    canPickExisting && !!dev.existingDeviceId;
+
+                                  return (
+                                    <div
+                                      key={dev._id}
+                                      className="border border-gray-200 rounded-lg p-3 bg-white"
+                                    >
+                                      {/* Device row header */}
+                                      <div className="flex items-center justify-between mb-3">
+                                        <span className="text-xs font-medium text-gray-500">
+                                          Thiết bị #{dIdx + 1}
+                                          {dev.deviceName && (
+                                            <span className="ml-1.5 text-gray-400 font-normal">
+                                              - {dev.deviceName}
+                                            </span>
+                                          )}
                                         </span>
-                                        {gate.devices.length > 1 && (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              removeDevice(gate._id, dev._id)
-                                            }
-                                            className="p-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                            title="Xóa thiết bị"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {/* Device fields — row 1 */}
-                                    <div className="grid grid-cols-3 gap-2 mb-2">
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                                          Loại thiết bị
-                                        </label>
-                                        <select
-                                          value={dev.deviceType}
-                                          onChange={(e) =>
-                                            updateDevice(
-                                              gate._id,
-                                              dev._id,
-                                              "deviceType",
-                                              e.target.value,
-                                            )
-                                          }
-                                          className="input text-xs"
-                                        >
-                                          <option value="" disabled hidden>
-                                            Chọn loại thiết bị
-                                          </option>
-                                          {DEVICE_TYPE_OPTIONS.map((o) => (
-                                            <option
-                                              key={o.value}
-                                              value={o.value}
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">
+                                            {DEVICE_TYPE_LABEL[
+                                              dev.deviceType
+                                            ] || dev.deviceType}
+                                          </span>
+                                          {gate.devices.length > 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                removeDevice(gate._id, dev._id)
+                                              }
+                                              className="p-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                              title="Xóa thiết bị"
                                             >
-                                              {o.label}
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {canPickExisting && (
+                                        <div className="mb-3">
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            Dùng thiết bị có sẵn
+                                            <span className="ml-1 text-gray-400 font-normal">
+                                              (tùy chọn)
+                                            </span>
+                                          </label>
+                                          <select
+                                            value={dev.existingDeviceId || ""}
+                                            onChange={(e) =>
+                                              handleExistingDeviceChange(
+                                                gate._id,
+                                                dev._id,
+                                                e.target.value,
+                                              )
+                                            }
+                                            className={`input text-xs ${errClass(`dev_${dev._id}_existingDeviceId`)}`}
+                                          >
+                                            <option value="">
+                                              Không chọn - Tạo thiết bị mới
                                             </option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                                          Mã thiết bị
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={dev.deviceCode}
-                                          onChange={(e) =>
-                                            updateDevice(
-                                              gate._id,
-                                              dev._id,
-                                              "deviceCode",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder="VD: CAM-IN-B1"
-                                          className={`input text-xs ${errClass(`dev_${dev._id}_deviceCode`)}`}
-                                        />
-                                        <ErrMsg
-                                          k={`dev_${dev._id}_deviceCode`}
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                                          Tên thiết bị
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={dev.deviceName}
-                                          onChange={(e) =>
-                                            updateDevice(
-                                              gate._id,
-                                              dev._id,
-                                              "deviceName",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder="VD: Camera LPR Cổng Vào"
-                                          className="input text-xs"
-                                        />
-                                      </div>
-                                    </div>
+                                            {availableDevices.map((opt) => (
+                                              <option
+                                                key={opt.id}
+                                                value={opt.id}
+                                                disabled={isExistingDeviceSelectedElsewhere(
+                                                  opt.id,
+                                                  dev._id,
+                                                )}
+                                              >
+                                                {opt.label}
+                                              </option>
+                                            ))}
+                                          </select>
+                                          <ErrMsg
+                                            k={`dev_${dev._id}_existingDeviceId`}
+                                          />
+                                          {loadingAvailableDevices ? (
+                                            <p className="text-[11px] text-gray-400 mt-1">
+                                              Đang tải danh sách thiết bị có
+                                              sẵn...
+                                            </p>
+                                          ) : deviceSelectorFallback ? (
+                                            <p className="text-[11px] text-amber-600 mt-1">
+                                              Không xác định được trạng thái gán
+                                              từ API, đang hiển thị toàn bộ
+                                              thiết bị để bạn chọn.
+                                            </p>
+                                          ) : (
+                                            <p className="text-[11px] text-gray-400 mt-1">
+                                              {availableDevices.length > 0
+                                                ? "Chọn thiết bị có sẵn để gán vào cổng, hoặc để trống để tạo mới."
+                                                : "Hiện chưa có thiết bị chưa gán trong hệ thống."}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
 
-                                    {/* Device fields — row 2 */}
-                                    <div className="grid grid-cols-2 gap-2 mb-2">
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                                          Model{" "}
-                                          <span className="text-red-500">
-                                            *
-                                          </span>
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={dev.model}
-                                          onChange={(e) =>
-                                            updateDevice(
-                                              gate._id,
-                                              dev._id,
-                                              "model",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder="VD: Hikvision DS-2CD4A26"
-                                          className={`input text-xs ${errClass(`dev_${dev._id}_model`)}`}
-                                        />
-                                        <ErrMsg k={`dev_${dev._id}_model`} />
+                                      {/* Device fields — row 1 */}
+                                      <div className="grid grid-cols-3 gap-2 mb-2">
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            Loại thiết bị
+                                          </label>
+                                          <select
+                                            value={dev.deviceType}
+                                            onChange={(e) =>
+                                              updateDevice(
+                                                gate._id,
+                                                dev._id,
+                                                "deviceType",
+                                                e.target.value,
+                                              )
+                                            }
+                                            className={`input text-xs ${errClass(`dev_${dev._id}_deviceType`)}`}
+                                          >
+                                            <option value="" disabled hidden>
+                                              Chọn loại thiết bị
+                                            </option>
+                                            {DEVICE_TYPE_OPTIONS.map((o) => (
+                                              <option
+                                                key={o.value}
+                                                value={o.value}
+                                              >
+                                                {o.label}
+                                              </option>
+                                            ))}
+                                          </select>
+                                          <ErrMsg
+                                            k={`dev_${dev._id}_deviceType`}
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            Mã thiết bị
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={dev.deviceCode}
+                                            onChange={(e) =>
+                                              updateDevice(
+                                                gate._id,
+                                                dev._id,
+                                                "deviceCode",
+                                                e.target.value,
+                                              )
+                                            }
+                                            disabled={lockedByExisting}
+                                            placeholder="VD: CAM-IN-B1"
+                                            className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_deviceCode`)}`}
+                                          />
+                                          <ErrMsg
+                                            k={`dev_${dev._id}_deviceCode`}
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            Tên thiết bị
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={dev.deviceName}
+                                            onChange={(e) =>
+                                              updateDevice(
+                                                gate._id,
+                                                dev._id,
+                                                "deviceName",
+                                                e.target.value,
+                                              )
+                                            }
+                                            disabled={lockedByExisting}
+                                            placeholder="VD: Camera Cổng Vào"
+                                            className="input text-xs disabled:bg-gray-100 disabled:text-gray-500"
+                                          />
+                                        </div>
                                       </div>
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                                          IP Address{" "}
-                                          <span className="text-red-500">
-                                            *
-                                          </span>
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={dev.ipAddress}
-                                          onChange={(e) =>
-                                            updateDevice(
-                                              gate._id,
-                                              dev._id,
-                                              "ipAddress",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder="VD: 192.168.10.50"
-                                          className={`input text-xs ${errClass(`dev_${dev._id}_ipAddress`)}`}
-                                        />
-                                        <ErrMsg
-                                          k={`dev_${dev._id}_ipAddress`}
-                                        />
-                                      </div>
-                                    </div>
 
-                                    {/* Device fields — row 3 */}
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                                          MAC Address
-                                          <span className="ml-1 text-gray-400 font-normal">
-                                            (tùy chọn)
-                                          </span>
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={dev.macAddress}
-                                          onChange={(e) =>
-                                            updateDevice(
-                                              gate._id,
-                                              dev._id,
-                                              "macAddress",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder="VD: A1:B2:C3:D4:E5:F6"
-                                          className={`input text-xs ${errClass(`dev_${dev._id}_macAddress`)}`}
-                                        />
-                                        <ErrMsg
-                                          k={`dev_${dev._id}_macAddress`}
-                                        />
+                                      {/* Device fields — row 2 */}
+                                      <div className="grid grid-cols-2 gap-2 mb-2">
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            Model{" "}
+                                            {!lockedByExisting && (
+                                              <span className="text-red-500">
+                                                *
+                                              </span>
+                                            )}
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={dev.model}
+                                            onChange={(e) =>
+                                              updateDevice(
+                                                gate._id,
+                                                dev._id,
+                                                "model",
+                                                e.target.value,
+                                              )
+                                            }
+                                            disabled={lockedByExisting}
+                                            placeholder="VD: Hikvision DS-2CD4A26"
+                                            className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_model`)}`}
+                                          />
+                                          <ErrMsg k={`dev_${dev._id}_model`} />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            IP Address{" "}
+                                            {!lockedByExisting && (
+                                              <span className="text-red-500">
+                                                *
+                                              </span>
+                                            )}
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={dev.ipAddress}
+                                            onChange={(e) =>
+                                              updateDevice(
+                                                gate._id,
+                                                dev._id,
+                                                "ipAddress",
+                                                e.target.value,
+                                              )
+                                            }
+                                            disabled={lockedByExisting}
+                                            placeholder="VD: 192.168.10.50"
+                                            className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_ipAddress`)}`}
+                                          />
+                                          <ErrMsg
+                                            k={`dev_${dev._id}_ipAddress`}
+                                          />
+                                        </div>
                                       </div>
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                                          Phiên bản firmware
-                                          <span className="ml-1 text-gray-400 font-normal">
-                                            (tùy chọn)
-                                          </span>
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={dev.firmwareVersion}
-                                          onChange={(e) =>
-                                            updateDevice(
-                                              gate._id,
-                                              dev._id,
-                                              "firmwareVersion",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder="VD: V5.5.82"
-                                          className="input text-xs"
-                                        />
+
+                                      {/* Device fields — row 3 */}
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            MAC Address
+                                            <span className="ml-1 text-gray-400 font-normal">
+                                              (tùy chọn)
+                                            </span>
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={dev.macAddress}
+                                            onChange={(e) =>
+                                              updateDevice(
+                                                gate._id,
+                                                dev._id,
+                                                "macAddress",
+                                                e.target.value,
+                                              )
+                                            }
+                                            disabled={lockedByExisting}
+                                            placeholder="VD: A1:B2:C3:D4:E5:F6"
+                                            className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_macAddress`)}`}
+                                          />
+                                          <ErrMsg
+                                            k={`dev_${dev._id}_macAddress`}
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            Phiên bản firmware
+                                            <span className="ml-1 text-gray-400 font-normal">
+                                              (tùy chọn)
+                                            </span>
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={dev.firmwareVersion}
+                                            onChange={(e) =>
+                                              updateDevice(
+                                                gate._id,
+                                                dev._id,
+                                                "firmwareVersion",
+                                                e.target.value,
+                                              )
+                                            }
+                                            disabled={lockedByExisting}
+                                            placeholder="VD: V5.5.82"
+                                            className="input text-xs disabled:bg-gray-100 disabled:text-gray-500"
+                                          />
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           </div>

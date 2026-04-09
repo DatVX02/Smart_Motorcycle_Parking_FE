@@ -9,6 +9,50 @@ function pickPositiveInt(v) {
   return Math.floor(n);
 }
 
+function pickTotalCount(source) {
+  if (!source || typeof source !== "object") return null;
+  return pickPositiveInt(
+    source.totalCount ??
+      source.TotalCount ??
+      source.total ??
+      source.Total ??
+      source.count ??
+      source.Count ??
+      source.totalRecords ??
+      source.TotalRecords ??
+      source.totalItems ??
+      source.TotalItems ??
+      source.itemCount ??
+      source.ItemCount,
+  );
+}
+
+function pickTotalPages(source) {
+  if (!source || typeof source !== "object") return null;
+  return pickPositiveInt(
+    source.totalPages ??
+      source.TotalPages ??
+      source.pageCount ??
+      source.PageCount ??
+      source.pages ??
+      source.Pages,
+  );
+}
+
+function pickPagingFromCandidates(candidates) {
+  let totalCount = null;
+  let totalPages = null;
+
+  for (const source of candidates) {
+    if (!source || typeof source !== "object") continue;
+    if (totalCount == null) totalCount = pickTotalCount(source);
+    if (totalPages == null) totalPages = pickTotalPages(source);
+    if (totalCount != null && totalPages != null) break;
+  }
+
+  return { totalCount, totalPages };
+}
+
 /** Payload trong envelope API: mảng hoặc object có items + totalCount / totalPages (camel hoặc Pascal) */
 function parseListResponse(axiosResponse) {
   const root = axiosResponse?.data;
@@ -26,36 +70,35 @@ function parseListResponse(axiosResponse) {
     } else if (Array.isArray(inner.data)) {
       items = inner.data;
     }
-    totalCount = pickPositiveInt(
-      inner.totalCount ??
-        inner.TotalCount ??
-        inner.total ??
-        inner.Total ??
-        inner.count ??
-        inner.Count ??
-        inner.totalRecords ??
-        inner.TotalRecords,
-    );
-    totalPages = pickPositiveInt(
-      inner.totalPages ?? inner.TotalPages ?? inner.pageCount ?? inner.PageCount,
-    );
+    const innerPaging = pickPagingFromCandidates([
+      inner,
+      inner.pagination,
+      inner.Pagination,
+      inner.meta,
+      inner.Meta,
+      inner.metadata,
+      inner.Metadata,
+      inner.page,
+      inner.Page,
+    ]);
+    totalCount = innerPaging.totalCount;
+    totalPages = innerPaging.totalPages;
   }
 
   if (root && typeof root === "object") {
-    if (totalCount == null) {
-      totalCount = pickPositiveInt(
-        root.totalCount ??
-          root.TotalCount ??
-          root.total ??
-          root.count ??
-          root.totalRecords,
-      );
-    }
-    if (totalPages == null) {
-      totalPages = pickPositiveInt(
-        root.totalPages ?? root.TotalPages ?? root.pageCount ?? root.PageCount,
-      );
-    }
+    const rootPaging = pickPagingFromCandidates([
+      root,
+      root.pagination,
+      root.Pagination,
+      root.meta,
+      root.Meta,
+      root.metadata,
+      root.Metadata,
+      root.page,
+      root.Page,
+    ]);
+    if (totalCount == null) totalCount = rootPaging.totalCount;
+    if (totalPages == null) totalPages = rootPaging.totalPages;
   }
 
   return { items, totalCount, totalPages };
@@ -63,15 +106,8 @@ function parseListResponse(axiosResponse) {
 
 function normalizePagingParams(params) {
   const reqParams = { ...params };
-  const page =
-    reqParams.pageNumber ??
-    reqParams.page ??
-    reqParams.Page ??
-    1;
-  const size =
-    reqParams.pageSize ??
-    reqParams.PageSize ??
-    10;
+  const page = reqParams.pageNumber ?? reqParams.page ?? reqParams.Page ?? 1;
+  const size = reqParams.pageSize ?? reqParams.PageSize ?? 10;
   delete reqParams.page;
   delete reqParams.pageNumber;
   delete reqParams.Page;
@@ -111,12 +147,15 @@ const deviceEventService = {
     let page = 1;
 
     for (;;) {
-      const { items, totalCount: tc, totalPages } =
-        await deviceEventService.getAll({
-          ...rest,
-          page,
-          pageSize: chunkSize,
-        });
+      const {
+        items,
+        totalCount: tc,
+        totalPages,
+      } = await deviceEventService.getAll({
+        ...rest,
+        page,
+        pageSize: chunkSize,
+      });
       if (typeof tc === "number" && Number.isFinite(tc)) totalCount = tc;
 
       const batch = items ?? [];
