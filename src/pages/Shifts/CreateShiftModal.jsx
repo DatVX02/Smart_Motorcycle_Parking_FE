@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { format, parse } from "date-fns";
 import {
@@ -143,6 +143,42 @@ function minutesToTime(min) {
   const h = Math.floor(Math.max(0, min) / 60) % 24;
   const m = Math.floor(Math.max(0, min) % 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function toUtcTimeLabel(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
+  const dateTimeMatch = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/,
+  );
+
+  if (dateTimeMatch) {
+    const [, year, month, day, hour, minute, second = "00"] = dateTimeMatch;
+    const date = hasTimezone
+      ? new Date(raw)
+      : new Date(
+          Date.UTC(
+            Number(year),
+            Number(month) - 1,
+            Number(day),
+            Number(hour),
+            Number(minute),
+            Number(second),
+          ),
+        );
+    if (!Number.isNaN(date.getTime())) {
+      const hh = String(date.getUTCHours()).padStart(2, "0");
+      const mm = String(date.getUTCMinutes()).padStart(2, "0");
+      return `${hh}:${mm}`;
+    }
+  }
+
+  const timeMatch = raw.match(/^(\d{2}):(\d{2})/);
+  if (timeMatch) return `${timeMatch[1]}:${timeMatch[2]}`;
+
+  return raw.slice(0, 5);
 }
 
 const STANDARD_SHIFT_HOURS = 8;
@@ -335,7 +371,7 @@ function CreateShiftModal({
       ? (editingShift?.lotId ?? editingShift?.LotId ?? "")
       : (initialLotId ?? parkingLots[0]?.id ?? parkingLots[0]?.lotId ?? ""),
   );
-  const [shiftStatus, setShiftStatus] = useState(
+  const [shiftStatus] = useState(
     isEdit
       ? (
           editingShift?.shiftStatus ??
@@ -400,7 +436,7 @@ function CreateShiftModal({
   // Bulk fields
   const [endDate, setEndDate] = useState(initialEndDate ?? "");
   // Các ngày trong tuần nằm trong khoảng [date, endDate] - chỉ được chọn những ngày này
-  const allowedDays = (() => {
+  const allowedDays = useMemo(() => {
     if (!endDate || !date) return [];
     const daysInRange = new Set();
     const cur = new Date(date + "T00:00:00");
@@ -410,7 +446,7 @@ function CreateShiftModal({
       cur.setDate(cur.getDate() + 1);
     }
     return Array.from(daysInRange);
-  })();
+  }, [endDate, date]);
 
   const [workingDays, setWorkingDays] = useState(() => {
     if (!initialEndDate) return [];
@@ -435,7 +471,7 @@ function CreateShiftModal({
       return;
     }
     setWorkingDays((prev) => prev.filter((d) => allowedDays.includes(d)));
-  }, [endDate, date]);
+  }, [allowedDays]);
 
   const staffId =
     staff?.staffId ??
@@ -469,12 +505,6 @@ function CreateShiftModal({
     }
     setStartTime(start);
     setEndTime(end);
-  };
-
-  const handleTimeChange = (field, value) => {
-    if (field === "start") setStartTime(value);
-    else setEndTime(value);
-    setSelectedPreset("");
   };
 
   const toggleDay = (day) => {
@@ -573,7 +603,7 @@ function CreateShiftModal({
       // ASP.NET Core validation: errors = { "FieldName": ["Error1", "Error2"] }
       if (data?.errors && typeof data.errors === "object") {
         const parts = Object.entries(data.errors)
-          .flatMap(([k, v]) => (Array.isArray(v) ? v : [v]))
+          .flatMap(([, v]) => (Array.isArray(v) ? v : [v]))
           .filter(Boolean);
         if (parts.length > 0) msg = parts.join(". ");
       }
@@ -593,6 +623,9 @@ function CreateShiftModal({
           false,
         )
       : null;
+
+  const startTimeLabel = toUtcTimeLabel(startTime);
+  const endTimeLabel = toUtcTimeLabel(endTime);
 
   const displayDate = (() => {
     try {
@@ -762,7 +795,8 @@ function CreateShiftModal({
               </label>
               {!endDate && (
                 <p className="text-xs text-amber-600 mb-2">
-                  Vui lòng chọn "Đến ngày" trước để chọn ngày trong tuần
+                  Vui lòng chọn &quot;Đến ngày&quot; trước để chọn ngày trong
+                  tuần
                 </p>
               )}
               <div className="flex gap-1.5">
@@ -895,13 +929,9 @@ function CreateShiftModal({
               </label>
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type="time"
-                  value={startTime}
-                  readOnly
-                  tabIndex={-1}
-                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-600 cursor-default select-none pointer-events-none"
-                />
+                <div className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-700 font-medium cursor-default select-none">
+                  {startTimeLabel || "--:--"}
+                </div>
               </div>
             </div>
             <div>
@@ -910,13 +940,9 @@ function CreateShiftModal({
               </label>
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type="time"
-                  value={endTime}
-                  readOnly
-                  tabIndex={-1}
-                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-600 cursor-default select-none pointer-events-none"
-                />
+                <div className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-700 font-medium cursor-default select-none">
+                  {endTimeLabel || "--:--"}
+                </div>
               </div>
             </div>
           </div>
@@ -982,7 +1008,7 @@ function CreateShiftModal({
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 

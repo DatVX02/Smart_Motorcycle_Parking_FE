@@ -140,6 +140,42 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
+function toUtcTimeLabel(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
+  const dateTimeMatch = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/,
+  );
+
+  if (dateTimeMatch) {
+    const [, year, month, day, hour, minute, second = "00"] = dateTimeMatch;
+    const date = hasTimezone
+      ? new Date(raw)
+      : new Date(
+          Date.UTC(
+            Number(year),
+            Number(month) - 1,
+            Number(day),
+            Number(hour),
+            Number(minute),
+            Number(second),
+          ),
+        );
+    if (!Number.isNaN(date.getTime())) {
+      const hh = String(date.getUTCHours()).padStart(2, "0");
+      const mm = String(date.getUTCMinutes()).padStart(2, "0");
+      return `${hh}:${mm}`;
+    }
+  }
+
+  const timeMatch = raw.match(/^(\d{2}):(\d{2})/);
+  if (timeMatch) return `${timeMatch[1]}:${timeMatch[2]}`;
+
+  return raw.slice(0, 5);
+}
+
 /** YYYY-MM-DD theo giờ local (so khớp ô ngày trên lịch). */
 function getLocalYmd(d = new Date()) {
   const y = d.getFullYear();
@@ -170,8 +206,10 @@ function toCalendarEvent(shift, todayYmd) {
   const rawDate =
     shift.shiftDate ?? shift.workDate ?? shift.date ?? shift.ShiftDate ?? "";
   const date = rawDate ? rawDate.split("T")[0] : "";
-  const startTime = shift.startTime ?? shift.StartTime ?? shift.start ?? "";
-  const endTime = shift.endTime ?? shift.EndTime ?? shift.end ?? "";
+  const rawStartTime = shift.startTime ?? shift.StartTime ?? shift.start ?? "";
+  const rawEndTime = shift.endTime ?? shift.EndTime ?? shift.end ?? "";
+  const startTime = toUtcTimeLabel(rawStartTime);
+  const endTime = toUtcTimeLabel(rawEndTime);
   const staffName =
     shift.staffName ??
     shift.StaffName ??
@@ -267,14 +305,16 @@ function renderEventContent(eventInfo) {
   const name = shift?.staffName ?? eventInfo.event.title;
   const statusKey = (shift?.shiftStatus ?? shift?.status ?? "").toUpperCase();
   const dot = STATUS_DOT[statusKey];
+  const startTime = toUtcTimeLabel(shift?.startTime);
+  const endTime = toUtcTimeLabel(shift?.endTime);
 
   return (
     <div className="px-1.5 py-0.5 w-full overflow-hidden flex items-start gap-1">
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold truncate leading-tight">{name}</p>
-        {shift?.startTime && shift?.endTime && (
+        {startTime && endTime && (
           <p className="text-[11px] opacity-90 truncate leading-tight">
-            {shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}
+            {startTime} – {endTime}
           </p>
         )}
       </div>
@@ -314,8 +354,8 @@ function ShiftTooltip({ tooltip }) {
   const position =
     shift?.position ?? shift?.dutyPosition ?? shift?.workPosition ?? null;
   const notes = shift?.notes ?? shift?.note ?? shift?.description ?? null;
-  const startTime = (shift?.startTime ?? "").slice(0, 5);
-  const endTime = (shift?.endTime ?? "").slice(0, 5);
+  const startTime = toUtcTimeLabel(shift?.startTime);
+  const endTime = toUtcTimeLabel(shift?.endTime);
   const lotName = shift?.lotName ?? shift?.LotName ?? "";
 
   const safeX = Math.min(x + 14, window.innerWidth - 240);
@@ -1885,6 +1925,7 @@ function Shifts() {
                           interactionPlugin,
                         ]}
                         initialView="dayGridMonth"
+                        timeZone="UTC"
                         locale={viLocale}
                         headerToolbar={false}
                         events={calendarEvents}
@@ -2205,8 +2246,8 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                   </span>
                 </div>
                 <span className="text-xs text-gray-700">
-                  {(shift.startTime ?? "—").slice(0, 5)} →{" "}
-                  {(shift.endTime ?? "—").slice(0, 5)}
+                  {toUtcTimeLabel(shift.startTime) || "—"} →{" "}
+                  {toUtcTimeLabel(shift.endTime) || "—"} UTC
                 </span>
               </div>
             </div>
