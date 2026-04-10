@@ -6,12 +6,7 @@ import authService from "@/services/authService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function Login() {
   const navigate = useNavigate();
@@ -37,16 +32,11 @@ function Login() {
       });
 
       const token =
-        response.data?.accessToken ||
-        response.accessToken ||
-        response.token;
+        response.data?.accessToken || response.accessToken || response.token;
 
       // Lưu thông tin user
       const userInfo =
-        response.data?.staff ||
-        response.data?.user ||
-        response.user ||
-        null;
+        response.data?.staff || response.data?.user || response.user || null;
 
       if (token && userInfo) {
         if (userInfo.role == "Admin") {
@@ -54,9 +44,14 @@ function Login() {
           localStorage.setItem("user_info", JSON.stringify(userInfo));
           navigate("/dashboard");
           navigate(from, { replace: true });
-          toast.success(response.message || "Đăng nhập thành công!", { duration: 1000 });
+          toast.success(response.message || "Đăng nhập thành công!", {
+            duration: 1000,
+          });
         } else {
-          toast.error("Tài khoản của bạn không có quyền truy cập. Vui lòng liên hệ quản trị viên.", { duration: 1000 });
+          toast.error(
+            "Tài khoản của bạn không có quyền truy cập. Vui lòng liên hệ quản trị viên.",
+            { duration: 1000 },
+          );
         }
       } else {
         toast.error("Không nhận được token từ server", { duration: 1000 });
@@ -64,8 +59,7 @@ function Login() {
     } catch (error) {
       if (error.response) {
         const message =
-          error.response.data?.message ||
-          "Email hoặc mật khẩu không đúng";
+          error.response.data?.message || "Email hoặc mật khẩu không đúng";
         toast.error(message, { duration: 1000 });
       } else {
         toast.error("Không thể kết nối server", { duration: 1000 });
@@ -145,7 +139,11 @@ function Login() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-5 " /> : <Eye className="w-4 h-5" />}
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-5 " />
+                    ) : (
+                      <Eye className="w-4 h-5" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -157,6 +155,15 @@ function Login() {
                 className="w-full h-11 text-base font-semibold bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-700 hover:to-cyan-700 transition-all"
               >
                 {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 text-base font-semibold"
+                onClick={() => navigate("/pay-by-plate")}
+              >
+                Thanh toán theo biển số
               </Button>
             </form>
           </CardContent>
