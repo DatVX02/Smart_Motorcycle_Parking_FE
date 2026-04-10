@@ -24,6 +24,7 @@ import UserMonthlyPasses from "./pages/MonthlyPasses/UserMonthlyPasses";
 import ParkingSessions from "./pages/ParkingSessions/ParkingSessions";
 import IncidentReports from "./pages/IncidentReports/IncidentReports";
 import RecognitionLogs from "./pages/RecognitionLogs/RecognitionLogs";
+import PayByPlate from "./pages/PayByPlate/PayByPlate";
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/pay-by-plate" element={<PayByPlate />} />
 
         {/* Protected Routes */}
         <Route
