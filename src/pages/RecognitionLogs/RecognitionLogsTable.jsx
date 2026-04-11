@@ -70,7 +70,7 @@ function RecognitionLogsTable({
                   <div className="flex flex-col items-center gap-3 text-gray-300">
                     <XCircle className="w-12 h-12" />
                     <p className="text-gray-400 text-sm font-medium">
-                      Không có dữ liệu nhật ký công nhận
+                      Không có dữ liệu nhật ký nhận diện
                     </p>
                   </div>
                 </td>

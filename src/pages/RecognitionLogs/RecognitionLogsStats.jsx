@@ -46,7 +46,7 @@ function RecognitionLogsStats({ loading, stats }) {
           iconColor="text-blue-600"
           label="Tổng bản ghi"
           value={Number(stats.totalItems).toLocaleString("vi-VN")}
-          valueSuffix="bản ghi"
+          valueSuffix="Bản ghi"
         />
         <RecognitionLogStatCard
           icon={Eye}
@@ -63,7 +63,7 @@ function RecognitionLogsStats({ loading, stats }) {
           iconColor="text-green-600"
           label="Khuôn mặt vào"
           value={Number(stats.faceCheckIn).toLocaleString("vi-VN")}
-          valueSuffix="bản ghi"
+          valueSuffix="Bản ghi"
           bgTint="bg-green-500/30"
         />
         <RecognitionLogStatCard
@@ -71,7 +71,7 @@ function RecognitionLogsStats({ loading, stats }) {
           iconColor="text-cyan-600"
           label="Khuôn mặt ra"
           value={Number(stats.faceCheckOut).toLocaleString("vi-VN")}
-          valueSuffix="bản ghi"
+          valueSuffix="Bản ghi"
           bgTint="bg-cyan-500/30"
         />
         <RecognitionLogStatCard
@@ -79,7 +79,7 @@ function RecognitionLogsStats({ loading, stats }) {
           iconColor="text-blue-600"
           label="Biển số vào"
           value={Number(stats.plateCheckIn).toLocaleString("vi-VN")}
-          valueSuffix="bản ghi"
+          valueSuffix="Bản ghi"
           bgTint="bg-blue-500/30"
         />
         <RecognitionLogStatCard
@@ -87,7 +87,7 @@ function RecognitionLogsStats({ loading, stats }) {
           iconColor="text-purple-600"
           label="Biển số ra"
           value={Number(stats.plateCheckOut).toLocaleString("vi-VN")}
-          valueSuffix="bản ghi"
+          valueSuffix="Bản ghi"
           bgTint="bg-purple-500/30"
         />
       </div>

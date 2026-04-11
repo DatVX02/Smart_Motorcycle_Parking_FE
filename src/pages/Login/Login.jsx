@@ -156,15 +156,6 @@ function Login() {
               >
                 {loading ? "Đang đăng nhập..." : "Đăng nhập"}
               </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 text-base font-semibold"
-                onClick={() => navigate("/pay-by-plate")}
-              >
-                Thanh toán theo biển số
-              </Button>
             </form>
           </CardContent>
         </Card>

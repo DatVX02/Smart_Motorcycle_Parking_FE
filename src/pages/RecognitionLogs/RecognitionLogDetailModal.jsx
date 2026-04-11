@@ -65,7 +65,7 @@ function RecognitionLogDetailModal({ log, onClose }) {
                 <ScrollText className="h-4 w-4" />
               </div>
               <h2 className="text-xl font-bold text-gray-900">
-                Chi tiết nhật ký công nhận
+                Chi tiết nhật ký nhận diện
               </h2>
             </div>
           </div>
