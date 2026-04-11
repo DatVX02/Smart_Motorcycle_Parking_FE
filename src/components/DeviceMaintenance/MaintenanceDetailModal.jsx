@@ -71,6 +71,13 @@ const MaintenanceDetailModal = ({
   }, [maintenanceId]);
 
   const handleMarkMaintained = async () => {
+    if (!imageFile) {
+      toast.error("Vui lòng chọn ảnh minh chứng trước khi cập nhật", {
+        duration: 2000,
+      });
+      return;
+    }
+
     if (imageFile && imageFile.size > MAX_IMAGE_MB * 1024 * 1024) {
       toast.error(`Ảnh tối đa ${MAX_IMAGE_MB} MB`, { duration: 2000 });
       return;
@@ -228,8 +235,7 @@ const MaintenanceDetailModal = ({
             {!isMaintenanceTerminalStatus(maintenance.status) && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm">
                 <span className="text-gray-600 shrink-0">
-                  Ảnh minh chứng{" "}
-                  <span className="text-gray-400 font-normal">(tùy chọn)</span>
+                  Ảnh minh chứng <span className="text-red-500">*</span>
                 </span>
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
                   <input
@@ -254,8 +260,8 @@ const MaintenanceDetailModal = ({
                       {imageFile.name}
                     </span>
                   ) : (
-                    <span className="text-xs text-gray-400">
-                      Chưa chọn file
+                    <span className="text-xs text-red-500">
+                      Vui lòng tải hình ảnh bảo trì trước khi cập nhật
                     </span>
                   )}
                 </div>

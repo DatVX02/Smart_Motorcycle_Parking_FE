@@ -8,8 +8,9 @@ const workShiftService = {
     apiClient.get(`/api/v1/work-shifts/${id}/detail`).then(unwrap),
   getByLot: (lotId, options = {}) => {
     const params = {};
-    if (options.pageSize != null) params.pageSize = options.pageSize;
+    params.pageSize = options.pageSize ?? 9999;
     if (options.page != null) params.page = options.page;
+    if (options.pageNumber != null) params.pageNumber = options.pageNumber;
     if (options.month != null) params.month = options.month;
     if (options.year != null) params.year = options.year;
     if (options.startDate != null) params.startDate = options.startDate;

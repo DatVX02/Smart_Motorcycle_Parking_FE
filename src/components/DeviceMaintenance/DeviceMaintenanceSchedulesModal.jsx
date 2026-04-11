@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import dayjs from "dayjs";
 import toast from "react-hot-toast";
+import { DatePicker } from "antd";
 import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
 
 const SEGMENT_COLORS = {
@@ -223,7 +224,8 @@ export default function DeviceMaintenanceSchedulesModal({
       maintenanceType,
       description: newSchedule.description.trim() || "",
       nextMaintenanceDate: newSchedule.nextMaintenanceDate
-        ? dayjs(newSchedule.nextMaintenanceDate).toISOString()
+        ? // Keep date-only format to avoid timezone offset shifting to previous day.
+          dayjs(newSchedule.nextMaintenanceDate).format("YYYY-MM-DD")
         : null,
     };
 
@@ -336,16 +338,23 @@ export default function DeviceMaintenanceSchedulesModal({
                   <label className="text-xs font-medium text-gray-600 mb-1 block">
                     Ngày bảo trì tiếp theo
                   </label>
-                  <input
-                    type="date"
-                    value={newSchedule.nextMaintenanceDate}
-                    onChange={(e) =>
+                  <DatePicker
+                    className="w-full"
+                    format="DD/MM/YYYY"
+                    placeholder="dd/mm/yyyy"
+                    value={
+                      newSchedule.nextMaintenanceDate
+                        ? dayjs(newSchedule.nextMaintenanceDate)
+                        : null
+                    }
+                    onChange={(date) =>
                       setNewSchedule((prev) => ({
                         ...prev,
-                        nextMaintenanceDate: e.target.value,
+                        nextMaintenanceDate: date
+                          ? date.format("YYYY-MM-DD")
+                          : "",
                       }))
                     }
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
 
