@@ -338,7 +338,7 @@ function renderEventContent(eventInfo) {
 
 function ShiftTooltip({ tooltip }) {
   if (!tooltip) return null;
-  const { x, y, shift, readOnly } = tooltip;
+  const { x, y, shift } = tooltip;
   const shiftType = (shift?.shiftType ?? "").toUpperCase();
   const statusKey = (shift?.shiftStatus ?? shift?.status ?? "").toUpperCase();
   const barColor =
@@ -437,9 +437,9 @@ function ShiftTooltip({ tooltip }) {
             >
               {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? "—"}
             </span>
-            <span className="text-[10px] text-gray-400 ml-auto">
+            {/* <span className="text-[10px] text-gray-400 ml-auto">
               {readOnly ? "Chỉ xem (không chỉnh sửa)" : "Nhấn để xem chi tiết"}
-            </span>
+            </span> */}
           </div>
         </div>
       </div>

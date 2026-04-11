@@ -13,7 +13,7 @@ const PAGE_TITLES = {
   "/transactions": { title: "Quản Lý Giao Dịch" },
   "/shifts": { title: "Quản Lý Lịch Bãi Xe" },
   "/device-events": { title: "Nhật Ký Thiết Bị" },
-  "/recognition-logs": { title: "Nhật Ký Công Nhận" },
+  "/recognition-logs": { title: "Nhật Ký Nhận Diện" },
   "/reward-points": { title: "Quản Lý Điểm Thưởng" },
   "/price-list": { title: "Bảng Giá Phí Gửi Xe" },
   "/monthly-passes": { title: "Quản Lý Vé Tháng" },

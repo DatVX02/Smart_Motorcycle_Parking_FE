@@ -71,7 +71,7 @@ function RecognitionLogs() {
       );
     } catch (error) {
       console.error(error);
-      toast.error("Không thể tải nhật ký công nhận");
+      toast.error("Không thể tải nhật ký nhận diện");
       setLogs([]);
       setMeta({
         totalItems: 0,
