@@ -601,9 +601,9 @@ function SystemRevenueWidget({
       </div>
 
       <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <p className="text-xs text-emerald-700">Tổng doanh thu hệ thống</p>
-          <p className="mt-1 flex items-center gap-2 text-xl font-bold text-emerald-800">
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+          <p className="text-xs text-green-700">Tổng doanh thu hệ thống</p>
+          <p className="mt-1 flex items-center gap-2 text-xl font-bold text-green-800">
             <CircleDollarSign className="h-5 w-5" />
             {formatCurrency(revenueStats.totalRevenue)}
           </p>
