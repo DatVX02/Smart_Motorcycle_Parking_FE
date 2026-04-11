@@ -962,10 +962,11 @@ function Shifts() {
   const loadAllShifts = useCallback(
     async (lots, monthOverride) => {
       const { year, month } = monthOverride ?? viewedMonth;
-      // Tính startDate / endDate của tháng đang xem (±1 tuần để lịch không bị trống biên)
-      const start = new Date(year, month - 1, 1);
+      // viewedMonth.month is 0-based (JS Date), so month boundaries use month and month + 1.
+      // Tính startDate / endDate của tháng đang xem (±1 tuần để lịch không bị trống biên).
+      const start = new Date(year, month, 1);
       start.setDate(start.getDate() - 7);
-      const end = new Date(year, month, 0);
+      const end = new Date(year, month + 1, 0);
       end.setDate(end.getDate() + 7);
       const pad = (n) => String(n).padStart(2, "0");
       const fmt = (d) =>
@@ -979,7 +980,7 @@ function Shifts() {
             try {
               // Thử filter theo tháng trước (giảm tải server)
               data = await workShiftService.getByLot(lot.id, {
-                month: month,
+                month: month + 1,
                 year: year,
                 startDate: fmt(start),
                 endDate: fmt(end),
