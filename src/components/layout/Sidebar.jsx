@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Layout, Menu, ConfigProvider, Avatar } from "antd";
+import { Layout, Menu, ConfigProvider } from "antd";
 import {
   LayoutDashboard,
   Users,
@@ -44,7 +44,7 @@ const menuItems = [
     icon: ScrollText,
     children: [
       { title: "Nhật ký thiết bị", path: "/device-events" },
-      { title: "Nhật ký công nhận", path: "/recognition-logs" },
+      { title: "Nhật ký nhận diện", path: "/recognition-logs" },
     ],
   },
   { title: "Báo cáo sự cố", icon: AlertTriangle, path: "/incident-reports" },

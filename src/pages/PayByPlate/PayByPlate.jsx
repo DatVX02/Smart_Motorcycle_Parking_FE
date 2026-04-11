@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import "dayjs/locale/vi";
 import toast from "react-hot-toast";
@@ -23,8 +23,26 @@ import {
 
 dayjs.locale("vi");
 
+const PAY_BY_PLATE_PENDING_KEY = "payByPlatePendingPayment";
+
+function isTruthyQueryValue(value) {
+  return ["1", "true", "yes", "y"].includes(
+    String(value ?? "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
+function isFalsyQueryValue(value) {
+  return ["0", "false", "no", "n"].includes(
+    String(value ?? "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
 export default function PayByPlate() {
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [licensePlate, setLicensePlate] = useState("");
   const [isImmediate, setIsImmediate] = useState(true);
   const [expectedCheckoutTime, setExpectedCheckoutTime] = useState("");
@@ -34,6 +52,7 @@ export default function PayByPlate() {
   const [previewForPlate, setPreviewForPlate] = useState("");
   const [result, setResult] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isResultModalOpen, setIsResultModalOpen] = useState(false);
 
   const normalizedPlate = useMemo(
     () => licensePlate.trim().toUpperCase(),
@@ -54,6 +73,68 @@ export default function PayByPlate() {
     const paymentDetail = normalizePreviewResponse(result.raw);
     return mergePreviewData(preview, paymentDetail);
   }, [preview, result?.raw]);
+
+  useEffect(() => {
+    const hasParams = Array.from(searchParams.keys()).length > 0;
+    if (!hasParams) return;
+
+    const status = String(
+      searchParams.get("status") ??
+        searchParams.get("paymentStatus") ??
+        searchParams.get("payment_status") ??
+        "",
+    )
+      .trim()
+      .toUpperCase();
+    const code = String(
+      searchParams.get("code") ?? searchParams.get("resultCode") ?? "",
+    )
+      .trim()
+      .toUpperCase();
+
+    const isSuccess =
+      code === "00" ||
+      isTruthyQueryValue(searchParams.get("success")) ||
+      ["PAID", "SUCCESS", "SUCCEEDED", "COMPLETED"].includes(status) ||
+      (isFalsyQueryValue(searchParams.get("cancel")) &&
+        ["PAID", "SUCCESS", "COMPLETED", ""].includes(status));
+
+    const isCancelled =
+      isTruthyQueryValue(searchParams.get("cancel")) ||
+      ["FAILED", "CANCEL", "CANCELED", "CANCELLED", "ERROR"].includes(status);
+
+    if (!isSuccess && !isCancelled) return;
+
+    let pending = null;
+    try {
+      const raw = localStorage.getItem(PAY_BY_PLATE_PENDING_KEY);
+      pending = raw ? JSON.parse(raw) : null;
+    } catch {
+      pending = null;
+    }
+
+    if (isSuccess) {
+      if (pending?.result) {
+        const restoredResult = {
+          ...pending.result,
+          message: "Thanh toán thành công",
+        };
+        setResult(restoredResult);
+        if (pending?.licensePlate) {
+          const restoredPlate = String(pending.licensePlate).toUpperCase();
+          setLicensePlate(restoredPlate);
+          setPreviewForPlate(restoredPlate);
+        }
+        setIsResultModalOpen(true);
+      }
+      toast.success("Thanh toán thành công");
+    } else {
+      toast.error("Thanh toán chưa hoàn tất");
+    }
+
+    localStorage.removeItem(PAY_BY_PLATE_PENDING_KEY);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const disabledPastDate = (current) =>
     Boolean(current && current < dayjs().startOf("day"));
@@ -81,6 +162,7 @@ export default function PayByPlate() {
     setPreviewForPlate("");
     setResult(null);
     setIsDetailModalOpen(false);
+    setIsResultModalOpen(false);
   };
 
   const handleToggleImmediate = (immediate) => {
@@ -89,11 +171,13 @@ export default function PayByPlate() {
       setExpectedCheckoutTime("");
     }
     setResult(null);
+    setIsResultModalOpen(false);
   };
 
   const handleExpectedCheckoutTimeChange = (value) => {
     setExpectedCheckoutTime(value);
     setResult(null);
+    setIsResultModalOpen(false);
   };
 
   const handleLookup = async (event) => {
@@ -105,6 +189,8 @@ export default function PayByPlate() {
 
     setPreviewLoading(true);
     try {
+      setResult(null);
+      setIsResultModalOpen(false);
       const statusResponse =
         await parkingSessionService.getStatusByPlate(normalizedPlate);
       let normalizedPreview = normalizePreviewResponse(statusResponse);
@@ -176,7 +262,6 @@ export default function PayByPlate() {
     try {
       const response = await parkingSessionService.payByPlate(payload);
       const normalized = normalizeResponse(response);
-      setResult(normalized);
 
       const paymentPreview = normalizePreviewResponse(response);
       setPreview((prev) =>
@@ -189,11 +274,27 @@ export default function PayByPlate() {
       setIsDetailModalOpen(false);
 
       if (normalized.totalAmount > 0 && normalized.paymentUrl) {
+        localStorage.setItem(
+          PAY_BY_PLATE_PENDING_KEY,
+          JSON.stringify({
+            licensePlate: normalizedPlate,
+            isImmediate,
+            expectedCheckoutTime,
+            result: normalized,
+            createdAt: new Date().toISOString(),
+          }),
+        );
         window.open(normalized.paymentUrl, "_blank", "noopener,noreferrer");
         toast.success("Đã tạo liên kết PayOS");
       } else if (normalized.totalAmount === 0) {
+        localStorage.removeItem(PAY_BY_PLATE_PENDING_KEY);
+        setResult(normalized);
+        setIsResultModalOpen(true);
         toast.success("Không cần thanh toán thêm");
       } else {
+        localStorage.removeItem(PAY_BY_PLATE_PENDING_KEY);
+        setResult(normalized);
+        setIsResultModalOpen(true);
         toast.success("Đã xử lý thanh toán");
       }
     } catch (error) {
@@ -203,6 +304,7 @@ export default function PayByPlate() {
         "Không thể xử lý thanh toán";
       toast.error(message);
       setResult(null);
+      setIsResultModalOpen(false);
     } finally {
       setPaymentLoading(false);
     }
@@ -229,7 +331,7 @@ export default function PayByPlate() {
               thực hiện thanh toán.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
             <PayByPlateForm
               licensePlate={licensePlate}
               onLicensePlateChange={handlePlateChange}
@@ -243,7 +345,6 @@ export default function PayByPlate() {
               paymentLoading={paymentLoading}
               canPay={canPay}
               onLookup={handleLookup}
-              onBackToLogin={() => navigate("/login")}
             />
           </CardContent>
         </Card>
@@ -263,6 +364,8 @@ export default function PayByPlate() {
           result={result}
           isImmediate={isImmediate}
           paymentTypeText={paymentTypeText}
+          open={isResultModalOpen}
+          onOpenChange={setIsResultModalOpen}
         />
 
         <p className="text-center text-xs text-white/60">
