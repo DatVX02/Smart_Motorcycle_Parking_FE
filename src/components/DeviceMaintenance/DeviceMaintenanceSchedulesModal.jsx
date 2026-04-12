@@ -193,6 +193,9 @@ export default function DeviceMaintenanceSchedulesModal({
     setSchedules(group.schedules || []);
   }, [group]);
 
+  const disabledPastDate = (current) =>
+    current && current.startOf("day").isBefore(dayjs().startOf("day"));
+
   const getCurrentDeviceId = () => {
     const fromGroup = group.deviceId ?? group.device_id;
     if (fromGroup != null && String(fromGroup).trim() !== "") return fromGroup;
@@ -342,6 +345,7 @@ export default function DeviceMaintenanceSchedulesModal({
                     className="w-full"
                     format="DD/MM/YYYY"
                     placeholder="dd/mm/yyyy"
+                    disabledDate={disabledPastDate}
                     value={
                       newSchedule.nextMaintenanceDate
                         ? dayjs(newSchedule.nextMaintenanceDate)

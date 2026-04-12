@@ -9,6 +9,7 @@ import {
   Clock,
   CircleDollarSign,
   Activity,
+  Monitor,
   Cpu,
   Wifi,
   WifiOff,
@@ -76,12 +77,12 @@ const fmtDate = (v) => {
 /* lookup maps */
 const STATUS_VARIANT = {
   active: "success",
-  inactive: "destructive",
+  inactive: "secondary",
   maintenance: "warning",
 };
 const STATUS_LABEL = {
   active: "Hoạt động",
-  inactive: "Không hoạt động",
+  inactive: "Ngừng hoạt động",
   maintenance: "Bảo trì",
 };
 const getStatusVariant = (r) =>
@@ -113,9 +114,45 @@ const DEVICE_TYPE_MAP = {
     iconBg: "bg-purple-100",
     iconColor: "text-purple-600",
   },
+  LCD: {
+    label: "LCD",
+    variant: "default",
+    Icon: Monitor,
+    iconBg: "bg-indigo-100",
+    iconColor: "text-indigo-600",
+  },
+  SENSOR: {
+    label: "Sensor",
+    variant: "success",
+    Icon: Cpu,
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-600",
+  },
 };
+
+const normalizeDeviceType = (raw) => {
+  const key = String(raw ?? "").toUpperCase();
+  if (key === "LPR" || key === "LPR_CAMERA") return "CAMERA";
+  if (
+    key === "LCD" ||
+    key === "DISPLAY" ||
+    key === "SCREEN" ||
+    key === "MONITOR"
+  )
+    return "LCD";
+  if (
+    key === "SENSOR" ||
+    key === "IR_SENSOR" ||
+    key === "LOOP_SENSOR" ||
+    key === "ULTRASONIC_SENSOR" ||
+    key === "MOTION_SENSOR"
+  )
+    return "SENSOR";
+  return key;
+};
+
 const getDType = (r) =>
-  DEVICE_TYPE_MAP[String(r ?? "").toUpperCase()] ?? {
+  DEVICE_TYPE_MAP[normalizeDeviceType(r)] ?? {
     label: r || "—",
     variant: "outline",
     Icon: Cpu,
@@ -141,10 +178,19 @@ const getConn = (r) =>
 
 function adjustApiDate(value) {
   if (!value) return null;
-  const d = new Date(value);
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const d = new Date(raw);
   if (isNaN(d)) return null;
-  // Đồng bộ với cách hiển thị timestamp ở phần nhật ký (trừ 7h).
-  return new Date(d.getTime() - 7 * 60 * 60 * 1000);
+
+  // Chuỗi không kèm timezone từ API đang theo UTC; cộng +7 để hiển thị đúng giờ VN.
+  const hasTimezone = /(z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  if (!hasTimezone) {
+    return new Date(d.getTime() + 7 * 60 * 60 * 1000);
+  }
+
+  return d;
 }
 
 function startOfDay(date) {
@@ -180,8 +226,6 @@ function ParkingLotDetailModal({ lot, onClose }) {
   const [gates, setGates] = useState([]);
   const [devicesByLot, setDevicesByLot] = useState([]);
   const [statistics, setStatistics] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [trafficSessions, setTrafficSessions] = useState([]);
   const [trafficLoading, setTrafficLoading] = useState(true);
   const [trafficPreset, setTrafficPreset] = useState("today");
@@ -209,25 +253,6 @@ function ParkingLotDetailModal({ lot, onClose }) {
     }
   }, [lot?.id]);
 
-  const loadSessions = useCallback(async () => {
-    try {
-      setSessionsLoading(true);
-      const data = await parkingSessionService
-        .getAll({
-          lotId: lot.id,
-          pageNumber: 1,
-          pageSize: 10,
-        })
-        .catch(() => []);
-      setSessions(Array.isArray(data) ? data.slice(0, 10) : []);
-    } catch (err) {
-      console.error("[Sessions] catch:", err);
-      setSessions([]);
-    } finally {
-      setSessionsLoading(false);
-    }
-  }, [lot?.id]);
-
   const loadTrafficSessions = useCallback(async () => {
     try {
       setTrafficLoading(true);
@@ -250,9 +275,8 @@ function ParkingLotDetailModal({ lot, onClose }) {
   useEffect(() => {
     if (!lot?.id) return;
     loadData();
-    loadSessions();
     loadTrafficSessions();
-  }, [lot?.id, loadData, loadSessions, loadTrafficSessions]);
+  }, [lot?.id, loadData, loadTrafficSessions]);
 
   /* flatten all devices */
   const allDevices = useMemo(() => {
@@ -446,6 +470,44 @@ function ParkingLotDetailModal({ lot, onClose }) {
       trafficChartData: Array.from(bucket.values()),
       trafficXAxisInterval: days > 14 ? 2 : 0,
     };
+  }, [trafficRange, trafficSessions]);
+
+  const accessLogs = useMemo(() => {
+    if (!trafficRange.valid) return [];
+
+    const start = trafficRange.start;
+    const end = trafficRange.end;
+    const events = [];
+
+    for (const s of trafficSessions) {
+      const plate = s.licensePlate ?? s.vehiclePlate ?? s.plateNumber ?? "—";
+      const baseId = s.sessionId ?? s.id ?? plate;
+
+      const inAt = adjustApiDate(s.entryTime ?? s.checkInTime ?? s.createdAt);
+      if (inAt && inAt >= start && inAt <= end) {
+        events.push({
+          key: `in-${baseId}-${inAt.getTime()}`,
+          type: "in",
+          plate,
+          time: inAt,
+        });
+      }
+
+      const outAt = adjustApiDate(
+        s.exitTime ?? s.checkOutTime ?? s.completedAt,
+      );
+      if (outAt && outAt >= start && outAt <= end) {
+        events.push({
+          key: `out-${baseId}-${outAt.getTime()}`,
+          type: "out",
+          plate,
+          time: outAt,
+        });
+      }
+    }
+
+    events.sort((a, b) => b.time.getTime() - a.time.getTime());
+    return events.slice(0, 10);
   }, [trafficRange, trafficSessions]);
 
   const isCritical = occupancy >= 90;
@@ -802,12 +864,12 @@ function ParkingLotDetailModal({ lot, onClose }) {
                             >
                               <stop
                                 offset="5%"
-                                stopColor="#22c55e"
+                                stopColor="#f59e0b"
                                 stopOpacity={0.2}
                               />
                               <stop
                                 offset="95%"
-                                stopColor="#22c55e"
+                                stopColor="#f59e0b"
                                 stopOpacity={0}
                               />
                             </linearGradient>
@@ -820,12 +882,12 @@ function ParkingLotDetailModal({ lot, onClose }) {
                             >
                               <stop
                                 offset="5%"
-                                stopColor="#3b82f6"
+                                stopColor="#22c55e"
                                 stopOpacity={0.2}
                               />
                               <stop
                                 offset="95%"
-                                stopColor="#3b82f6"
+                                stopColor="#22c55e"
                                 stopOpacity={0}
                               />
                             </linearGradient>
@@ -872,7 +934,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                           <Area
                             type="monotone"
                             dataKey="vào"
-                            stroke="#22c55e"
+                            stroke="#f59e0b"
                             strokeWidth={2}
                             fill="url(#colorVao)"
                             dot={false}
@@ -880,7 +942,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                           <Area
                             type="monotone"
                             dataKey="ra"
-                            stroke="#3b82f6"
+                            stroke="#22c55e"
                             strokeWidth={2}
                             fill="url(#colorRa)"
                             dot={false}
@@ -890,11 +952,11 @@ function ParkingLotDetailModal({ lot, onClose }) {
                     )}
                     <div className="flex items-center gap-4 mt-2 justify-center">
                       <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                        <span className="w-3 h-0.5 bg-green-500 inline-block rounded" />{" "}
+                        <span className="w-3 h-0.5 bg-amber-500 inline-block rounded" />{" "}
                         Xe vào
                       </span>
                       <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                        <span className="w-3 h-0.5 bg-blue-500 inline-block rounded" />{" "}
+                        <span className="w-3 h-0.5 bg-green-500 inline-block rounded" />{" "}
                         Xe ra
                       </span>
                     </div>
@@ -1092,11 +1154,11 @@ function ParkingLotDetailModal({ lot, onClose }) {
                 <div className="flex-1 w-full border border-gray-100 rounded-2xl bg-white flex flex-col p-4 overflow-hidden">
                   <SectionTitle icon={Activity}>Nhật ký ra/vào</SectionTitle>
 
-                  {sessionsLoading ? (
+                  {trafficLoading ? (
                     <div className="flex-1 flex items-center justify-center">
                       <Loader2 className="w-6 h-6 text-gray-300 animate-spin" />
                     </div>
-                  ) : sessions.length === 0 ? (
+                  ) : accessLogs.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center">
                       <LogIn className="w-8 h-8 text-gray-200 mb-2" />
                       <p className="text-sm text-gray-400">
@@ -1105,57 +1167,36 @@ function ParkingLotDetailModal({ lot, onClose }) {
                     </div>
                   ) : (
                     <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0">
-                      {sessions.map((s, i) => {
-                        const isEntry =
-                          !s.exitTime ||
-                          s.sessionStatus === "active" ||
-                          s.sessionStatus === "ACTIVE";
-                        const plate =
-                          s.licensePlate ??
-                          s.vehiclePlate ??
-                          s.plateNumber ??
-                          "—";
-                        const rawTime =
-                          s.exitTime ??
-                          s.entryTime ??
-                          s.createdAt ??
-                          s.checkInTime;
-                        const adjustedDate = rawTime
-                          ? new Date(
-                              new Date(rawTime).getTime() - 7 * 60 * 60 * 1000,
-                            )
-                          : null;
-                        const timeStr = adjustedDate
-                          ? adjustedDate.toLocaleTimeString("vi-VN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              second: "2-digit",
-                            })
-                          : "—";
-                        const dateStr = adjustedDate
-                          ? adjustedDate.toLocaleDateString("vi-VN")
-                          : "";
+                      {accessLogs.map((log, i) => {
+                        const isEntry = log.type === "in";
+                        const plate = log.plate;
+                        const timeStr = log.time.toLocaleTimeString("vi-VN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        });
+                        const dateStr = log.time.toLocaleDateString("vi-VN");
 
                         return (
                           <div
-                            key={s.sessionId ?? s.id ?? i}
+                            key={log.key ?? i}
                             className={cn(
                               "flex items-start gap-2.5 px-3 py-2 rounded-xl border",
                               isEntry
-                                ? "bg-green-50 border-green-100"
-                                : "bg-orange-50 border-orange-100",
+                                ? "bg-amber-100 border-amber-100"
+                                : "bg-green-100 border-green-100",
                             )}
                           >
                             <div
                               className={cn(
                                 "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
-                                isEntry ? "bg-green-100" : "bg-orange-100",
+                                isEntry ? "bg-amber-100" : "bg-green-100",
                               )}
                             >
                               {isEntry ? (
-                                <LogIn className="w-3.5 h-3.5 text-green-600" />
+                                <LogIn className="w-3.5 h-3.5 text-amber-600" />
                               ) : (
-                                <LogOut className="w-3.5 h-3.5 text-orange-600" />
+                                <LogOut className="w-3.5 h-3.5 text-green-600" />
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -1165,9 +1206,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                               <p
                                 className={cn(
                                   "text-[10px]",
-                                  isEntry
-                                    ? "text-green-600"
-                                    : "text-orange-600",
+                                  isEntry ? "text-amber-700" : "text-green-700",
                                 )}
                               >
                                 Xe {isEntry ? "vào" : "ra"}
@@ -1188,7 +1227,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                       })}
                     </div>
                   )}
-                  {!sessionsLoading && lot?.id && (
+                  {!trafficLoading && lot?.id && (
                     <Button
                       type="button"
                       variant="outline"
