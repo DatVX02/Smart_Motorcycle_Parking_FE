@@ -92,8 +92,8 @@ function statusStyle(status) {
   }
   if (status === "expired") {
     return {
-      label: "Hết hạn",
-      className: "bg-amber-100 text-amber-700 border border-amber-200",
+      label: "Đã hết hạn",
+      className: "bg-red-100 text-red-700 border border-red-200",
     };
   }
   return {
