@@ -38,11 +38,15 @@ const GATE_TYPE_OPTIONS = [
 const DEVICE_TYPE_OPTIONS = [
   { value: "CAMERA", label: "Camera" },
   { value: "BARRIER", label: "Barie" },
+  { value: "LCD", label: "LCD" },
+  { value: "SENSOR", label: "Sensor" },
 ];
 
 const DEVICE_TYPE_LABEL = {
   CAMERA: "Camera",
   BARRIER: "Barie",
+  LCD: "LCD",
+  SENSOR: "Sensor",
 };
 
 const normalizeDeviceType = (value) => {
@@ -52,6 +56,16 @@ const normalizeDeviceType = (value) => {
   if (!v) return "";
   if (v === "LPR" || v === "CAMERA" || v === "LPR_CAMERA") return "CAMERA";
   if (v === "BARRIER" || v === "BARIE" || v === "BARRIE") return "BARRIER";
+  if (v === "LCD" || v === "DISPLAY" || v === "SCREEN" || v === "MONITOR")
+    return "LCD";
+  if (
+    v === "SENSOR" ||
+    v === "IR_SENSOR" ||
+    v === "LOOP_SENSOR" ||
+    v === "ULTRASONIC_SENSOR" ||
+    v === "MOTION_SENSOR"
+  )
+    return "SENSOR";
   return v;
 };
 
@@ -512,13 +526,28 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   const handleAutoFill = () => {
     const tomorrow = format(new Date(Date.now() + 86400000), "yyyy-MM-dd");
     const sample = getRandomDemoSample();
-    setFormData({
-      ...sample,
+    setFormData((prev) => ({
+      ...prev,
+      lotName: sample.lotName ?? "",
+      fullAddress: sample.fullAddress ?? "",
+      totalCapacity: sample.totalCapacity ?? "",
+      hourlyRate: sample.hourlyRate ?? "",
+      monthlyRate: sample.monthlyRate ?? "",
+      openingTime: sample.openingTime ?? "",
+      closingTime: sample.closingTime ?? "",
+      is24h: !!sample.is24h,
       scheduledActivationDate: tomorrow,
-      licensePlateThreshold: "70",
-      faceRecognitionThreshold: "70",
+    }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.lotName;
+      delete next.fullAddress;
+      delete next.totalCapacity;
+      delete next.hourlyRate;
+      delete next.monthlyRate;
+      delete next.time;
+      return next;
     });
-    setErrors({});
     toast.success(`Đã điền mẫu: ${sample.lotName}`);
   };
 

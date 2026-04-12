@@ -74,7 +74,7 @@ const STATUS_COLORS = {
 };
 const STATUS_LABELS = {
   SCHEDULED: "Đã lên lịch",
-  PENDING_CHANGE: "Chờ đổi ca",
+  PENDING_CHANGE: "Chờ đổi lịch",
   IN_PROGRESS: "Đang làm",
   COMPLETED: "Hoàn thành",
   CANCELLED: "Đã hủy",
@@ -97,10 +97,25 @@ const SHIFT_TYPE_LABELS = {
 
 const HIDDEN_CALENDAR_STATUSES = new Set(["CANCELLED", "REJECTED"]);
 
-function shiftStatusKey(shift) {
-  return String(shift?.shiftStatus ?? shift?.ShiftStatus ?? shift?.status ?? "")
+function normalizeStatusKey(value) {
+  const normalized = String(value ?? "")
     .trim()
-    .toUpperCase();
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+
+  const aliases = {
+    PENDINGCHANGE: "PENDING_CHANGE",
+    INPROGRESS: "IN_PROGRESS",
+  };
+
+  return aliases[normalized] ?? normalized;
+}
+
+function shiftStatusKey(shift) {
+  return normalizeStatusKey(
+    shift?.shiftStatus ?? shift?.ShiftStatus ?? shift?.status ?? "",
+  );
 }
 
 function shouldHideShiftOnCalendar(shift) {
@@ -217,12 +232,7 @@ function toCalendarEvent(shift, todayYmd) {
     shift.staff?.name ??
     "Nhân viên";
   const shiftType = (shift.shiftType ?? shift.ShiftType ?? "").toUpperCase();
-  const shiftStatus = (
-    shift.shiftStatus ??
-    shift.ShiftStatus ??
-    shift.status ??
-    ""
-  ).toUpperCase();
+  const shiftStatus = shiftStatusKey(shift);
 
   const color =
     SHIFT_COLORS[shiftType] ?? STATUS_COLORS[shiftStatus] ?? "#6B7280";
@@ -296,14 +306,14 @@ function StaffDragOverlayCard({ staff }) {
 const STATUS_DOT = {
   COMPLETED: { color: "#10B981", label: "Hoàn thành", icon: "✓" },
   IN_PROGRESS: { color: "#3B82F6", label: "Đang làm" },
-  PENDING_CHANGE: { color: "#F59E0B", label: "Chờ đổi ca" },
+  PENDING_CHANGE: { color: "#F59E0B", label: "Chờ đổi lịch" },
   CANCELLED: { color: "#EF4444", label: "Đã hủy" },
 };
 
 function renderEventContent(eventInfo) {
   const { shift } = eventInfo.event.extendedProps;
   const name = shift?.staffName ?? eventInfo.event.title;
-  const statusKey = (shift?.shiftStatus ?? shift?.status ?? "").toUpperCase();
+  const statusKey = shiftStatusKey(shift);
   const dot = STATUS_DOT[statusKey];
   const startTime = toUtcTimeLabel(shift?.startTime);
   const endTime = toUtcTimeLabel(shift?.endTime);
@@ -340,7 +350,7 @@ function ShiftTooltip({ tooltip }) {
   if (!tooltip) return null;
   const { x, y, shift } = tooltip;
   const shiftType = (shift?.shiftType ?? "").toUpperCase();
-  const statusKey = (shift?.shiftStatus ?? shift?.status ?? "").toUpperCase();
+  const statusKey = shiftStatusKey(shift);
   const barColor =
     SHIFT_COLORS[shiftType] ?? STATUS_COLORS[statusKey] ?? "#6B7280";
 
@@ -1391,7 +1401,7 @@ function Shifts() {
       statsParkingLots.map((lot) => ({
         name: lot.name,
         count: lotShiftsInMonth(lot.id).filter((s) => {
-          if ((s.shiftStatus ?? "").toUpperCase() !== "SCHEDULED") return false;
+          if (shiftStatusKey(s) !== "SCHEDULED") return false;
           if (!scheduledStatsDateRange) return false;
           const d = (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0];
           return (
@@ -1408,7 +1418,7 @@ function Shifts() {
       statsParkingLots.map((lot) => ({
         name: lot.name,
         count: lotShiftsInMonth(lot.id).filter(
-          (s) => (s.shiftStatus ?? "").toUpperCase() === "IN_PROGRESS",
+          (s) => shiftStatusKey(s) === "IN_PROGRESS",
         ).length,
       })),
     [statsParkingLots, lotShiftsInMonth],
@@ -2193,12 +2203,7 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
     : "—";
 
   const shiftType = (shift.shiftType ?? shift.ShiftType ?? "").toUpperCase();
-  const statusKey = (
-    shift.shiftStatus ??
-    shift.ShiftStatus ??
-    shift.status ??
-    ""
-  ).toUpperCase();
+  const statusKey = shiftStatusKey(shift);
   const statusLabel = STATUS_LABELS[statusKey] ?? shift.shiftStatus ?? "—";
   const statusColor = STATUS_COLORS[statusKey] ?? "#6B7280";
   const barColor = SHIFT_COLORS[shiftType] ?? statusColor;

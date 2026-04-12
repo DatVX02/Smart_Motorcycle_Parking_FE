@@ -61,11 +61,28 @@ const CONN_STATUS = {
 const DEVICE_TYPE = {
   CAMERA: { label: "Camera", Icon: Camera },
   BARRIER: { label: "Barie", Icon: Activity },
+  LCD: { label: "LCD", Icon: Monitor },
+  SENSOR: { label: "Sensor", Icon: Cpu },
 };
 
 const normalizeDeviceType = (raw) => {
   const key = String(raw ?? "").toUpperCase();
   if (key === "LPR" || key === "LPR_CAMERA") return "CAMERA";
+  if (
+    key === "LCD" ||
+    key === "DISPLAY" ||
+    key === "SCREEN" ||
+    key === "MONITOR"
+  )
+    return "LCD";
+  if (
+    key === "SENSOR" ||
+    key === "IR_SENSOR" ||
+    key === "LOOP_SENSOR" ||
+    key === "ULTRASONIC_SENSOR" ||
+    key === "MOTION_SENSOR"
+  )
+    return "SENSOR";
   return key;
 };
 

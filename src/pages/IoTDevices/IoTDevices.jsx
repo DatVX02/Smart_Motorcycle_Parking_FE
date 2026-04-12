@@ -3,6 +3,7 @@ import {
   Cpu,
   Camera,
   Activity,
+  Monitor,
   Wifi,
   WifiOff,
   AlertTriangle,
@@ -112,11 +113,36 @@ const DEVICE_TYPE = {
     color: "bg-purple-100 text-purple-700",
     icon: Activity,
   },
+  LCD: {
+    label: "LCD",
+    color: "bg-indigo-100 text-indigo-700",
+    icon: Monitor,
+  },
+  SENSOR: {
+    label: "Sensor",
+    color: "bg-emerald-100 text-emerald-700",
+    icon: Cpu,
+  },
 };
 
 const normalizeDeviceType = (raw) => {
   const key = String(raw ?? "").toUpperCase();
   if (key === "LPR" || key === "LPR_CAMERA") return "CAMERA";
+  if (
+    key === "LCD" ||
+    key === "DISPLAY" ||
+    key === "SCREEN" ||
+    key === "MONITOR"
+  )
+    return "LCD";
+  if (
+    key === "SENSOR" ||
+    key === "IR_SENSOR" ||
+    key === "LOOP_SENSOR" ||
+    key === "ULTRASONIC_SENSOR" ||
+    key === "MOTION_SENSOR"
+  )
+    return "SENSOR";
   return key;
 };
 
@@ -567,6 +593,8 @@ function IoTDevices() {
             <option value="all">Tất cả loại</option>
             <option value="CAMERA">Camera</option>
             <option value="BARRIER">Barie</option>
+            <option value="LCD">LCD</option>
+            <option value="SENSOR">Sensor</option>
           </select>
 
           <select

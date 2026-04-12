@@ -7,6 +7,8 @@ import parkingLotService from "../../services/parkingLotService";
 const DEVICE_TYPE_OPTIONS = [
   { value: "CAMERA", label: "Camera" },
   { value: "BARRIER", label: "Barie" },
+  { value: "LCD", label: "LCD" },
+  { value: "SENSOR", label: "Sensor" },
 ];
 
 const getDefault = (device) => ({
