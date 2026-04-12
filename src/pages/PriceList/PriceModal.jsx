@@ -84,7 +84,7 @@ function PriceModal({ price, onClose, onSave }) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Giá (VND)
+              Giá (VNĐ)
             </label>
             <input
               type="number"
@@ -148,7 +148,7 @@ function PriceModal({ price, onClose, onSave }) {
         </form>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 
