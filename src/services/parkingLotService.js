@@ -104,6 +104,29 @@ const parkingLotService = {
     const response = await apiClient.delete(`${PARKING_LOT_BASE_PATH}/${id}`);
     return unwrap(response.data);
   },
+
+  /**
+   * POST /api/v1/parking-lots/{id}/schedule-price-update - Lên lịch cập nhật giá theo giờ
+   * @param {string} id - parking lot id
+   * @param {Object} payload - { newHourlyRate, scheduledPriceUpdateDate }
+   */
+  schedulePriceUpdate: async (id, payload) => {
+    const response = await apiClient.post(
+      `${PARKING_LOT_BASE_PATH}/${id}/schedule-price-update`,
+      payload,
+    );
+    return unwrap(response.data);
+  },
+
+  /**
+   * DELETE /api/v1/parking-lots/{id}/scheduled-price-update - Hủy lịch cập nhật giá đã đặt
+   */
+  cancelScheduledPriceUpdate: async (id) => {
+    const response = await apiClient.delete(
+      `${PARKING_LOT_BASE_PATH}/${id}/scheduled-price-update`,
+    );
+    return unwrap(response.data);
+  },
 };
 
 export default parkingLotService;

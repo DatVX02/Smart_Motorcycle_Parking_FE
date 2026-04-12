@@ -864,6 +864,7 @@ function Shifts() {
     const d = new Date();
     return d.toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
   });
+  const [calendarVisibleRange, setCalendarVisibleRange] = useState(null);
   const calendarRef = useRef(null);
   const calendarRefs = useRef({});
 
@@ -1114,6 +1115,11 @@ function Shifts() {
     setViewedMonth({ year: d.getFullYear(), month: d.getMonth() });
     setCalendarViewTitle(arg.view.title);
     setCalendarView(arg.view.type);
+    const start = String(arg.startStr ?? "").split("T")[0];
+    const endExclusive = String(arg.endStr ?? "").split("T")[0];
+    setCalendarVisibleRange(
+      start && endExclusive ? { start, endExclusive } : null,
+    );
   }, []);
 
   const handleEventClick = (info) => {
@@ -1281,6 +1287,19 @@ function Shifts() {
       );
     },
     [viewedMonth],
+  );
+
+  const isInCalendarVisibleRange = useCallback(
+    (dateStr) => {
+      if (!dateStr) return false;
+      if (!calendarVisibleRange) return true;
+      const date = dateStr.split("T")[0];
+      return (
+        date >= calendarVisibleRange.start &&
+        date < calendarVisibleRange.endExclusive
+      );
+    },
+    [calendarVisibleRange],
   );
 
   // Shifts của 1 lot đã lọc theo tháng đang xem (dùng cho thống kê đầu trang; có lọc NV nếu đang chọn)
@@ -1878,6 +1897,11 @@ function Shifts() {
                   }
                   return true;
                 });
+                const lotVisibleShiftCount = lotShifts.filter((s) =>
+                  isInCalendarVisibleRange(
+                    s.shiftDate ?? s.workDate ?? s.date ?? "",
+                  ),
+                ).length;
                 const calendarEvents = lotShifts.map((s) =>
                   toCalendarEvent(s, todayLocalStr),
                 );
@@ -1901,7 +1925,7 @@ function Shifts() {
                           {lot.name}
                         </h2>
                         <span className="text-xs font-semibold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full flex-shrink-0">
-                          {lotShifts.length} ca
+                          {lotVisibleShiftCount} ca
                         </span>
                         <Maximize2 className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-500 transition-colors ml-auto flex-shrink-0" />
                       </div>
@@ -2248,7 +2272,7 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                 </div>
                 <span className="text-xs text-gray-700">
                   {toUtcTimeLabel(shift.startTime) || "—"} →{" "}
-                  {toUtcTimeLabel(shift.endTime) || "—"} UTC
+                  {toUtcTimeLabel(shift.endTime) || "—"}
                 </span>
               </div>
             </div>
