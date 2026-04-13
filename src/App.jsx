@@ -22,9 +22,11 @@ import MonthlyPasses from "./pages/MonthlyPasses/MonthlyPasses";
 import MonthlyPassPackages from "./pages/MonthlyPasses/MonthlyPassPackages";
 import UserMonthlyPasses from "./pages/MonthlyPasses/UserMonthlyPasses";
 import ParkingSessions from "./pages/ParkingSessions/ParkingSessions";
+import ParkingVehicles from "./pages/ParkingVehicles/ParkingVehicles";
 import IncidentReports from "./pages/IncidentReports/IncidentReports";
 import RecognitionLogs from "./pages/RecognitionLogs/RecognitionLogs";
 import PayByPlate from "./pages/PayByPlate/PayByPlate";
+import WithdrawRequests from "./pages/WithdrawRequest/WithdrawRequests";
 
 function App() {
   return (
@@ -49,7 +51,9 @@ function App() {
           <Route path="accounts/staff" element={<AccountStaff />} />
           <Route path="parking-lots" element={<ParkingLots />} />
           <Route path="parking-sessions" element={<ParkingSessions />} />
+          <Route path="parking-vehicles" element={<ParkingVehicles />} />
           <Route path="transactions" element={<Transactions />} />
+          <Route path="withdraw-requests" element={<WithdrawRequests />} />
           <Route path="shifts" element={<Shifts />} />
           <Route path="device-events" element={<DeviceEvents />} />
           <Route path="recognition-logs" element={<RecognitionLogs />} />

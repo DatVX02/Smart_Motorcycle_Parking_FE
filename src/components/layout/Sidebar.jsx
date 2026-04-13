@@ -35,9 +35,17 @@ const menuItems = [
     children: [
       { title: "Quản lý bãi gửi xe", path: "/parking-lots" },
       { title: "Quản lý phiên gửi xe", path: "/parking-sessions" },
+      { title: "Quản lý phương tiện", path: "/parking-vehicles" },
     ],
   },
-  { title: "Giao dịch", icon: Receipt, path: "/transactions" },
+  {
+    title: "Quản lý giao dịch",
+    icon: Receipt,
+    children: [
+      { title: "Giao dịch", path: "/transactions" },
+      { title: "Rút tiền", path: "/withdraw-requests" },
+    ],
+  },
   { title: "Lịch ca trực", icon: Calendar, path: "/shifts" },
   {
     title: "Nhật ký",
