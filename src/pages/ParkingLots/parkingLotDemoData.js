@@ -167,7 +167,7 @@ const DEMO_SAMPLES = [
     gates: [
       newGate({
         gateName: "Cổng Vào Tầng Hầm B1",
-        gateType: "two_way",
+        gateType: "entry",
         devices: [
           newDevice({
             deviceCode: "CAM-SUN-01",
@@ -214,4 +214,12 @@ function deepCloneWithNewIds(obj) {
 export function getRandomDemoSample() {
   const sample = DEMO_SAMPLES[Math.floor(Math.random() * DEMO_SAMPLES.length)];
   return deepCloneWithNewIds(sample);
+}
+
+/**
+ * Lấy mẫu mặc định cố định cho nút Auto fill.
+ * Hiện dùng mẫu đầu tiên để đảm bảo ổn định dữ liệu.
+ */
+export function getDefaultDemoSample() {
+  return deepCloneWithNewIds(DEMO_SAMPLES[0]);
 }

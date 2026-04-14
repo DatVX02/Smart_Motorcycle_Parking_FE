@@ -29,6 +29,26 @@ function plateOf(vehicle) {
   return vehicle?.licensePlate ?? "—";
 }
 
+function getVehicleUserId(vehicle) {
+  return pickFirst(vehicle?.userId, vehicle?.accountId, vehicle?.idUser);
+}
+
+function hasRegisteredUser(vehicle) {
+  const rawId = getVehicleUserId(vehicle);
+  if (rawId === undefined || rawId === null) return false;
+  const token = String(rawId).trim().toLowerCase();
+  if (!token) return false;
+  return ![
+    "0",
+    "null",
+    "undefined",
+    "none",
+    "n/a",
+    "guest",
+    "vang_lai",
+  ].includes(token);
+}
+
 function pickFirst(...values) {
   for (const value of values) {
     if (value !== undefined && value !== null && value !== "") return value;
@@ -45,26 +65,36 @@ function extractItems(payload) {
   return [];
 }
 
-function userDisplay(vehicle, userFullNameById = {}) {
-  const directName = pickFirst(
+function getDirectUserName(vehicle) {
+  return pickFirst(
     vehicle?.fullName,
     vehicle?.userFullName,
     vehicle?.userName,
     vehicle?.name,
     vehicle?.customerName,
   );
+}
+
+function hasRegisteredUserName(vehicle, userFullNameById = {}) {
+  const directName = getDirectUserName(vehicle);
+  if (directName) return true;
+
+  const userId = getVehicleUserId(vehicle);
+  if (!hasRegisteredUser(vehicle) || !userId) return false;
+
+  return Boolean(userFullNameById[String(userId)]);
+}
+
+function userDisplay(vehicle, userFullNameById = {}) {
+  const directName = getDirectUserName(vehicle);
   if (directName) return String(directName);
 
-  const userId = pickFirst(
-    vehicle?.userId,
-    vehicle?.accountId,
-    vehicle?.idUser,
-  );
+  const userId = getVehicleUserId(vehicle);
   if (userId && userFullNameById[String(userId)]) {
     return userFullNameById[String(userId)];
   }
 
-  return "Vãng lai";
+  return "—";
 }
 
 function formatDateTime(value) {
@@ -215,7 +245,9 @@ export default function ParkingVehicles() {
   }, []);
 
   const filteredVehicles = useMemo(() => {
-    let list = [...allVehicles];
+    let list = allVehicles.filter((vehicle) =>
+      hasRegisteredUserName(vehicle, userFullNameById),
+    );
 
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -251,7 +283,7 @@ export default function ParkingVehicles() {
     if (userIdInput.trim()) {
       const q = userIdInput.trim().toLowerCase();
       list = list.filter((vehicle) =>
-        String(vehicle.userId ?? "")
+        String(getVehicleUserId(vehicle) ?? "")
           .toLowerCase()
           .includes(q),
       );
@@ -280,8 +312,7 @@ export default function ParkingVehicles() {
 
       if (vehicle.isMonthlyPassVehicle) monthly += 1;
 
-      if (vehicle.userId) linkedUser += 1;
-      else guest += 1;
+      linkedUser += 1;
     }
 
     return {

@@ -423,7 +423,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
       toast.error("Không tìm thấy notificationId của yêu cầu đổi ca");
       return;
     }
-    if (hasShifts && !selectedShiftId) {
+    if (hasMatchingShifts && !selectedShiftId) {
       toast.error("Vui lòng chọn ca để hoán đổi trước khi duyệt");
       return;
     }
@@ -432,7 +432,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
     try {
       let newShiftId = selectedShiftId || null;
 
-      if (!hasShifts) {
+      if (!hasMatchingShifts) {
         if (!staffId) {
           throw new Error("Thiếu nhân viên để tạo ca mới");
         }
@@ -524,7 +524,32 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
     }
   };
 
-  const hasShifts = shiftsOnDate.length > 0;
+  const targetShiftType =
+    normalizeShiftTypeKey(
+      proposedShiftType ||
+        currentShiftData?.shiftType ||
+        currentShiftData?.ShiftType ||
+        currentShiftType,
+    ) || "";
+
+  const matchingShiftsOnDate = targetShiftType
+    ? shiftsOnDate.filter(
+        (s) =>
+          normalizeShiftTypeKey(s.shiftType ?? s.ShiftType ?? "") ===
+          targetShiftType,
+      )
+    : shiftsOnDate;
+
+  const hasAnyShiftsOnDate = shiftsOnDate.length > 0;
+  const hasMatchingShifts = matchingShiftsOnDate.length > 0;
+
+  useEffect(() => {
+    if (!selectedShiftId) return;
+    const stillExists = matchingShiftsOnDate.some(
+      (s) => String(getShiftIdValue(s)) === String(selectedShiftId),
+    );
+    if (!stillExists) setSelectedShiftId("");
+  }, [selectedShiftId, matchingShiftsOnDate]);
 
   const SHIFT_COLORS_MAP = {
     MORNING: {
@@ -590,7 +615,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
               <span className="text-gray-500">Ca hiện tại:</span>
               <span className="font-semibold">{currentDate || "—"}</span>
               {currentShiftType && (
-                <span className="px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">
+                <span className="px-3.5 py-1 rounded-full bg-gray-200 text-gray-600 font-medium inline-flex items-center whitespace-nowrap flex-shrink-0">
                   {SHIFT_TYPE_LABELS[currentShiftType] ?? currentShiftType}
                 </span>
               )}
@@ -608,7 +633,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
                 {proposedDateRaw || "—"}
               </span>
               {proposedShiftType && (
-                <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium inline-flex items-center whitespace-nowrap flex-shrink-0">
                   {SHIFT_TYPE_LABELS[proposedShiftType] ?? proposedShiftType}
                 </span>
               )}
@@ -645,10 +670,12 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
                   />
                 ))}
               </div>
-            ) : !hasShifts ? (
+            ) : !hasMatchingShifts ? (
               <div className="rounded-xl border-2 border-dashed border-amber-200 bg-amber-50 p-4 text-center">
                 <p className="text-sm font-semibold text-amber-700">
-                  Không có ca nào vào ngày này
+                  {hasAnyShiftsOnDate
+                    ? "Không có ca nào trùng với ca đề xuất"
+                    : "Không có ca nào vào ngày này"}
                 </p>
                 <p className="text-xs text-amber-600 mt-1">
                   Khi bấm Xác nhận, hệ thống sẽ
@@ -658,7 +685,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
               </div>
             ) : (
               <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {shiftsOnDate.map((s) => {
+                {matchingShiftsOnDate.map((s) => {
                   const id = String(
                     s.shiftId ??
                       s.ShiftId ??
@@ -734,7 +761,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
               </div>
             )}
 
-            {hasShifts && !selectedShiftId && (
+            {hasMatchingShifts && !selectedShiftId && (
               <p className="text-[11px] text-amber-600 mt-1.5">
                 Vui lòng chọn một ca để hoán đổi trước khi duyệt.
               </p>
@@ -767,7 +794,9 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
           <button
             onClick={handleSubmit}
             disabled={
-              loading || loadingShifts || (hasShifts && !selectedShiftId)
+              loading ||
+              loadingShifts ||
+              (hasMatchingShifts && !selectedShiftId)
             }
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
           >
@@ -776,7 +805,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                {hasShifts ? "Hoán đổi ca" : "Tạo ca mới & duyệt"}
+                {hasMatchingShifts ? "Hoán đổi ca" : "Tạo ca mới & duyệt"}
               </>
             )}
           </button>
