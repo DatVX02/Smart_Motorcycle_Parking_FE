@@ -254,7 +254,7 @@ function formatTargetTypeLabel(type, empty = "—") {
     return "Nạp ví";
   }
   if (["wallet-withdraw", "walletwithdraw"].includes(normalized)) {
-    return "Rút ví";
+    return "Rút tiền";
   }
   return String(type);
 }

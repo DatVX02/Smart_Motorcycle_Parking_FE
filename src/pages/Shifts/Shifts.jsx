@@ -159,28 +159,48 @@ function toUtcTimeLabel(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
 
-  const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
   const dateTimeMatch = raw.match(
-    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/,
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?([zZ]|[+-]\d{2}:?\d{2}|[+-]\d{2})?$/,
   );
 
   if (dateTimeMatch) {
-    const [, year, month, day, hour, minute, second = "00"] = dateTimeMatch;
-    const date = hasTimezone
-      ? new Date(raw)
-      : new Date(
-          Date.UTC(
-            Number(year),
-            Number(month) - 1,
-            Number(day),
-            Number(hour),
-            Number(minute),
-            Number(second),
-          ),
-        );
+    const [
+      ,
+      year,
+      month,
+      day,
+      hour,
+      minute,
+      second = "00",
+      fraction = "",
+      tzRaw = "",
+    ] = dateTimeMatch;
+
+    let date;
+    if (tzRaw) {
+      let tz = tzRaw;
+      if (/^[+-]\d{2}$/.test(tz)) tz = `${tz}:00`;
+      if (/^[+-]\d{4}$/.test(tz)) tz = `${tz.slice(0, 3)}:${tz.slice(3)}`;
+      const iso = `${year}-${month}-${day}T${hour}:${minute}:${second}${fraction ? `.${fraction}` : ""}${tz.toUpperCase() === "Z" ? "Z" : tz}`;
+      date = new Date(iso);
+    } else {
+      date = new Date(
+        Date.UTC(
+          Number(year),
+          Number(month) - 1,
+          Number(day),
+          Number(hour),
+          Number(minute),
+          Number(second),
+        ),
+      );
+    }
+
     if (!Number.isNaN(date.getTime())) {
-      const hh = String(date.getUTCHours()).padStart(2, "0");
-      const mm = String(date.getUTCMinutes()).padStart(2, "0");
+      // Backend timestamps currently lệch -7h so UI bù +7h khi hiển thị.
+      const adjusted = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+      const hh = String(adjusted.getUTCHours()).padStart(2, "0");
+      const mm = String(adjusted.getUTCMinutes()).padStart(2, "0");
       return `${hh}:${mm}`;
     }
   }
@@ -189,6 +209,42 @@ function toUtcTimeLabel(value) {
   if (timeMatch) return `${timeMatch[1]}:${timeMatch[2]}`;
 
   return raw.slice(0, 5);
+}
+
+function pickActualAttendanceTime(shift, type) {
+  if (!shift || typeof shift !== "object") return "";
+
+  if (type === "in") {
+    return (
+      shift.actualCheckIn ??
+      shift.actual_check_in ??
+      shift.actualCheckInTime ??
+      shift.actual_check_in_time ??
+      shift.checkInTime ??
+      shift.check_in_time ??
+      shift.entryTime ??
+      shift.entry_time ??
+      ""
+    );
+  }
+
+  return (
+    shift.actualCheckOut ??
+    shift.actual_check_out ??
+    shift.actualCheckOutTime ??
+    shift.actual_check_out_time ??
+    shift.checkOutTime ??
+    shift.check_out_time ??
+    shift.exitTime ??
+    shift.exit_time ??
+    ""
+  );
+}
+
+function getAttendanceTimeLabels(shift) {
+  const checkIn = toUtcTimeLabel(pickActualAttendanceTime(shift, "in"));
+  const checkOut = toUtcTimeLabel(pickActualAttendanceTime(shift, "out"));
+  return { checkIn, checkOut };
 }
 
 /** YYYY-MM-DD theo giờ local (so khớp ô ngày trên lịch). */
@@ -367,6 +423,7 @@ function ShiftTooltip({ tooltip }) {
   const startTime = toUtcTimeLabel(shift?.startTime);
   const endTime = toUtcTimeLabel(shift?.endTime);
   const lotName = shift?.lotName ?? shift?.LotName ?? "";
+  const { checkIn, checkOut } = getAttendanceTimeLabels(shift);
 
   const safeX = Math.min(x + 14, window.innerWidth - 240);
   const safeY = Math.max(8, Math.min(y - 12, window.innerHeight - 260));
@@ -405,6 +462,12 @@ function ShiftTooltip({ tooltip }) {
                 </span>
               </div>
             )}
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+              <span className="font-medium text-emerald-700">
+                Check-in/out: {checkIn || "—"} / {checkOut || "—"}
+              </span>
+            </div>
             {lotName && (
               <div className="flex items-center gap-1.5">
                 <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
@@ -2207,6 +2270,7 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
   const statusLabel = STATUS_LABELS[statusKey] ?? shift.shiftStatus ?? "—";
   const statusColor = STATUS_COLORS[statusKey] ?? "#6B7280";
   const barColor = SHIFT_COLORS[shiftType] ?? statusColor;
+  const { checkIn, checkOut } = getAttendanceTimeLabels(shift);
 
   const handleDeleteConfirm = async () => {
     setDeleting(true);
@@ -2280,6 +2344,18 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                   {toUtcTimeLabel(shift.endTime) || "—"}
                 </span>
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1 bg-emerald-50 rounded-xl p-2.5 border border-emerald-100">
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-emerald-500" />
+                <span className="text-xs text-emerald-700 font-medium">
+                  Check-in / Check-out thực tế
+                </span>
+              </div>
+              <span className="text-xs text-emerald-700 font-semibold">
+                {checkIn || "—"} → {checkOut || "—"}
+              </span>
             </div>
 
             {shift.lotName && (

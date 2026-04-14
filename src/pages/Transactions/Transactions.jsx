@@ -228,7 +228,7 @@ function formatTargetTypeLabel(type, empty = "—") {
     return "Nạp ví";
   }
   if (["wallet-withdraw", "walletwithdraw"].includes(normalized)) {
-    return "Rút ví";
+    return "Rút tiền";
   }
   return String(type);
 }
@@ -1471,7 +1471,7 @@ export default function Transactions() {
               <option value="parking-session">Phí gửi xe</option>
               <option value="monthly-pass">Vé tháng</option>
               <option value="wallet-deposit">Nạp ví</option>
-              <option value="wallet-withdraw">Rút ví</option>
+              <option value="wallet-withdraw">Rút tiền</option>
             </select>
           </div>
 
