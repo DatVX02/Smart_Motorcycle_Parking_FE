@@ -38,6 +38,12 @@ const parseCount = (val) => {
   return isNaN(n) ? 0 : n;
 };
 
+const formatCount = (value) => {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return "0";
+  return Math.round(n).toLocaleString("vi-VN");
+};
+
 const transformParkingLot = (lot) => ({
   id: lot.lotId ?? lot.id,
   name: lot.lotName ?? lot.name ?? "",
@@ -210,6 +216,7 @@ function ParkingLots() {
         .map((d) => d.deviceId ?? d.id)
         .filter(Boolean);
       let maintenanceDeleted = 0;
+      let deletedDevices = 0;
       if (deviceIds.length > 0) {
         const maintResult =
           await DeviceMaintenanceService.deleteAllSchedulesForDevices(
@@ -236,14 +243,46 @@ function ParkingLots() {
             { duration: 6000 },
           );
         }
+
+        const failedDeviceNames = [];
+        for (const dev of lotDevices) {
+          const devId = dev?.deviceId ?? dev?.id;
+          if (!devId) continue;
+          try {
+            await iotDeviceService.delete(devId);
+            deletedDevices += 1;
+          } catch (deleteErr) {
+            try {
+              await iotDeviceService.unassign(devId);
+              await iotDeviceService.delete(devId);
+              deletedDevices += 1;
+            } catch {
+              failedDeviceNames.push(
+                dev?.deviceName ??
+                  dev?.name ??
+                  dev?.deviceCode ??
+                  String(devId),
+              );
+            }
+          }
+        }
+
+        if (failedDeviceNames.length > 0) {
+          toast.error(
+            `Không thể xóa ${failedDeviceNames.length} thiết bị còn gắn với bãi: ${failedDeviceNames.join(", ")}. Vui lòng xử lý thiết bị trước rồi thử lại.`,
+            { duration: 8000 },
+          );
+          return;
+        }
       }
 
       await parkingLotService.deleteParkingLot(lot.id);
-      const maintHint =
-        maintenanceDeleted > 0
-          ? ` (đã gỡ ${maintenanceDeleted} lịch bảo trì)`
-          : "";
-      toast.success(`Đã xóa bãi gửi "${lot.name}" thành công${maintHint}`);
+      const hints = [];
+      if (deletedDevices > 0) hints.push(`đã xóa ${deletedDevices} thiết bị`);
+      if (maintenanceDeleted > 0)
+        hints.push(`đã gỡ ${maintenanceDeleted} lịch bảo trì`);
+      const detailHint = hints.length > 0 ? ` (${hints.join(", ")})` : "";
+      toast.success(`Đã xóa bãi gửi "${lot.name}" thành công${detailHint}`);
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       const data = error.response?.data;
@@ -463,7 +502,7 @@ function ParkingLots() {
                   {label}
                 </p>
                 <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
-                  {value}
+                  {formatCount(value)}
                   <span className="text-base font-medium text-gray-600">
                     {unit}
                   </span>
@@ -683,7 +722,7 @@ function ParkingLots() {
                           <p
                             className={`text-xl font-bold leading-none ${color}`}
                           >
-                            {val ?? 0}
+                            {formatCount(val)}
                           </p>
                         </div>
                       ))}
@@ -724,7 +763,7 @@ function ParkingLots() {
                             <p
                               className={`text-xl font-bold leading-none ${color}`}
                             >
-                              {val ?? 0}
+                              {formatCount(val)}
                             </p>
                           </div>
                         </div>

@@ -145,7 +145,11 @@ const normalizeDeviceType = (raw) => {
     key === "IR_SENSOR" ||
     key === "LOOP_SENSOR" ||
     key === "ULTRASONIC_SENSOR" ||
-    key === "MOTION_SENSOR"
+    key === "MOTION_SENSOR" ||
+    key === "HC-SR04" ||
+    key === "HC_SR04" ||
+    key === "HCSR04" ||
+    key === "ULTRASONIC"
   )
     return "SENSOR";
   return key;
