@@ -1,6 +1,7 @@
 import apiClient from "../config/api";
 
 const AUTH_BASE_PATH = "/api/v1/staff";
+const CURRENT_SESSION_KEY = "motoguard_current_session";
 
 /**
  * Service để quản lý authentication và user management
@@ -24,20 +25,20 @@ const authService = {
         emailOrPhone: credentials.emailOrPhone,
         password: credentials.password,
       });
-      
+
       console.log("Login response:", response.data);
       return response.data;
     } catch (error) {
       console.error("Login error:", error);
       console.error("Error response:", error.response?.data);
       console.error("Error status:", error.response?.status);
-      
+
       // Log validation errors specifically
       if (error.response?.data?.errors) {
         console.error("Validation errors:", error.response.data.errors);
         console.table(error.response.data.errors); // Display in table format
       }
-      
+
       throw error;
     }
   },
@@ -51,7 +52,7 @@ const authService = {
     try {
       const response = await apiClient.post(
         `${AUTH_BASE_PATH}/register`,
-        userData
+        userData,
       );
       return response.data;
     } catch (error) {
@@ -69,13 +70,35 @@ const authService = {
       const response = await apiClient.post(`${AUTH_BASE_PATH}/logout`);
       // Clear local storage
       localStorage.removeItem("access_token");
+      sessionStorage.removeItem(CURRENT_SESSION_KEY);
       return response.data;
     } catch (error) {
       console.error("Logout error:", error);
       // Clear token anyway
       localStorage.removeItem("access_token");
+      sessionStorage.removeItem(CURRENT_SESSION_KEY);
       throw error;
     }
+  },
+
+  /**
+   * Đổi mật khẩu
+   * POST /api/v1/staff/change-password
+   */
+  changePassword: async ({
+    currentPassword,
+    newPassword,
+    confirmNewPassword,
+  }) => {
+    const endpoint = `${AUTH_BASE_PATH}/change-password`;
+    const payload = {
+      currentPassword,
+      newPassword,
+      confirmNewPassword: confirmNewPassword ?? newPassword,
+    };
+
+    const response = await apiClient.post(endpoint, payload);
+    return response.data;
   },
 
   /**
@@ -120,7 +143,7 @@ const authService = {
           headers: {
             "Content-Type": "multipart/form-data",
           },
-        }
+        },
       );
       return response.data;
     } catch (error) {
@@ -168,6 +191,7 @@ const authService = {
   clearAuth: () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("user_info");
+    sessionStorage.removeItem(CURRENT_SESSION_KEY);
   },
 };
 

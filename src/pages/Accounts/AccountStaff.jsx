@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Search, Users, UserCheck, UserX, Plus, Check } from "lucide-react";
 import staffService from "@/services/staffService";
+import authService from "@/services/authService";
 import {
   Image,
   Pagination,
@@ -24,6 +25,10 @@ import {
 } from "@ant-design/icons";
 import toast from "react-hot-toast";
 
+const AVATAR_KEY = "motoguard_profile_avatar";
+const AVATAR_UPDATED_AT_KEY = "motoguard_profile_avatar_updated_at";
+const PROFILE_UPDATED_EVENT = "motoguard:user-updated";
+
 function AccountStaff() {
   const [searchTerm, setSearchTerm] = useState("");
   const [accounts, setAccounts] = useState([]);
@@ -40,9 +45,28 @@ function AccountStaff() {
 
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [avatarVersion, setAvatarVersion] = useState(0);
+
+  const currentUser = authService.getCurrentUser();
+  const currentUserEmail = String(currentUser?.email ?? "")
+    .trim()
+    .toLowerCase();
+  const currentUserLocalAvatar = localStorage.getItem(AVATAR_KEY) ?? "";
+  const currentUserAvatarUpdatedAt =
+    localStorage.getItem(AVATAR_UPDATED_AT_KEY) ?? "";
 
   useEffect(() => {
     fetchAccounts();
+  }, []);
+
+  useEffect(() => {
+    const refreshAvatar = () => setAvatarVersion((v) => v + 1);
+    window.addEventListener(PROFILE_UPDATED_EVENT, refreshAvatar);
+    window.addEventListener("storage", refreshAvatar);
+    return () => {
+      window.removeEventListener(PROFILE_UPDATED_EVENT, refreshAvatar);
+      window.removeEventListener("storage", refreshAvatar);
+    };
   }, []);
 
   useEffect(() => {
@@ -85,6 +109,30 @@ function AccountStaff() {
     startIndex,
     startIndex + pageSize,
   );
+
+  const buildAvatarSrc = (account) => {
+    const accountEmail = String(account?.email ?? "")
+      .trim()
+      .toLowerCase();
+    const isCurrentUser = currentUserEmail && accountEmail === currentUserEmail;
+
+    if (isCurrentUser && currentUserLocalAvatar) {
+      return currentUserLocalAvatar;
+    }
+
+    const base = account?.faceImageUrl || "/avatar_comingsoon.png";
+    if (!base || /^data:/i.test(base)) return base;
+
+    const version =
+      (isCurrentUser && currentUserAvatarUpdatedAt) ||
+      account?.updatedAt ||
+      account?.lastUpdated ||
+      "";
+
+    if (!version) return base;
+    const delimiter = base.includes("?") ? "&" : "?";
+    return `${base}${delimiter}v=${encodeURIComponent(String(version))}`;
+  };
 
   const activeCount = accounts.filter((a) => a.isActive).length;
   const inactiveCount = accounts.length - activeCount;
@@ -381,7 +429,8 @@ function AccountStaff() {
 
                   <td className="p-3">
                     <Image
-                      src={account.faceImageUrl || "/avatar_comingsoon.png"}
+                      key={`${account.staffId}-${avatarVersion}`}
+                      src={buildAvatarSrc(account)}
                       width={40}
                       height={40}
                       className="rounded-full"

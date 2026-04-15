@@ -95,9 +95,25 @@ export default function PayByPlate() {
     const isSuccess =
       code === "00" ||
       isTruthyQueryValue(searchParams.get("success")) ||
-      ["PAID", "SUCCESS", "SUCCEEDED", "COMPLETED"].includes(status) ||
+      [
+        "PAID",
+        "SUCCESS",
+        "SUCCEEDED",
+        "COMPLETED",
+        "OVERTIMEPAID",
+        "OVERTIME_PAID",
+        "PREPAID",
+      ].includes(status) ||
       (isFalsyQueryValue(searchParams.get("cancel")) &&
-        ["PAID", "SUCCESS", "COMPLETED", ""].includes(status));
+        [
+          "PAID",
+          "SUCCESS",
+          "COMPLETED",
+          "OVERTIMEPAID",
+          "OVERTIME_PAID",
+          "PREPAID",
+          "",
+        ].includes(status));
 
     const isCancelled =
       isTruthyQueryValue(searchParams.get("cancel")) ||
@@ -311,27 +327,31 @@ export default function PayByPlate() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-black px-4 py-10 sm:py-14">
-      <div className="absolute -top-28 -left-28 h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl" />
-      <div className="absolute -bottom-28 -right-28 h-80 w-80 rounded-full bg-cyan-500/20 blur-3xl" />
+    <div className="min-h-screen relative flex items-center justify-center bg-slate-50 font-sans p-4 overflow-hidden">
+      <div className="absolute inset-0 bg-[url('/parking-lot.jpg')] bg-cover bg-center" />
+      <div className="absolute inset-0 bg-slate-900/55" />
 
-      <div className="relative z-10 mx-auto w-full max-w-4xl space-y-6">
-        <Card className="rounded-2xl border border-white/20 bg-white/90 shadow-2xl backdrop-blur-xl">
-          <CardHeader className="space-y-3 text-center">
-            <img
-              src="/logo_motorguard.png"
-              alt="MotoGuard"
-              className="mx-auto w-20 drop-shadow-md"
-            />
-            <CardTitle className="text-2xl text-slate-900">
+      <div className="relative z-10 w-full max-w-2xl">
+        {/* Card Thanh toán: Đồng bộ nền trắng, viền mỏng, đổ bóng giống form đăng nhập */}
+        <Card className="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50">
+          <CardHeader className="text-center space-y-2 pt-8 pb-4">
+            <div className="mx-auto mb-2">
+              <img
+                src="/logo_motorguard.png"
+                alt="MotoGuard"
+                className="w-60 h-40 object-contain mx-auto"
+              />
+            </div>
+            <CardTitle className="text-2xl font-bold tracking-tight text-slate-900 mt-2">
               Thanh toán gửi xe theo biển số
             </CardTitle>
-            <CardDescription className="text-slate-600">
+            <CardDescription className="text-slate-500 text-sm font-medium">
               Dành cho khách vãng lai. Nhập biển số xe để tra cứu phiên gửi và
               thực hiện thanh toán.
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
+
+          <CardContent className="px-6 pb-8 sm:px-10">
             <PayByPlateForm
               licensePlate={licensePlate}
               onLicensePlateChange={handlePlateChange}
@@ -349,6 +369,7 @@ export default function PayByPlate() {
           </CardContent>
         </Card>
 
+        {/* Các Modal và Footer giữ nguyên */}
         <PayByPlateDetailModal
           open={isDetailModalOpen}
           onOpenChange={setIsDetailModalOpen}
@@ -368,9 +389,11 @@ export default function PayByPlate() {
           onOpenChange={setIsResultModalOpen}
         />
 
-        <p className="text-center text-xs text-white/60">
-          © 2026 FPT University · MotoGuard Team
-        </p>
+        <div className="mt-8 text-center">
+          <p className="text-xs text-slate-200 font-medium tracking-wide">
+            © 2026 FPT University · MotoGuard Team
+          </p>
+        </div>
       </div>
     </div>
   );

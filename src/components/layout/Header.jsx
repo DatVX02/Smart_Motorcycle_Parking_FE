@@ -1,11 +1,15 @@
 import { LogOut, Settings, Menu } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 import authService from "../../services/authService";
 
+const AVATAR_KEY = "motoguard_profile_avatar";
+const PROFILE_UPDATED_EVENT = "motoguard:user-updated";
+
 const PAGE_TITLES = {
   "/dashboard": { title: "Dashboard" },
+  "/settings": { title: "Cài Đặt Tài Khoản" },
   "/accounts": { title: "Quản Lý Tài Khoản Khách Hàng" },
   "/accounts/staff": { title: "Quản Lý Tài Khoản Nhân Viên" },
   "/parking-lots": { title: "Quản Lý Bãi Gửi Xe" },
@@ -31,6 +35,7 @@ function Header({ onMenuClick }) {
   const location = useLocation();
   const path = location.pathname || "/dashboard";
   const pathMatch = [
+    "/settings",
     "/accounts/staff",
     "/accounts",
     "/dashboard",
@@ -57,6 +62,7 @@ function Header({ onMenuClick }) {
   // const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  const [profileVersion, setProfileVersion] = useState(0);
   const currentUser = authService.getCurrentUser();
   const displayName =
     currentUser?.fullName ??
@@ -72,6 +78,21 @@ function Header({ onMenuClick }) {
       .map((n) => n[0] ?? "")
       .join("")
       .toUpperCase() || "A";
+  const displayAvatar =
+    localStorage.getItem(AVATAR_KEY) ??
+    currentUser?.avatarUrl ??
+    currentUser?.faceImageUrl ??
+    "";
+
+  useEffect(() => {
+    const refreshProfile = () => setProfileVersion((v) => v + 1);
+    window.addEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
+    window.addEventListener("storage", refreshProfile);
+    return () => {
+      window.removeEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
+      window.removeEventListener("storage", refreshProfile);
+    };
+  }, []);
 
   const handleLogout = async () => {
     setShowUserMenu(false);
@@ -202,10 +223,19 @@ function Header({ onMenuClick }) {
               }}
               className="flex items-center gap-2 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <div className="w-8 h-8 md:w-9 md:h-9 bg-gradient-to-br from-indigo-500 to-cyan-500 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
-                <span className="text-white text-xs md:text-sm font-bold">
-                  {initials}
-                </span>
+              <div className="w-8 h-8 md:w-9 md:h-9 bg-gradient-to-br from-indigo-500 to-cyan-500 rounded-full flex items-center justify-center shadow-sm flex-shrink-0 overflow-hidden">
+                {displayAvatar ? (
+                  <img
+                    key={`${profileVersion}-${displayAvatar}`}
+                    src={displayAvatar}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-white text-xs md:text-sm font-bold">
+                    {initials}
+                  </span>
+                )}
               </div>
               <div className="text-left hidden md:block">
                 <p className="text-sm font-semibold text-gray-900 leading-tight">
@@ -235,7 +265,13 @@ function Header({ onMenuClick }) {
                       {displayRole}
                     </span>
                   </div>
-                  <button className="w-full flex items-center space-x-2 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left">
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      navigate("/settings");
+                    }}
+                    className="w-full flex items-center space-x-2 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                  >
                     <Settings className="w-4 h-4 text-gray-500" />
                     <span className="text-sm text-gray-700">Cài đặt</span>
                   </button>

@@ -35,8 +35,10 @@ export function formatVnd(value) {
 
 export function paymentTypeLabel(value) {
   const key = normalizeKey(value);
-  if (key === "parkingovertime") return "Thanh toán phí phát sinh";
+  if (key === "parkingovertime") return "Thanh toán quá giờ";
   if (key === "parkingprepayment") return "Thanh toán trước";
+  if (key === "parkingcheckout") return "Thanh toán khi ra bãi";
+  if (key === "parkingsession") return "Phí gửi xe";
   if (!key) return "Không xác định";
   return String(value);
 }
@@ -70,19 +72,61 @@ export function formatHours(value) {
 
 export function sessionStatusLabel(value) {
   const key = normalizeKey(value);
-  if (key === "active") return "Đang trong bãi";
-  if (key === "completed") return "Đã hoàn tất";
-  if (key === "cancel" || key === "cancelled") return "Đã hủy";
-  if (key === "prepaid") return "Đã trả trước";
+  if (key === "active" || key === "inprogress") return "Đang trong bãi";
+  if (key === "completed" || key === "paid") return "Hoàn thành";
+  if (key === "cancel" || key === "cancelled" || key === "canceled") {
+    return "Đã hủy";
+  }
+  if (key === "prepaid") return "Thanh toán trước";
+  if (key === "overtimepaid" || key === "overtime") {
+    return "Thanh toán quá giờ";
+  }
+  if (key === "pending") return "Chờ thanh toán";
+  if (key === "failed") return "Thất bại";
   return value || "Không xác định";
 }
 
 export function sessionStatusBadgeVariant(value) {
   const key = normalizeKey(value);
-  if (key === "active") return "warning";
-  if (key === "completed") return "success";
-  if (key === "cancel" || key === "cancelled") return "destructive";
+  if (key === "active" || key === "inprogress") return "warning";
+  if (key === "completed" || key === "paid") return "success";
+  if (key === "prepaid") return "secondary";
+  if (key === "overtimepaid" || key === "overtime") return "secondary";
+  if (
+    key === "cancel" ||
+    key === "cancelled" ||
+    key === "canceled" ||
+    key === "failed"
+  ) {
+    return "destructive";
+  }
+  if (key === "pending") return "warning";
   return "secondary";
+}
+
+export function sessionStatusBadgeClass(value) {
+  const key = normalizeKey(value);
+  if (key === "active" || key === "inprogress") {
+    return "border-transparent bg-blue-100 text-blue-700 hover:bg-blue-200";
+  }
+  if (key === "prepaid") {
+    return "border-transparent bg-cyan-100 text-cyan-700 hover:bg-cyan-200";
+  }
+  if (key === "overtimepaid" || key === "overtime") {
+    return "border-transparent bg-purple-100 text-purple-700 hover:bg-purple-200";
+  }
+  if (key === "pending") {
+    return "border-transparent bg-yellow-100 text-yellow-700 hover:bg-yellow-200";
+  }
+  if (
+    key === "failed" ||
+    key === "cancel" ||
+    key === "cancelled" ||
+    key === "canceled"
+  ) {
+    return "border-transparent bg-red-100 text-red-700 hover:bg-red-200";
+  }
+  return "";
 }
 
 export function paymentStatusLabel(value) {
@@ -90,9 +134,13 @@ export function paymentStatusLabel(value) {
   if (key === "pending") return "Chờ thanh toán";
   if (key === "completed" || key === "paid") return "Đã thanh toán";
   if (key === "overtimepaid") {
-    return "Đã thanh toán quá giờ";
+    return "Thanh toán quá giờ";
   }
   if (key === "failed") return "Thanh toán thất bại";
+  if (key === "cancel" || key === "cancelled" || key === "canceled") {
+    return "Đã hủy";
+  }
+  if (key === "prepaid") return "Thanh toán trước";
   return value || "Không xác định";
 }
 

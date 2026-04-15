@@ -12,8 +12,8 @@ import {
   formatDateTime,
   formatHours,
   formatVnd,
-  normalizeKey,
   paymentStatusLabel,
+  sessionStatusBadgeClass,
   sessionStatusBadgeVariant,
   sessionStatusLabel,
 } from "./payByPlateUtils";
@@ -60,11 +60,7 @@ export default function PayByPlateDetailModal({
                 <span className="text-slate-600">Trạng thái phiên</span>
                 <Badge
                   variant={sessionStatusBadgeVariant(detailView.sessionStatus)}
-                  className={
-                    normalizeKey(detailView.sessionStatus) === "active"
-                      ? "border-transparent bg-blue-500/30 text-blue-700 hover:bg-blue"
-                      : ""
-                  }
+                  className={sessionStatusBadgeClass(detailView.sessionStatus)}
                 >
                   {sessionStatusLabel(detailView.sessionStatus)}
                 </Badge>
