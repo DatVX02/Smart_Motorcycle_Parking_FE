@@ -10,24 +10,39 @@ const iconColorMap = {
   orange: "text-orange-600",
 };
 
-function StatCard({ title, value, change, icon: Icon, color, trend, bgTint = "white", iconColor }) {
+function StatCard({
+  title,
+  value,
+  unit,
+  change,
+  icon: Icon,
+  color,
+  trend,
+  bgTint = "white",
+  iconColor,
+}) {
   const tint = bgTintMap[bgTint] ?? "bg-white";
-  const resolvedIconColor = iconColor ?? (color === "bg-blue-500" ? "text-blue-600" : color === "bg-green-500" ? "text-green-600" : "text-orange-600");
+  const resolvedIconColor =
+    iconColor ??
+    (color === "bg-blue-500"
+      ? "text-blue-600"
+      : color === "bg-green-500"
+        ? "text-green-600"
+        : "text-orange-600");
 
   return (
-    <div
-      className={`rounded-3xl p-6 shadow border ${tint}`}
-    >
+    <div className={`rounded-3xl p-6 shadow border ${tint}`}>
       <div className="flex items-start gap-3">
-        <Icon
-          className={`w-8 h-8 flex-shrink-0 ${resolvedIconColor}`}
-        />
+        <Icon className={`w-8 h-8 flex-shrink-0 ${resolvedIconColor}`} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-600 mb-1">
-            {title}
-          </p>
+          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
           <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
             {value}
+            {unit ? (
+              <span className="text-base font-medium text-gray-600">
+                {unit}
+              </span>
+            ) : null}
           </p>
           {change != null && (
             <div className="mt-2 flex items-center gap-1.5">

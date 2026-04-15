@@ -802,7 +802,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                 {/* Traffic chart */}
                 <div>
                   <SectionTitle icon={BarChart3}>
-                    Lưu lượng xe theo phiên đỗ xe
+                    Lưu lượng xe theo phiên gửi xe
                   </SectionTitle>
                   <div className="bg-white border border-gray-100 rounded-2xl p-4">
                     <div className="mb-3 flex flex-col md:flex-row md:items-center md:justify-end gap-2">
@@ -849,7 +849,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                       </div>
                     ) : trafficChartData.length === 0 ? (
                       <div className="h-[180px] flex items-center justify-center text-sm text-gray-400 text-center px-4">
-                        Chưa có dữ liệu phiên đỗ xe trong khoảng thời gian đã
+                        Chưa có dữ liệu phiên gửi xe trong khoảng thời gian đã
                         chọn.
                       </div>
                     ) : (
@@ -1152,7 +1152,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                 </div>
               </div>
 
-              {/* Nhật ký phiên đỗ xe */}
+              {/* Nhật ký phiên gửi xe */}
               <div className="w-[260px] shrink-0 px-4 py-4 flex flex-col">
                 {/* Full-height card */}
                 <div className="flex-1 w-full border border-gray-100 rounded-2xl bg-white flex flex-col p-4 overflow-hidden">
@@ -1166,7 +1166,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                     <div className="flex-1 flex flex-col items-center justify-center text-center">
                       <LogIn className="w-8 h-8 text-gray-200 mb-2" />
                       <p className="text-sm text-gray-400">
-                        Chưa có phiên đỗ xe nào
+                        Chưa có phiên gửi xe nào
                       </p>
                     </div>
                   ) : (

@@ -88,7 +88,7 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
-/** Input ngày hiển thị theo format dd/mm/yyyy (ngày/tháng/năm) */
+/** Input ngày hiển thị theo format dd/mm/yyyy */
 function DateInputDDMMYYYY({ label, value, min, onChange, placeholder }) {
   const displayValue =
     value && /^\d{4}-\d{2}-\d{2}$/.test(value)
@@ -104,12 +104,11 @@ function DateInputDDMMYYYY({ label, value, min, onChange, placeholder }) {
 
   return (
     <div>
-      <label className="text-xs font-semibold text-gray-600 mb-1.5 block flex items-center gap-1">
+      <label className="text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
         <Calendar className="w-3.5 h-3.5" />
         {label}
       </label>
       <div className="relative">
-        {/* Hiển thị format dd/mm/yyyy */}
         <div
           className={`w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm flex items-center gap-2 bg-white min-h-[42px] ${
             displayValue ? "text-slate-800" : "text-slate-400"
@@ -118,7 +117,6 @@ function DateInputDDMMYYYY({ label, value, min, onChange, placeholder }) {
           <span>{displayValue || placeholder}</span>
           <Calendar className="w-4 h-4 text-slate-400 ml-auto flex-shrink-0" />
         </div>
-        {/* Input date phủ lên - click để mở date picker */}
         <input
           type="date"
           value={value}
@@ -132,7 +130,7 @@ function DateInputDDMMYYYY({ label, value, min, onChange, placeholder }) {
   );
 }
 
-/** Chuyển "HH:mm" thành số phút từ 0h (vd: "06:30" → 390) */
+/** Chuyển "HH:mm" thành số phút từ 0h */
 function timeToMinutes(t) {
   if (!t || typeof t !== "string") return 0;
   const [h, m] = t.substring(0, 5).split(":").map(Number);
@@ -145,45 +143,35 @@ function minutesToTime(min) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function toUtcTimeLabel(value) {
+/** * Hàm xê dịch giờ (Hỗ trợ đọc từ chuỗi ISO như "2026-04-21T23:00:00Z")
+ */
+function shiftTimeByHours(value, deltaHours, withSeconds = false) {
   const raw = String(value ?? "").trim();
-  if (!raw) return "";
+  // Bóc tách lấy phần giờ:phút:giây nếu chuỗi có định dạng ISO date
+  const timePart = raw.includes("T") ? raw.split("T")[1].replace("Z", "") : raw;
+  const match = timePart.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
 
-  const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
-  const dateTimeMatch = raw.match(
-    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/,
-  );
+  if (!match) return raw;
 
-  if (dateTimeMatch) {
-    const [, year, month, day, hour, minute, second = "00"] = dateTimeMatch;
-    const date = hasTimezone
-      ? new Date(raw)
-      : new Date(
-          Date.UTC(
-            Number(year),
-            Number(month) - 1,
-            Number(day),
-            Number(hour),
-            Number(minute),
-            Number(second),
-          ),
-        );
-    if (!Number.isNaN(date.getTime())) {
-      const hh = String(date.getUTCHours()).padStart(2, "0");
-      const mm = String(date.getUTCMinutes()).padStart(2, "0");
-      return `${hh}:${mm}`;
-    }
+  const [, hh, mm, ss = "00"] = match;
+  const minutesInDay = 24 * 60;
+  const originalMinutes = Number(hh) * 60 + Number(mm);
+  const shiftedMinutes =
+    (((originalMinutes + deltaHours * 60) % minutesInDay) + minutesInDay) %
+    minutesInDay;
+
+  const shiftedHour = String(Math.floor(shiftedMinutes / 60)).padStart(2, "0");
+  const shiftedMinute = String(shiftedMinutes % 60).padStart(2, "0");
+
+  if (withSeconds) {
+    return `${shiftedHour}:${shiftedMinute}:${String(Number(ss)).padStart(2, "0")}`;
   }
-
-  const timeMatch = raw.match(/^(\d{2}):(\d{2})/);
-  if (timeMatch) return `${timeMatch[1]}:${timeMatch[2]}`;
-
-  return raw.slice(0, 5);
+  return `${shiftedHour}:${shiftedMinute}`;
 }
 
 const STANDARD_SHIFT_HOURS = 8;
-const SHORT_DAY_SHIFT_HOURS = 6; // Khi < 14h thì chia 6 tiếng/ca, thời gian còn lại cộng vào ca chiều
-const MIN_NIGHT_SHIFT_HOURS = 4; // Nếu thời gian còn lại < 4h thì cộng vào ca chiều
+const SHORT_DAY_SHIFT_HOURS = 6;
+const MIN_NIGHT_SHIFT_HOURS = 4;
 
 function calculateShiftSuggestions(openingTime, closingTime, is24h) {
   if (is24h) {
@@ -309,20 +297,20 @@ function isShiftWithinOperatingHours(
   closingTime,
   is24h,
 ) {
-  if (is24h) return null; // Không cần validate
-  const openMin = timeToMinutes(openingTime);
-  const closeMin = timeToMinutes(closingTime);
-  const startMin = timeToMinutes(startTime);
-  const endMin = timeToMinutes(endTime);
+  if (is24h) return null;
+  const openMin = timeToMinutes(startTime);
+  const closeMin = timeToMinutes(endTime); // Tạm xử lý local để so sánh
 
-  // Ca qua đêm (end < start): không hợp lệ với bãi không 24/7
-  if (endMin <= startMin) {
+  const bOpenMin = timeToMinutes(openingTime);
+  const bCloseMin = timeToMinutes(closingTime);
+
+  if (closeMin <= openMin) {
     return "Ca qua đêm không phù hợp với bãi xe có giờ đóng cửa cố định. Vui lòng chọn ca trong khung giờ mở cửa.";
   }
-  if (startMin < openMin) {
+  if (openMin < bOpenMin) {
     return `Giờ bắt đầu phải từ ${openingTime} (giờ mở cửa) trở đi`;
   }
-  if (endMin > closeMin) {
+  if (closeMin > bCloseMin) {
     return `Giờ kết thúc phải trước ${closingTime} (giờ đóng cửa)`;
   }
   return null;
@@ -353,19 +341,23 @@ function CreateShiftModal({
   const shiftId =
     editingShift?.shiftId ?? editingShift?.ShiftId ?? editingShift?.id;
   const [tab, setTab] = useState(isEdit ? "single" : (initialTab ?? "single"));
-  const [editDate, setEditDate] = useState(date); // ngày có thể chỉnh khi sửa ca
+  const [editDate, setEditDate] = useState(date);
   const editDateInputRef = useRef(null);
+
   const [selectedPreset, setSelectedPreset] = useState(
     isEdit
       ? mapShiftTypeToPreset(editingShift?.shiftType ?? editingShift?.ShiftType)
       : "Morning",
   );
+
+  // FETCH: CỘNG THÊM 7 TIẾNG NẾU LÀ SỬA CA ĐỂ HIỂN THỊ GIỜ LOCAL
   const [startTime, setStartTime] = useState(
-    isEdit ? (editingShift?.startTime ?? "06:00").slice(0, 5) : "06:00",
+    isEdit ? shiftTimeByHours(editingShift?.startTime ?? "23:00", 7) : "06:00",
   );
   const [endTime, setEndTime] = useState(
-    isEdit ? (editingShift?.endTime ?? "14:00").slice(0, 5) : "14:00",
+    isEdit ? shiftTimeByHours(editingShift?.endTime ?? "07:00", 7) : "14:00",
   );
+
   const [lotId, setLotId] = useState(
     isEdit
       ? (editingShift?.lotId ?? editingShift?.LotId ?? "")
@@ -381,9 +373,8 @@ function CreateShiftModal({
       : "SCHEDULED",
   );
   const [loading, setLoading] = useState(false);
-  const [lotOperatingHours, setLotOperatingHours] = useState(null); // { openingTime, closingTime, is24h }
+  const [lotOperatingHours, setLotOperatingHours] = useState(null);
 
-  // Lấy giờ mở/đóng cửa khi chọn bãi xe
   useEffect(() => {
     if (!lotId) {
       setLotOperatingHours(null);
@@ -409,7 +400,6 @@ function CreateShiftModal({
     };
   }, [lotId]);
 
-  // Tính gợi ý ca tự động dựa trên giờ mở/đóng cửa
   const shiftSuggestions = lotOperatingHours
     ? calculateShiftSuggestions(
         lotOperatingHours.openingTime,
@@ -418,9 +408,8 @@ function CreateShiftModal({
       )
     : null;
 
-  // Cập nhật giờ khi đổi bãi xe theo preset đang chọn
   useEffect(() => {
-    if (!lotId || !lotOperatingHours) return;
+    if (!lotId || !lotOperatingHours || isEdit) return; // Nếu edit thì không tự động đè giờ
     const suggestions = calculateShiftSuggestions(
       lotOperatingHours.openingTime,
       lotOperatingHours.closingTime,
@@ -431,11 +420,9 @@ function CreateShiftModal({
       setStartTime(suggested.start);
       setEndTime(suggested.end);
     }
-  }, [lotId, lotOperatingHours, selectedPreset]);
+  }, [lotId, lotOperatingHours, selectedPreset, isEdit]);
 
-  // Bulk fields
   const [endDate, setEndDate] = useState(initialEndDate ?? "");
-  // Các ngày trong tuần nằm trong khoảng [date, endDate] - chỉ được chọn những ngày này
   const allowedDays = useMemo(() => {
     if (!endDate || !date) return [];
     const daysInRange = new Set();
@@ -460,11 +447,9 @@ function CreateShiftModal({
     return Array.from(daysInRange);
   });
 
-  // Khi mở từ click ngày (staff null), cho phép chọn nhân viên
   const needsStaffSelection = !staff && !editingShift;
   const [selectedStaffId, setSelectedStaffId] = useState("");
 
-  // Khi endDate hoặc date đổi, chỉ giữ lại workingDays nằm trong khoảng mới
   useEffect(() => {
     if (allowedDays.length === 0) {
       setWorkingDays([]);
@@ -533,7 +518,6 @@ function CreateShiftModal({
       return;
     }
 
-    // Validate ca làm nằm trong giờ mở/đóng cửa của bãi
     if (lotOperatingHours) {
       const err = isShiftWithinOperatingHours(
         startTime,
@@ -548,13 +532,17 @@ function CreateShiftModal({
       }
     }
 
+    // SAVE: LUÔN TRỪ ĐI 7 TIẾNG ĐỂ LƯU VÀO DB VỚI CHUẨN UTC
+    const apiStartTime = shiftTimeByHours(startTime, -7, true);
+    const apiEndTime = shiftTimeByHours(endTime, -7, true);
+
     const payload = {
       staffId,
       lotId,
       shiftDate: activeDate,
       shiftType: (selectedPreset || "Morning").replace(" ", "_").toUpperCase(),
-      startTime,
-      endTime,
+      startTime: apiStartTime,
+      endTime: apiEndTime,
       shiftStatus,
     };
 
@@ -577,6 +565,7 @@ function CreateShiftModal({
           setLoading(false);
           return;
         }
+
         const bulkPayload = {
           staffId: String(staffId),
           lotId: String(lotId),
@@ -585,8 +574,8 @@ function CreateShiftModal({
           shiftType: (selectedPreset || "Morning")
             .replace(" ", "_")
             .toUpperCase(),
-          startTime: startTime.length === 5 ? startTime : `${startTime}:00`,
-          endTime: endTime.length === 5 ? endTime : `${endTime}:00`,
+          startTime: apiStartTime,
+          endTime: apiEndTime,
           workingDays: workingDays.map(Number),
           shiftStatus,
         };
@@ -600,7 +589,6 @@ function CreateShiftModal({
     } catch (err) {
       const data = err?.response?.data;
       let msg = data?.message ?? data?.title ?? err?.message ?? "Có lỗi xảy ra";
-      // ASP.NET Core validation: errors = { "FieldName": ["Error1", "Error2"] }
       if (data?.errors && typeof data.errors === "object") {
         const parts = Object.entries(data.errors)
           .flatMap(([, v]) => (Array.isArray(v) ? v : [v]))
@@ -623,9 +611,6 @@ function CreateShiftModal({
           false,
         )
       : null;
-
-  const startTimeLabel = toUtcTimeLabel(startTime);
-  const endTimeLabel = toUtcTimeLabel(endTime);
 
   const displayDate = (() => {
     try {
@@ -692,10 +677,9 @@ function CreateShiftModal({
         )}
 
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* Chọn nhân viên - khi mở từ click ngày (chưa kéo nhân viên) */}
           {needsStaffSelection && (
             <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1.5 block flex items-center gap-1">
+              <label className="text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
                 <Users className="w-3.5 h-3.5" />
                 Nhân viên
               </label>
@@ -718,7 +702,6 @@ function CreateShiftModal({
             </div>
           )}
 
-          {/* Date info — có thể chỉnh khi sửa ca */}
           {isEdit ? (
             <>
               <button
@@ -776,7 +759,6 @@ function CreateShiftModal({
             </div>
           )}
 
-          {/* End date - bulk only */}
           {tab === "bulk" && (
             <DateInputDDMMYYYY
               label="Đến ngày"
@@ -787,7 +769,6 @@ function CreateShiftModal({
             />
           )}
 
-          {/* Days of week - bulk only */}
           {tab === "bulk" && (
             <div>
               <label className="text-xs font-semibold text-gray-600 mb-1.5 block">
@@ -822,7 +803,6 @@ function CreateShiftModal({
                   );
                 })}
               </div>
-              {/* Preview số ca sẽ tạo */}
               {endDate &&
                 workingDays.length > 0 &&
                 (() => {
@@ -843,7 +823,6 @@ function CreateShiftModal({
             </div>
           )}
 
-          {/* Parking lot */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-slate-500" />
@@ -885,7 +864,6 @@ function CreateShiftModal({
             )}
           </div>
 
-          {/* Shift type presets - Auto-suggest dựa trên giờ mở cửa */}
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
@@ -921,7 +899,6 @@ function CreateShiftModal({
             </div>
           </div>
 
-          {/* Custom time — read-only display */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1.5 block">
@@ -930,7 +907,7 @@ function CreateShiftModal({
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 <div className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-700 font-medium cursor-default select-none">
-                  {startTimeLabel || "--:--"}
+                  {startTime || "--:--"}
                 </div>
               </div>
             </div>
@@ -941,7 +918,7 @@ function CreateShiftModal({
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 <div className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-700 font-medium cursor-default select-none">
-                  {endTimeLabel || "--:--"}
+                  {endTime || "--:--"}
                 </div>
               </div>
             </div>

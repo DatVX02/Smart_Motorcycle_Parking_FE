@@ -162,7 +162,7 @@ function Login() {
             Hệ Thống MotoGuard
           </h2>
           <p className="text-slate-200 text-lg max-w-md leading-relaxed">
-            Quản lý bãi đỗ xe thông minh ứng dụng công nghệ nhận diện khuôn mặt
+            Quản lý bãi gửi xe thông minh ứng dụng công nghệ nhận diện khuôn mặt
             và biển số xe, mang lại sự an toàn và tiện lợi tối đa.
           </p>
         </div>
