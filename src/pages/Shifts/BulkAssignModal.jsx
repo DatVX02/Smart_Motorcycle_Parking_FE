@@ -32,13 +32,13 @@ const SHIFT_PRESETS = [
     label: "Cả ngày",
     startTime: "07:00",
     endTime: "19:00",
-    color: "bg-emerald-500",
+    color: "bg-green-500",
   },
 ];
 
 const AVATAR_COLORS = [
   "bg-blue-500",
-  "bg-emerald-500",
+  "bg-green-500",
   "bg-violet-500",
   "bg-amber-500",
   "bg-rose-500",
@@ -549,7 +549,7 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 

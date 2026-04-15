@@ -181,7 +181,7 @@ function priorityInfo(priorityRaw) {
   if (p === "low") {
     return {
       label: "Thấp",
-      cls: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+      cls: "bg-green-100 text-green-700 border border-green-200",
     };
   }
 
@@ -954,7 +954,7 @@ export default function IncidentReports() {
                           <button
                             type="button"
                             onClick={() => setUpdateReport(r)}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
                             title="Cập nhật xử lý"
                           >
                             <Edit className="w-4 h-4" />

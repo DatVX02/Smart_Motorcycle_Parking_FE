@@ -309,21 +309,17 @@ function parseDetailsPipeString(str) {
 function stripLotIdFromDetailsRaw(str) {
   if (typeof str !== "string") return str;
   return str
-    .replace(
-      /\s*lotId\s*:\s*[0-9a-fA-F-]{30,}\s*([|·•]\s*|$)/gi,
-      "$1",
-    )
-    .replace(
-      /\s*Mã\s*bãi\s*xe\s*:\s*[0-9a-fA-F-]{30,}\s*([|·•]\s*|$)/gi,
-      "$1",
-    )
+    .replace(/\s*lotId\s*:\s*[0-9a-fA-F-]{30,}\s*([|·•]\s*|$)/gi, "$1")
+    .replace(/\s*Mã\s*bãi\s*xe\s*:\s*[0-9a-fA-F-]{30,}\s*([|·•]\s*|$)/gi, "$1")
     .replace(/^[|·•\s]+/, "")
     .trim();
 }
 
 /** Chuẩn hoá key field (camelCase / snake_case) để so khớp */
 function normalizeFieldKey(key) {
-  return String(key).toLowerCase().replace(/[\s_-]+/g, "");
+  return String(key)
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
 }
 
 function formatStaffWorkloadRow(w) {
@@ -619,7 +615,7 @@ function CheckSection({ check, params }) {
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [check, params]);
 
   return (
     <div
@@ -642,7 +638,7 @@ function CheckSection({ check, params }) {
           ) : hasIssues ? (
             <Icon className={`w-4 h-4 ${c.icon}`} />
           ) : (
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
           )}
         </div>
         <div className="flex-1 min-w-0">
@@ -659,7 +655,7 @@ function CheckSection({ check, params }) {
           {state === "ok" && (
             <span
               className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                hasIssues ? c.badge : "bg-emerald-100 text-emerald-600"
+                hasIssues ? c.badge : "bg-green-100 text-green-600"
               }`}
             >
               {hasIssues ? `${items.length} vấn đề` : "Ổn"}
@@ -692,8 +688,8 @@ function CheckSection({ check, params }) {
           )}
           {state === "ok" && !hasIssues && (
             <div className="flex items-center gap-2 py-1">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs text-emerald-600 font-medium">
+              <CheckCircle2 className="w-4 h-4 text-green-400" />
+              <span className="text-xs text-green-600 font-medium">
                 Không phát hiện vấn đề
               </span>
             </div>

@@ -41,7 +41,7 @@ export default function DeviceEventsStats({
           />
           <DeviceEventStatCard
             icon={Activity}
-            iconColor="text-emerald-600"
+            iconColor="text-green-600"
             label="Hoạt động"
             value={activeOperationalCount}
             valueSuffix="Sự kiện"

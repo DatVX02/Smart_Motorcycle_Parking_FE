@@ -540,7 +540,7 @@ function getSignedAmountMeta(amount) {
     return { text: `-${baseText}`, cls: "text-red-600" };
   }
 
-  return { text: `+${baseText}`, cls: "text-emerald-700" };
+  return { text: `+${baseText}`, cls: "text-green-700" };
 }
 
 function getSignedComponentCashAmount(component, targetType) {
