@@ -66,8 +66,8 @@ const fmtVND = (v) =>
     ? new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" })
         .format(v)
         .replace("₫", "VNĐ")
-    : "—";
-const fmtTime = (v) => (v ? v.substring(0, 5) : "—");
+    : "";
+const fmtTime = (v) => (v ? v.substring(0, 5) : "");
 const fmtDate = (v) => {
   if (!v) return null;
   const d = new Date(v);
@@ -88,7 +88,7 @@ const STATUS_LABEL = {
 const getStatusVariant = (r) =>
   STATUS_VARIANT[String(r ?? "").toLowerCase()] ?? "secondary";
 const getStatusLabel = (r) =>
-  STATUS_LABEL[String(r ?? "").toLowerCase()] ?? (r || "—");
+  STATUS_LABEL[String(r ?? "").toLowerCase()] ?? (r || "");
 
 const GATE_TYPE = {
   entry: "Cổng vào",
@@ -157,7 +157,7 @@ const normalizeDeviceType = (raw) => {
 
 const getDType = (r) =>
   DEVICE_TYPE_MAP[normalizeDeviceType(r)] ?? {
-    label: r || "—",
+    label: r || "",
     variant: "outline",
     Icon: Cpu,
     iconBg: "bg-gray-100",
@@ -175,7 +175,7 @@ const CONN_MAP = {
 };
 const getConn = (r) =>
   CONN_MAP[String(r ?? "").toUpperCase()] ?? {
-    label: r || "—",
+    label: r || "",
     variant: "outline",
     Icon: Cpu,
   };
@@ -301,7 +301,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                 dev.gate?.id ??
                 "",
             ),
-        )?.gateName || "—",
+        )?.gateName || "",
     }));
   }, [detail, gates, devicesByLot]);
 
@@ -484,7 +484,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
     const events = [];
 
     for (const s of trafficSessions) {
-      const plate = s.licensePlate ?? s.vehiclePlate ?? s.plateNumber ?? "—";
+      const plate = s.licensePlate ?? s.vehiclePlate ?? s.plateNumber ?? "";
       const baseId = s.sessionId ?? s.id ?? plate;
 
       const inAt = adjustApiDate(s.entryTime ?? s.checkInTime ?? s.createdAt);
@@ -602,7 +602,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                           Giá theo giờ
                         </p>
                         <p className="text-sm font-bold text-green-700">
-                          {d.hourlyRate ? fmtVND(d.hourlyRate) : "—"}
+                          {d.hourlyRate ? fmtVND(d.hourlyRate) : ""}
                         </p>
                       </div>
                     </div>
@@ -991,7 +991,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                         );
                         const isActive = gate.isActive !== false;
                         const typeLabel =
-                          GATE_TYPE[gate.gateType] || gate.gateType || "—";
+                          GATE_TYPE[gate.gateType] || gate.gateType || "";
                         return (
                           <div
                             key={gId || idx}
@@ -1100,7 +1100,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                                             </div>
                                             <div>
                                               <p className="font-semibold text-gray-900 text-xs leading-tight">
-                                                {dev.deviceName || "—"}
+                                                {dev.deviceName || ""}
                                               </p>
                                               {dev.model && (
                                                 <p className="text-[10px] text-gray-400">

@@ -18,7 +18,7 @@ function maintenanceStatusVi(statusRaw) {
   if (s === "inprogress") return "Đang bảo trì";
   if (s === "overdue") return "Quá hạn";
   if (s === "scheduled") return "Đã lên lịch";
-  return statusRaw && String(statusRaw).trim() !== "" ? String(statusRaw) : "—";
+  return statusRaw && String(statusRaw).trim() !== "" ? String(statusRaw) : "";
 }
 
 function isMaintenanceTerminalStatus(statusRaw) {
@@ -43,12 +43,12 @@ const MaintenanceDetailModal = ({
   const [imageFile, setImageFile] = useState(null);
   const fileInputRef = useRef(null);
   const formatDate = (date) => {
-    if (!date || date.startsWith("0001")) return "-";
+    if (!date || date.startsWith("0001")) return "";
     return dayjs(date).format("DD/MM/YYYY HH:mm:ss");
   };
 
   const format = (date) => {
-    if (!date || date.startsWith("0001")) return "-";
+    if (!date || date.startsWith("0001")) return "";
     return dayjs(date).format("DD/MM/YYYY");
   };
 
@@ -122,7 +122,7 @@ const MaintenanceDetailModal = ({
         </div>
 
         <div className="space-y-3 text-sm">
-          <Row label="Tên bãi" value={deviceDetail?.lotName || "-"} />
+          <Row label="Tên bãi" value={deviceDetail?.lotName || ""} />
           <Row label="Tên thiết bị" value={maintenance.deviceName} />
 
           <Row label="Mã thiết bị" value={maintenance.deviceCode} />

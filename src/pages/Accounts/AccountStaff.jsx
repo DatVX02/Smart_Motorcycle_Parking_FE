@@ -441,7 +441,7 @@ function AccountStaff() {
 
                   <td className="p-3 text-gray-600">{account.email}</td>
 
-                  <td className="p-3">{account.phoneContact || "-"}</td>
+                  <td className="p-3">{account.phoneContact || ""}</td>
 
                   <td className="p-3">
                     {account.role == "Admin" ? (

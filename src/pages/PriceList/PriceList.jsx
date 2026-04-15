@@ -27,7 +27,7 @@ const toNumberOrNull = (...values) => {
 
 const formatVnd = (value) => {
   const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "";
   return `${n.toLocaleString("vi-VN")} VNĐ`;
 };
 

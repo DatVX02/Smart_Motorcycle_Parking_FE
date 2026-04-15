@@ -170,7 +170,7 @@ const DeviceMaintenance = () => {
       Pending: "Đã lên lịch",
       Overdue: "Quá hạn",
     };
-    return map[key] || normalizeMaintenanceStatus(status) || "—";
+    return map[key] || normalizeMaintenanceStatus(status) || "";
   };
 
   const formatDate = (date) => {

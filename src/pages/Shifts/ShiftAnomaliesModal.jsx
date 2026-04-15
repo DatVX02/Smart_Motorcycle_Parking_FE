@@ -206,7 +206,7 @@ function dedupeBaiXePrefix(text) {
 }
 
 function formatShortUuid(id) {
-  if (typeof id !== "string" || id.length < 12) return id ?? "—";
+  if (typeof id !== "string" || id.length < 12) return id ?? "";
   return `${id.slice(0, 8)}…`;
 }
 
@@ -247,7 +247,7 @@ function formatDateList(value) {
 
 /** Chuỗi/array loại ca (Morning, xuống dòng, v.v.) → tiếng Việt */
 function formatShiftTypesList(raw) {
-  if (raw == null) return "—";
+  if (raw == null) return "";
   let parts;
   if (Array.isArray(raw)) {
     parts = raw.flatMap((x) =>
@@ -263,7 +263,7 @@ function formatShiftTypesList(raw) {
       .flatMap((seg) => seg.trim().split(/\s+/));
   }
   parts = parts.map((p) => p.trim()).filter(Boolean);
-  if (parts.length === 0) return "—";
+  if (parts.length === 0) return "";
   return parts.map(translateShiftTypeToken).join(", ");
 }
 
@@ -324,9 +324,9 @@ function normalizeFieldKey(key) {
 
 function formatStaffWorkloadRow(w) {
   if (typeof w !== "object" || w === null) return String(w);
-  const name = w.staffName ?? w.name ?? w.fullName ?? w.StaffName ?? "—";
+  const name = w.staffName ?? w.name ?? w.fullName ?? w.StaffName ?? "";
   const shifts =
-    w.shiftCount ?? w.totalShifts ?? w.shifts ?? w.shiftTotal ?? "—";
+    w.shiftCount ?? w.totalShifts ?? w.shifts ?? w.shiftTotal ?? "";
   const dev = w.deviation ?? w.diff ?? w.balance ?? w.weight;
   const devStr =
     typeof dev === "number" ? ` · Lệch phân bổ: ${formatNumberVi(dev)}` : "";
@@ -335,12 +335,12 @@ function formatStaffWorkloadRow(w) {
 
 // Chuyển bất kỳ giá trị nào thành string an toàn cho React
 function toDisplayString(val) {
-  if (val === null || val === undefined) return "—";
+  if (val === null || val === undefined) return "";
   if (typeof val === "boolean") return val ? "Có" : "Không";
   if (typeof val === "number") return formatNumberVi(val);
   if (typeof val === "string") return val;
   if (Array.isArray(val)) {
-    if (val.length === 0) return "—";
+    if (val.length === 0) return "";
     return val
       .map((v) =>
         typeof v === "object" && v !== null
@@ -363,7 +363,7 @@ function toDisplayString(val) {
 function formatFieldValue(key, val) {
   const k = normalizeFieldKey(key);
 
-  if (val === null || val === undefined) return "—";
+  if (val === null || val === undefined) return "";
 
   if (k === "warningtype") {
     const s = String(val);
