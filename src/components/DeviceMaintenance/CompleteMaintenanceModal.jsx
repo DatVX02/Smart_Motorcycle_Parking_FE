@@ -20,7 +20,7 @@ const CompleteMaintenanceModal = ({
     const [imageFile, setImageFile] = useState(null);
 
     const formatDate = (date) => {
-        if (!date) return "-";
+        if (!date) return "";
         return dayjs(date).format("DD-MMMM-YY");
     };
 

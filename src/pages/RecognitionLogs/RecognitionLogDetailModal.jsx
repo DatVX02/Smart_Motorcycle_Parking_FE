@@ -34,7 +34,7 @@ function formatSource(rawSource, recognitionType) {
     return "Check-In";
   }
 
-  return "—";
+  return "";
 }
 
 function RecognitionLogDetailModal({ log, onClose }) {
@@ -72,12 +72,12 @@ function RecognitionLogDetailModal({ log, onClose }) {
 
           <div className="space-y-4 px-5 pb-5 pt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
-              <Field label="Biển số" value={log?.licensePlate || "—"} />
+              <Field label="Biển số" value={log?.licensePlate || ""} />
               <Field
                 label="Loại nhận diện"
                 value={getRecognitionTypeLabel(log?.recognitionType)}
               />
-              <Field label="Bãi xe" value={log?.lotName || "—"} />
+              <Field label="Bãi xe" value={log?.lotName || ""} />
               <Field
                 label="Độ tin cậy"
                 value={formatConfidence(log?.confidenceScore)}
@@ -99,7 +99,7 @@ function RecognitionLogDetailModal({ log, onClose }) {
               />
               <Field
                 label="Biển số nhận diện"
-                value={parsedResult?.detectedPlate || "—"}
+                value={parsedResult?.detectedPlate || ""}
               />
             </div>
 

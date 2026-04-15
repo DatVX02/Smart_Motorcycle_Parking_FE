@@ -19,9 +19,9 @@ import incidentReportService from "../../services/incidentReportService";
 import parkingLotService from "../../services/parkingLotService";
 
 function fmtDate(v) {
-  if (!v) return "—";
+  if (!v) return "";
   const d = dayjs(v);
-  return d.isValid() ? d.format("DD/MM/YYYY HH:mm") : "—";
+  return d.isValid() ? d.format("DD/MM/YYYY HH:mm") : "";
 }
 
 function simplifyIncidentTypeLabel(label = "") {
@@ -34,7 +34,7 @@ function formatIncidentType(typeRaw, typeLabelMap = {}) {
   const s = String(typeRaw ?? "")
     .trim()
     .toLowerCase();
-  if (!s) return "—";
+  if (!s) return "";
   if (s === "parking_lot_issue") return "Lỗi tại bãi xe";
 
   if (typeLabelMap[s]) return simplifyIncidentTypeLabel(typeLabelMap[s]);
@@ -479,11 +479,10 @@ function DetailModal({ report, onClose, lotNameById, typeLabelMap }) {
     source.lotName ??
     source.parkingLotName ??
     (lotId ? lotNameById[String(lotId)] : null) ??
-    lotId ??
-    "—";
+    lotId ?? "";
 
   const details = [
-    ["Tiêu đề", getReportTitle(source, typeLabelMap) || "—"],
+    ["Tiêu đề", getReportTitle(source, typeLabelMap) || ""],
     [
       "Loại sự cố",
       formatIncidentType(getReportIncidentType(source), typeLabelMap),
@@ -545,7 +544,7 @@ function DetailModal({ report, onClose, lotNameById, typeLabelMap }) {
               Mô tả
             </p>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
-              {source.description ?? source.content ?? source.note ?? "—"}
+              {source.description ?? source.content ?? source.note ?? ""}
             </p>
           </div>
 
@@ -554,7 +553,7 @@ function DetailModal({ report, onClose, lotNameById, typeLabelMap }) {
               Ghi chú xử lý
             </p>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
-              {source.resolution_notes ?? source.resolutionNotes ?? "—"}
+              {source.resolution_notes ?? source.resolutionNotes ?? ""}
             </p>
           </div>
         </div>
@@ -908,8 +907,7 @@ export default function IncidentReports() {
                     r.lotName ??
                     r.parkingLotName ??
                     (lotIdRaw ? lotNameById[String(lotIdRaw)] : null) ??
-                    lotIdRaw ??
-                    "—";
+                    lotIdRaw ?? "";
                   return (
                     <tr
                       key={id ?? idx}
@@ -919,7 +917,7 @@ export default function IncidentReports() {
                         {(pageNumber - 1) * pageSize + idx + 1}
                       </td>
                       <td className="p-3 text-center text-gray-900 font-medium max-w-[220px] truncate">
-                        {getReportTitle(r, incidentTypeMap) || "—"}
+                        {getReportTitle(r, incidentTypeMap) || ""}
                       </td>
                       <td className="p-3 text-center text-gray-600 max-w-[220px] truncate">
                         {lotName}

@@ -89,7 +89,7 @@ function RecognitionLogsTable({
                     </td>
 
                     <td className="p-3 text-center font-semibold text-gray-900 whitespace-nowrap">
-                      {item?.licensePlate || "-"}
+                      {item?.licensePlate || ""}
                     </td>
 
                     <td className="p-3 text-center whitespace-nowrap">
@@ -102,7 +102,7 @@ function RecognitionLogsTable({
 
                     <td className="p-3 text-center text-gray-600 min-w-[240px]">
                       <p className="font-medium text-gray-900">
-                        {item?.lotName || "-"}
+                        {item?.lotName || ""}
                       </p>
                     </td>
 

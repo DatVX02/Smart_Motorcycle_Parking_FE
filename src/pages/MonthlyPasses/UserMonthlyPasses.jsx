@@ -28,9 +28,9 @@ function formatMoney(value) {
 }
 
 function formatDateTime(value) {
-  if (!value) return "—";
+  if (!value) return "";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -45,7 +45,7 @@ function formatPaymentMethodLabel(method) {
     .trim()
     .toLowerCase();
 
-  if (!raw) return "—";
+  if (!raw) return "";
 
   const map = {
     wallet: "Ví điện tử",
@@ -595,18 +595,18 @@ function UserMonthlyPasses() {
                         <td className="p-3 text-center font-semibold text-gray-900 max-w-[170px]">
                           <div className="inline-flex items-center gap-2 max-w-full">
                             <span className="truncate">
-                              {row.vehiclePlate || "—"}
+                              {row.vehiclePlate || ""}
                             </span>
                           </div>
                         </td>
                         <td className="p-3 text-center max-w-[220px]">
                           <p className="font-semibold text-gray-900 truncate">
-                            {row.lotName || "—"}
+                            {row.lotName || ""}
                           </p>
                         </td>
                         <td className="p-3 text-center max-w-[210px]">
                           <p className="font-semibold text-gray-900 truncate">
-                            {row.packageName || "—"}
+                            {row.packageName || ""}
                           </p>
                         </td>
                         <td className="p-3 text-center text-gray-500 whitespace-nowrap">
@@ -724,8 +724,7 @@ function UserMonthlyPasses() {
                   <p className="text-sm font-medium text-gray-900 break-all">
                     {detailPass.fullName?.trim() ||
                       userFullNameById[String(detailPass.userId ?? "")] ||
-                      detailPass.userName?.trim() ||
-                      "—"}
+                      detailPass.userName?.trim() || ""}
                   </p>
                 </div>
                 <div>
@@ -733,7 +732,7 @@ function UserMonthlyPasses() {
                     Email
                   </p>
                   <p className="text-sm font-medium text-gray-900 break-all">
-                    {detailPass.userEmail || "—"}
+                    {detailPass.userEmail || ""}
                   </p>
                 </div>
                 <div>
@@ -741,7 +740,7 @@ function UserMonthlyPasses() {
                     Biển số xe
                   </p>
                   <p className="text-sm font-medium text-gray-900 break-words">
-                    {detailPass.vehiclePlate || "—"}
+                    {detailPass.vehiclePlate || ""}
                   </p>
                 </div>
                 <div>
@@ -749,7 +748,7 @@ function UserMonthlyPasses() {
                     Màu xe
                   </p>
                   <p className="text-sm font-medium text-gray-900 break-words">
-                    {vehicleMedia.color || detailPass.vehicleColor || "—"}
+                    {vehicleMedia.color || detailPass.vehicleColor || ""}
                   </p>
                 </div>
                 <div>
@@ -757,7 +756,7 @@ function UserMonthlyPasses() {
                     Bãi xe
                   </p>
                   <p className="text-sm font-medium text-gray-900 break-words">
-                    {detailPass.lotName || "—"}
+                    {detailPass.lotName || ""}
                   </p>
                 </div>
                 <div>
@@ -765,7 +764,7 @@ function UserMonthlyPasses() {
                     Gói vé
                   </p>
                   <p className="text-sm font-medium text-gray-900 break-words">
-                    {detailPass.packageName || "—"}
+                    {detailPass.packageName || ""}
                   </p>
                 </div>
                 <div>

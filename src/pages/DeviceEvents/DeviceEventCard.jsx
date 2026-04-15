@@ -74,7 +74,7 @@ export default function DeviceEventCard({ log }) {
                 <span className="font-semibold flex items-center gap-1.5 min-w-0">
                   <Cpu className="w-4 h-4 shrink-0 text-gray-500" />
                   <span className="truncate">
-                    {log.deviceName !== "—"
+                    {log.deviceName !== ""
                       ? log.deviceName
                       : "Thiết bị không tên"}
                   </span>
@@ -83,7 +83,7 @@ export default function DeviceEventCard({ log }) {
                 <span className="flex items-center gap-1.5 text-gray-600 min-w-0">
                   <MapPin className="w-4 h-4 shrink-0 text-gray-500" />
                   <span className="truncate">
-                    {log.lotName !== "—" ? log.lotName : "Chưa gán bãi"}
+                    {log.lotName !== "" ? log.lotName : "Chưa gán bãi"}
                   </span>
                 </span>
               </div>

@@ -99,7 +99,7 @@ const parseBackendDateToMs = (value) => {
 };
 
 const formatDateTime = (value) => {
-  if (!value) return "-";
+  if (!value) return "";
   const ms = parseBackendDateToMs(value);
   if (!Number.isFinite(ms)) return String(value);
   const date = new Date(ms);
@@ -531,8 +531,7 @@ function WithdrawRequests() {
                   const reviewerDisplay =
                     row.reviewerName ||
                     staffNameById[String(row.reviewedBy)] ||
-                    row.reviewedBy ||
-                    "-";
+                    row.reviewedBy || "";
 
                   return (
                     <tr
@@ -546,7 +545,7 @@ function WithdrawRequests() {
                       </td>
                       <td className="p-3 text-center">
                         <div className="font-medium text-gray-900">
-                          {row.userName || "-"}
+                          {row.userName || ""}
                         </div>
                       </td>
                       <td className="p-3 text-center font-semibold text-gray-900 whitespace-nowrap">
@@ -554,12 +553,12 @@ function WithdrawRequests() {
                       </td>
                       <td className="p-3 text-center">
                         <div className="text-sm text-gray-800">
-                          {row.bankName || "-"}
+                          {row.bankName || ""}
                         </div>
                       </td>
                       <td className="p-3 text-center">
                         <div className="text-sm text-gray-800">
-                          {row.bankAccountNumber || "-"}
+                          {row.bankAccountNumber || ""}
                         </div>
                       </td>
                       <td className="p-3 text-center whitespace-nowrap">
@@ -582,7 +581,7 @@ function WithdrawRequests() {
                         className="p-3 text-center text-gray-600 max-w-[280px] whitespace-normal break-all align-top"
                         title={row.rejectionReason || ""}
                       >
-                        {row.rejectionReason || "-"}
+                        {row.rejectionReason || ""}
                       </td>
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-2 whitespace-nowrap">
@@ -711,12 +710,12 @@ function WithdrawRequests() {
 
               <div>
                 <p className="text-gray-500">Người dùng</p>
-                <p className="font-medium">{detailData.userName || "-"}</p>
+                <p className="font-medium">{detailData.userName || ""}</p>
               </div>
               <div>
                 <p className="text-gray-500">Email</p>
                 <p className="font-medium break-all">
-                  {detailData.userEmail || "-"}
+                  {detailData.userEmail || ""}
                 </p>
               </div>
 
@@ -729,19 +728,19 @@ function WithdrawRequests() {
 
               <div>
                 <p className="text-gray-500">Ngân hàng</p>
-                <p className="font-medium">{detailData.bankName || "-"}</p>
+                <p className="font-medium">{detailData.bankName || ""}</p>
               </div>
               <div>
                 <p className="text-gray-500">Số tài khoản</p>
                 <p className="font-medium">
-                  {detailData.bankAccountNumber || "-"}
+                  {detailData.bankAccountNumber || ""}
                 </p>
               </div>
 
               <div>
                 <p className="text-gray-500">Chủ tài khoản</p>
                 <p className="font-medium">
-                  {detailData.bankAccountHolder || "-"}
+                  {detailData.bankAccountHolder || ""}
                 </p>
               </div>
               <div>
@@ -756,8 +755,7 @@ function WithdrawRequests() {
                 <p className="font-medium">
                   {detailData.reviewerName ||
                     staffNameById[String(detailData.reviewedBy)] ||
-                    detailData.reviewedBy ||
-                    "-"}
+                    detailData.reviewedBy || ""}
                 </p>
               </div>
               <div>
@@ -770,7 +768,7 @@ function WithdrawRequests() {
               <div className="md:col-span-2">
                 <p className="text-gray-500">Lý do từ chối</p>
                 <p className="font-medium whitespace-pre-wrap break-words">
-                  {detailData.rejectionReason || "-"}
+                  {detailData.rejectionReason || ""}
                 </p>
               </div>
             </div>

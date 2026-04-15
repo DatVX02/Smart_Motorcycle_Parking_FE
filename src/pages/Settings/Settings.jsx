@@ -56,9 +56,9 @@ function normalizeProfile(raw) {
 // }
 
 function formatDateTime(value) {
-  if (!value) return "-";
+  if (!value) return "";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
+  if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString("vi-VN", {
     hour12: false,
     hour: "2-digit",
@@ -551,7 +551,7 @@ export default function Settings() {
                       {describeBrowser(item.userAgent)} -{" "}
                       {item.platform || "N/A"}
                     </p>
-                    <p className="text-gray-500">{item.emailOrPhone || "-"}</p>
+                    <p className="text-gray-500">{item.emailOrPhone || ""}</p>
                   </div>
                 ))
               )}

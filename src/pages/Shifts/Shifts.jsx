@@ -470,7 +470,7 @@ function ShiftTooltip({ tooltip }) {
             <div className="flex items-center gap-1.5">
               <Clock className="w-3 h-3 text-green-500 flex-shrink-0" />
               <span className="font-medium text-green-700">
-                Check-in/out: {checkIn || "—"} / {checkOut || "—"}
+                Check-in/out: {checkIn || ""} / {checkOut || ""}
               </span>
             </div>
             {lotName && (
@@ -513,7 +513,7 @@ function ShiftTooltip({ tooltip }) {
               className="text-[10px] font-semibold"
               style={{ color: STATUS_COLORS[statusKey] ?? "#6B7280" }}
             >
-              {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? "—"}
+              {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? ""}
             </span>
             {/* <span className="text-[10px] text-gray-400 ml-auto">
               {readOnly ? "Chỉ xem (không chỉnh sửa)" : "Nhấn để xem chi tiết"}
@@ -2347,11 +2347,11 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
         month: "long",
         day: "numeric",
       })
-    : "—";
+    : "";
 
   const shiftType = (shift.shiftType ?? shift.ShiftType ?? "").toUpperCase();
   const statusKey = shiftStatusKey(shift);
-  const statusLabel = STATUS_LABELS[statusKey] ?? shift.shiftStatus ?? "—";
+  const statusLabel = STATUS_LABELS[statusKey] ?? shift.shiftStatus ?? "";
   const statusColor = STATUS_COLORS[statusKey] ?? "#6B7280";
   const barColor = SHIFT_COLORS[shiftType] ?? statusColor;
   const { checkIn, checkOut } = getAttendanceTimeLabels(shift);
@@ -2424,8 +2424,8 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                   </span>
                 </div>
                 <span className="text-xs text-gray-700">
-                  {toUtcTimeLabel(shift.startTime) || "—"} →{" "}
-                  {toUtcTimeLabel(shift.endTime) || "—"}
+                  {toUtcTimeLabel(shift.startTime) || ""} →{" "}
+                  {toUtcTimeLabel(shift.endTime) || ""}
                 </span>
               </div>
             </div>
@@ -2438,7 +2438,7 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                 </span>
               </div>
               <span className="text-xs text-green-700 font-semibold">
-                {checkIn || "—"} → {checkOut || "—"}
+                {checkIn || ""} → {checkOut || ""}
               </span>
             </div>
 

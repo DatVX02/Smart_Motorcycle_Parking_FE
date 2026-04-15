@@ -243,7 +243,7 @@ function normalizeLotLabel(value) {
     .replace(/\s+/g, " ");
 }
 
-function formatTargetTypeLabel(type, empty = "—") {
+function formatTargetTypeLabel(type, empty = "") {
   if (!type) return empty;
   const normalized = String(type).trim().toLowerCase();
   if (["parking-session", "parkingsession"].includes(normalized)) {
@@ -312,9 +312,9 @@ function formatFixedRevenueAxis(value) {
 }
 
 function formatTransactionTime(value) {
-  if (!value) return "—";
+  if (!value) return "";
   const d = dayjs(value);
-  if (!d.isValid()) return "—";
+  if (!d.isValid()) return "";
   return d.format("HH:mm DD/MM/YYYY");
 }
 
@@ -426,8 +426,7 @@ function SystemRevenueWidget({
           tx.vehicleLicensePlate,
           tx.vehiclePlate,
           tx.plate,
-          tx.targetLabel,
-          "—",
+          tx.targetLabel, "",
         ),
         targetTypeLabel: formatTargetTypeLabel(txTargetType),
         statusLabel: formatStatusLabel(latestStatus),

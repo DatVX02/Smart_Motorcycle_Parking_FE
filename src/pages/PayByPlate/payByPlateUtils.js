@@ -27,9 +27,9 @@ function parseNumberOrNull(value) {
 }
 
 export function formatVnd(value) {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "";
   const amount = Number(value);
-  if (Number.isNaN(amount)) return "—";
+  if (Number.isNaN(amount)) return "";
   return `${amount.toLocaleString("vi-VN")} VNĐ`;
 }
 
@@ -44,7 +44,7 @@ export function paymentTypeLabel(value) {
 }
 
 export function formatDateTime(value, addSevenHours = false) {
-  if (!value) return "—";
+  if (!value) return "";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return String(value);
 
@@ -63,9 +63,9 @@ export function formatDateTime(value, addSevenHours = false) {
 }
 
 export function formatHours(value) {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "";
   const amount = Number(value);
-  if (Number.isNaN(amount)) return "—";
+  if (Number.isNaN(amount)) return "";
   if (amount <= 0) return "0 giờ";
   return `${amount.toFixed(2)} giờ`;
 }
