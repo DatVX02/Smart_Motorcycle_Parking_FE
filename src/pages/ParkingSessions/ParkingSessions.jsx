@@ -349,6 +349,19 @@ export default function ParkingSessions() {
       });
     }
 
+    // Luôn hiển thị phiên mới nhất ở đầu danh sách.
+    list.sort((a, b) => {
+      const aMs = dayjs(sessionReferenceTime(a)).valueOf();
+      const bMs = dayjs(sessionReferenceTime(b)).valueOf();
+      const aValid = Number.isFinite(aMs);
+      const bValid = Number.isFinite(bMs);
+
+      if (aValid && bValid && aMs !== bMs) return bMs - aMs;
+      if (aValid && !bValid) return -1;
+      if (!aValid && bValid) return 1;
+      return 0;
+    });
+
     return list;
   }, [allSessions, search, statusFilter, fromDate, toDate]);
 
