@@ -373,54 +373,49 @@ function WithdrawRequests() {
 
   return (
     <div className="space-y-5">
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full xl:w-3/5 mx-auto">
-          <StatCard
-            icon={Wallet}
-            iconColor="text-blue-600"
-            label="Tổng yêu cầu"
-            value={stats.total}
-          />
-          <StatCard
-            icon={Wallet}
-            iconColor="text-green-600"
-            label="Tổng giá trị yêu cầu"
-            value={formatNumber(stats.totalAmount)}
-            valueSuffix="VNĐ"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard
-            icon={Clock3}
-            iconColor="text-amber-600"
-            label="Chờ duyệt"
-            value={stats.pending}
-            bgTint="bg-amber-500/30"
-          />
-          <StatCard
-            icon={CheckCircle2}
-            iconColor="text-green-600"
-            label="Đã duyệt"
-            value={stats.approved}
-            bgTint="bg-green-500/30"
-          />
-          <StatCard
-            icon={XCircle}
-            iconColor="text-red-600"
-            label="Từ chối"
-            value={stats.rejected}
-            bgTint="bg-red-500/30"
-          />
-          <StatCard
-            icon={Wallet}
-            iconColor="text-blue-700"
-            label="Giá trị chờ duyệt"
-            value={formatNumber(stats.pendingAmount)}
-            valueSuffix="VNĐ"
-            bgTint="bg-blue-500/30"
-          />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <StatCard
+          icon={Wallet}
+          iconColor="text-blue-600"
+          label="Tổng yêu cầu"
+          value={stats.total}
+        />
+        <StatCard
+          icon={Wallet}
+          iconColor="text-green-600"
+          label="Tổng giá trị yêu cầu"
+          value={formatNumber(stats.totalAmount)}
+          valueSuffix="VNĐ"
+        />
+        <StatCard
+          icon={Clock3}
+          iconColor="text-amber-600"
+          label="Chờ duyệt"
+          value={stats.pending}
+          bgTint="bg-amber-500/30"
+        />
+        <StatCard
+          icon={CheckCircle2}
+          iconColor="text-green-600"
+          label="Đã duyệt"
+          value={stats.approved}
+          bgTint="bg-green-500/30"
+        />
+        <StatCard
+          icon={XCircle}
+          iconColor="text-red-600"
+          label="Từ chối"
+          value={stats.rejected}
+          bgTint="bg-red-500/30"
+        />
+        <StatCard
+          icon={Wallet}
+          iconColor="text-blue-700"
+          label="Giá trị chờ duyệt"
+          value={formatNumber(stats.pendingAmount)}
+          valueSuffix="VNĐ"
+          bgTint="bg-blue-500/30"
+        />
       </div>
 
       <div

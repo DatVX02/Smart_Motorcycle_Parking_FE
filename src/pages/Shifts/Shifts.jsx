@@ -206,9 +206,14 @@ function toUtcTimeLabel(value) {
   }
 
   const timeMatch = raw.match(/^(\d{2}):(\d{2})/);
-  if (timeMatch) return `${timeMatch[1]}:${timeMatch[2]}`;
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = timeMatch[2];
 
-  return raw.slice(0, 5);
+    hours = (hours + 7) % 24;
+
+    return `${String(hours).padStart(2, "0")}:${minutes}`;
+  }
 }
 
 function pickActualAttendanceTime(shift, type) {
