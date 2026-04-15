@@ -478,11 +478,12 @@ function WithdrawRequests() {
                   "Người dùng",
                   "Số tiền",
                   "Ngân hàng",
+                  "Số tài khoản",
                   "Trạng thái",
                   "Thời gian yêu cầu",
                   "Người duyệt",
                   "Thời gian duyệt",
-                  "Lý do từ chối",
+                  "Lý do",
                   "Thao tác",
                 ].map((header) => (
                   <th
@@ -561,6 +562,11 @@ function WithdrawRequests() {
                           {row.bankName || "-"}
                         </div>
                       </td>
+                      <td className="p-3 text-center">
+                        <div className="text-sm text-gray-800">
+                          {row.bankAccountNumber || "-"}
+                        </div>
+                      </td>
                       <td className="p-3 text-center whitespace-nowrap">
                         <span
                           className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusMeta.cls}`}
@@ -590,7 +596,7 @@ function WithdrawRequests() {
                             className="btn btn-secondary px-2.5 py-1 text-xs flex items-center gap-1"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            Chi tiết
+                            {/* Chi tiết */}
                           </button>
                           <button
                             disabled={!canReview || actionLoading}
@@ -598,7 +604,7 @@ function WithdrawRequests() {
                             className="btn btn-success px-2.5 py-1 text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            Duyệt
+                            {/* Duyệt */}
                           </button>
                           <button
                             disabled={!canReview || actionLoading}
@@ -606,7 +612,7 @@ function WithdrawRequests() {
                             className="btn btn-danger px-2.5 py-1 text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <Ban className="w-3.5 h-3.5" />
-                            Từ chối
+                            {/* Từ chối */}
                           </button>
                         </div>
                       </td>

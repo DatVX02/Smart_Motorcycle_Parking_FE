@@ -95,12 +95,12 @@ export const EVENT_STATUS_BADGE_CLASSES = {
   active: "text-green-800 bg-green-50 border-green-200",
   resolved: "text-slate-700 bg-slate-50 border-slate-200",
   ignored: "text-gray-600 bg-gray-50 border-gray-200",
-  success: "text-emerald-800 bg-emerald-50 border-emerald-200",
+  success: "text-green-800 bg-green-50 border-green-200",
   failed: "text-red-800 bg-red-50 border-red-200",
   processing: "text-blue-800 bg-blue-50 border-blue-200",
   pending: "text-amber-900 bg-amber-50 border-amber-200",
   acknowledged: "text-violet-800 bg-violet-50 border-violet-200",
-  completed: "text-emerald-800 bg-emerald-50 border-emerald-200",
+  completed: "text-green-800 bg-green-50 border-green-200",
 };
 
 export const LEVEL_BORDER = {

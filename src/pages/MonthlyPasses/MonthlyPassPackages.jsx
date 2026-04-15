@@ -304,7 +304,7 @@ function MonthlyPassPackages() {
                                       className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
                                         pkg.isActive !== false
                                           ? "text-amber-600 hover:bg-amber-50"
-                                          : "text-emerald-600 hover:bg-emerald-50"
+                                          : "text-green-600 hover:bg-green-50"
                                       }`}
                                       title={
                                         pkg.isActive !== false

@@ -6,7 +6,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 const AVATAR_COLORS = [
   "bg-blue-500",
-  "bg-emerald-500",
+  "bg-green-500",
   "bg-violet-500",
   "bg-amber-500",
   "bg-rose-500",
@@ -63,7 +63,7 @@ function StaffInfoTooltip({ email, phone, anchorRect }) {
       )}
       {phone && (
         <div className={`flex items-center gap-2 ${email ? "mt-1.5" : ""}`}>
-          <Phone className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+          <Phone className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
           <span className="text-xs text-gray-700">{phone}</span>
         </div>
       )}

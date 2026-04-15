@@ -291,6 +291,12 @@ const getDefaultFormData = () => ({
   licensePlateThreshold: "70",
   faceRecognitionThreshold: "70",
 });
+
+const WIZARD_STEPS = [
+  { id: 1, title: "Thông tin chung" },
+  { id: 2, title: "Cấu hình cổng & thiết bị" },
+  { id: 3, title: "Cấu hình AI" },
+];
 // Backend lưu 0.0–1.0, UI hiển thị 0–100%
 const toPercent = (v) =>
   v == null ? null : v <= 1 ? Math.round(v * 100) : Math.round(v);
@@ -362,10 +368,18 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   const [collapsedDevices, setCollapsedDevices] = useState({}); // device _id → bool
   const [deletingGate, setDeletingGate] = useState(null); // gate _id đang xóa
   const [togglingGate, setTogglingGate] = useState(null); // gate _id đang chuyển trạng thái
+  const [currentStep, setCurrentStep] = useState(1);
   const aiConfigIdRef = useRef(null); // lưu configId để update sau
   const hasConfiguredCamera = formData.gates.some((g) =>
     g.devices.some((d) => isConfiguredCameraDevice(d)),
   );
+
+  const isFirstStep = currentStep === 1;
+  const isLastStep = currentStep === WIZARD_STEPS.length;
+
+  const goNextStep = () =>
+    setCurrentStep((prev) => Math.min(WIZARD_STEPS.length, prev + 1));
+  const goPrevStep = () => setCurrentStep((prev) => Math.max(1, prev - 1));
 
   useEffect(() => {
     let cancelled = false;
@@ -422,6 +436,10 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     return () => {
       cancelled = true;
     };
+  }, [lot?.id]);
+
+  useEffect(() => {
+    setCurrentStep(1);
   }, [lot?.id]);
 
   useEffect(() => {
@@ -990,7 +1008,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     });
   };
 
-  const validateForm = () => {
+  const buildValidationErrors = () => {
     const newErrors = {};
     const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
     const macRegex = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
@@ -1141,20 +1159,75 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         newErrors.faceRecognitionThreshold = "Ngưỡng phải từ 70-100";
     }
 
-    setErrors(newErrors);
     return newErrors;
+  };
+
+  const getStepValidationErrors = (step) => {
+    const allErrors = buildValidationErrors();
+
+    if (step === 1) {
+      const stepKeys = [
+        "lotName",
+        "fullAddress",
+        "totalCapacity",
+        "hourlyRate",
+        "monthlyRate",
+        "time",
+      ];
+      return Object.fromEntries(
+        Object.entries(allErrors).filter(([k]) => stepKeys.includes(k)),
+      );
+    }
+
+    if (step === 2) {
+      return Object.fromEntries(
+        Object.entries(allErrors).filter(
+          ([k]) =>
+            k === "gatesStructure" ||
+            k.startsWith("gate_") ||
+            k.startsWith("dev_"),
+        ),
+      );
+    }
+
+    if (step === 3) {
+      const stepKeys = [
+        "licensePlateThreshold",
+        "faceRecognitionThreshold",
+        "aiConfig",
+      ];
+      return Object.fromEntries(
+        Object.entries(allErrors).filter(([k]) => stepKeys.includes(k)),
+      );
+    }
+
+    return allErrors;
+  };
+
+  const getFirstErrorMessage = (validationErrors) =>
+    validationErrors.gatesStructure ||
+    validationErrors.aiConfig ||
+    validationErrors.time ||
+    Object.values(validationErrors)[0] ||
+    "Vui lòng kiểm tra lại thông tin";
+
+  const handleNextStep = () => {
+    const stepErrors = getStepValidationErrors(currentStep);
+    setErrors(stepErrors);
+    if (Object.keys(stepErrors).length > 0) {
+      toast.error(String(getFirstErrorMessage(stepErrors)));
+      return;
+    }
+    setErrors({});
+    goNextStep();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const validationErrors = validateForm();
+    const validationErrors = buildValidationErrors();
+    setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) {
-      const firstErrorMessage =
-        validationErrors.gatesStructure ||
-        validationErrors.aiConfig ||
-        Object.values(validationErrors)[0] ||
-        "Vui lòng kiểm tra lại thông tin";
-      toast.error(String(firstErrorMessage));
+      toast.error(String(getFirstErrorMessage(validationErrors)));
       return;
     }
 
@@ -1404,6 +1477,15 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     }
   };
 
+  const handleFormSubmit = (e) => {
+    if (!isLastStep) {
+      e.preventDefault();
+      handleNextStep();
+      return;
+    }
+    handleSubmit(e);
+  };
+
   const errClass = (key) => (errors[key] ? "border-red-500" : "");
   const ErrMsg = ({ k }) =>
     errors[k] ? <p className="text-red-500 text-xs mt-1">{errors[k]}</p> : null;
@@ -1413,8 +1495,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-auto flex flex-col max-h-[90vh] overflow-hidden">
         {/* Header - cố định */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900">
-            {lot ? "Chỉnh sửa bãi gửi" : "Thêm bãi gửi mới"}
+          <h2 className="text-2xl font-bold text-gray-900 leading-tight">
+            {lot ? "Chỉnh sửa bãi gửi" : "Thêm bãi gửi xe mới"}
           </h2>
           <button
             onClick={onClose}
@@ -1431,852 +1513,946 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           </div>
         ) : (
           <form
-            onSubmit={handleSubmit}
+            onSubmit={handleFormSubmit}
             className="flex flex-col flex-1 min-h-0 overflow-hidden"
           >
+            <div className="px-6 py-3 border-b border-gray-100 bg-gray-50/70 flex-shrink-0">
+              <div className="grid grid-cols-3 gap-2">
+                {WIZARD_STEPS.map((step) => {
+                  const isActive = step.id === currentStep;
+                  const isDone = step.id < currentStep;
+                  return (
+                    <div
+                      key={step.id}
+                      className={`rounded-lg px-2 py-2 border transition-colors ${
+                        isActive
+                          ? "bg-primary-50 border-primary-300"
+                          : isDone
+                            ? "bg-green-50 border-green-300"
+                            : "bg-white border-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-2 min-w-0">
+                        <span
+                          className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                            isActive
+                              ? "bg-primary-600 text-white"
+                              : isDone
+                                ? "bg-green-600 text-white"
+                                : "bg-gray-200 text-gray-700"
+                          }`}
+                        >
+                          {step.id}
+                        </span>
+                        <span
+                          className={`text-[11px] font-semibold truncate ${
+                            isActive
+                              ? "text-primary-700"
+                              : isDone
+                                ? "text-green-700"
+                                : "text-gray-700"
+                          }`}
+                        >
+                          {step.title}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* SECTION 1: Lot info */}
-              <section className="border-b pb-5">
-                <h3 className="text-base font-semibold text-gray-900 mb-4">
-                  Thông tin bãi gửi xe
-                </h3>
-                <div className="space-y-3">
-                  {/* Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tên bãi gửi <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.lotName}
-                      onChange={(e) => setField("lotName", e.target.value)}
-                      className={`input ${errClass("lotName")}`}
-                      placeholder="VD: Bãi xe Tòa nhà Bitexco"
-                    />
-                    <ErrMsg k="lotName" />
-                  </div>
-
-                  {/* Address */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Địa chỉ đầy đủ <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.fullAddress}
-                      onChange={(e) => setField("fullAddress", e.target.value)}
-                      className={`input ${errClass("fullAddress")}`}
-                      placeholder="VD: 2 Hải Triều, Bến Nghé, Quận 1, TP.HCM"
-                    />
-                    <ErrMsg k="fullAddress" />
-                  </div>
-
-                  {/* Capacity */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tổng số chỗ đỗ <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9.]*"
-                      value={formatViThousands(formData.totalCapacity)}
-                      onChange={(e) =>
-                        setNumericField("totalCapacity", e.target.value)
-                      }
-                      className={`input ${errClass("totalCapacity")}`}
-                      placeholder="VD: 20.000"
-                    />
-                    <ErrMsg k="totalCapacity" />
-                  </div>
-
-                  {/* Rates */}
-                  <div className="grid grid-cols-2 gap-4">
+              {currentStep === 1 && (
+                <section className="border-b pb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-5">
+                    Thông tin bãi gửi xe
+                  </h3>
+                  <div className="space-y-5">
+                    {/* Name */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Giá theo giờ <span className="text-red-500">*</span>
+                        Tên bãi gửi <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.lotName}
+                        onChange={(e) => setField("lotName", e.target.value)}
+                        className={`input ${errClass("lotName")}`}
+                        placeholder="VD: Bãi xe Tòa nhà Bitexco"
+                      />
+                      <ErrMsg k="lotName" />
+                    </div>
+
+                    {/* Address */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Địa chỉ đầy đủ <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.fullAddress}
+                        onChange={(e) =>
+                          setField("fullAddress", e.target.value)
+                        }
+                        className={`input ${errClass("fullAddress")}`}
+                        placeholder="VD: 2 Hải Triều, Bến Nghé, Quận 1, TP.HCM"
+                      />
+                      <ErrMsg k="fullAddress" />
+                    </div>
+
+                    {/* Capacity */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tổng số chỗ đỗ <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9.]*"
-                        value={formatViThousands(formData.hourlyRate)}
+                        value={formatViThousands(formData.totalCapacity)}
                         onChange={(e) =>
-                          setNumericField("hourlyRate", e.target.value)
+                          setNumericField("totalCapacity", e.target.value)
                         }
-                        className={`input ${errClass("hourlyRate")}`}
+                        className={`input ${errClass("totalCapacity")}`}
                         placeholder="VD: 20.000"
                       />
-                      <ErrMsg k="hourlyRate" />
+                      <ErrMsg k="totalCapacity" />
                     </div>
-                  </div>
 
-                  {/* 24h toggle */}
-                  <div className="flex items-center space-x-3">
-                    <input
-                      id="is24h"
-                      type="checkbox"
-                      checked={formData.is24h}
-                      onChange={(e) => setField("is24h", e.target.checked)}
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                    />
-                    <label
-                      htmlFor="is24h"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Hoạt động 24/7
-                    </label>
-                  </div>
-
-                  {/* Opening / Closing time */}
-                  {!formData.is24h && (
-                    <div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Giờ mở cửa <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="time"
-                            value={formData.openingTime}
-                            onChange={(e) => {
-                              setField("openingTime", e.target.value);
-                              if (errors.time)
-                                setErrors((p) => {
-                                  const n = { ...p };
-                                  delete n.time;
-                                  return n;
-                                });
-                            }}
-                            className={`input ${errClass("time")}`}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Giờ đóng cửa <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="time"
-                            value={formData.closingTime}
-                            onChange={(e) => {
-                              setField("closingTime", e.target.value);
-                              if (errors.time)
-                                setErrors((p) => {
-                                  const n = { ...p };
-                                  delete n.time;
-                                  return n;
-                                });
-                            }}
-                            className={`input ${errClass("time")}`}
-                          />
-                        </div>
+                    {/* Rates */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Giá theo giờ <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9.]*"
+                          value={formatViThousands(formData.hourlyRate)}
+                          onChange={(e) =>
+                            setNumericField("hourlyRate", e.target.value)
+                          }
+                          className={`input ${errClass("hourlyRate")}`}
+                          placeholder="VD: 20.000"
+                        />
+                        <ErrMsg k="hourlyRate" />
                       </div>
-                      <ErrMsg k="time" />
                     </div>
-                  )}
 
-                  {/* Activation date */}
-                  <DateInputDDMMYYYY
-                    label="Ngày kích hoạt dự kiến"
-                    optionalLabel="(tùy chọn)"
-                    value={formData.scheduledActivationDate}
-                    min={format(new Date(), "yyyy-MM-dd")}
-                    onChange={(v) => setField("scheduledActivationDate", v)}
-                  />
-                </div>
-              </section>
-
-              {/* SECTION 2: Gates & Devices */}
-              <section className="border-b pb-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-900">
-                      Cấu hình cổng & Thiết bị
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Mỗi cổng có thể gắn nhiều thiết bị (Camera, Barie...)
-                    </p>
-                    <ErrMsg k="gatesStructure" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={addGate}
-                    className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 font-medium border border-primary-300 hover:border-primary-500 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Thêm cổng
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {formData.gates.map((gate, gIdx) => {
-                    const isCollapsed = !!collapsed[gate._id];
-                    const compatibleAvailableDevices = availableDevices.filter(
-                      (opt) =>
-                        isDeviceCompatibleWithGateType(opt, gate.gateType),
-                    );
-                    const gateHasErr = Object.keys(errors).some(
-                      (k) =>
-                        k.startsWith(`gate_${gate._id}`) ||
-                        gate.devices.some((d) => k.startsWith(`dev_${d._id}`)),
-                    );
-
-                    return (
-                      <div
-                        key={gate._id}
-                        className={`border rounded-lg bg-gray-50 overflow-hidden ${gateHasErr ? "border-red-300" : "border-gray-200"}`}
+                    {/* 24h toggle */}
+                    <div className="flex items-center space-x-3">
+                      <input
+                        id="is24h"
+                        type="checkbox"
+                        checked={formData.is24h}
+                        onChange={(e) => setField("is24h", e.target.checked)}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <label
+                        htmlFor="is24h"
+                        className="text-sm font-medium text-gray-700"
                       >
-                        {/* Gate header */}
-                        <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-                          <button
-                            type="button"
-                            onClick={() => toggleCollapse(gate._id)}
-                            className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-                          >
-                            {isCollapsed ? (
-                              <ChevronDown className="w-4 h-4 text-gray-400" />
-                            ) : (
-                              <ChevronUp className="w-4 h-4 text-gray-400" />
-                            )}
-                            <span>
-                              Cổng #{gIdx + 1}
-                              {gate.gateName && (
-                                <span className="ml-1.5 font-normal text-gray-400">
-                                  - {gate.gateName}
-                                </span>
-                              )}
-                            </span>
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                              {GATE_TYPE_OPTIONS.find(
-                                (o) => o.value === gate.gateType,
-                              )?.label || gate.gateType}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {gate.devices.length} thiết bị
-                            </span>
-                            {gate._persisted && (
-                              <span
-                                className={`text-[10px] px-2 py-0.5 rounded ${
-                                  gate.isActive !== false
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-gray-200 text-gray-500"
-                                }`}
-                              >
-                                {gate.isActive !== false ? "Hoạt động" : "Tắt"}
-                              </span>
-                            )}
-                          </button>
-                          <div className="flex items-center gap-1">
-                            {gate._persisted && (
-                              <button
-                                type="button"
-                                onClick={() => toggleGateStatus(gate._id)}
-                                disabled={togglingGate === gate._id}
-                                title={
-                                  gate.isActive !== false
-                                    ? "Tắt cổng"
-                                    : "Bật cổng"
-                                }
-                                className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                                  gate.isActive !== false
-                                    ? "text-green-600 hover:bg-green-50 hover:text-green-700"
-                                    : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                                }`}
-                              >
-                                {togglingGate === gate._id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : gate.isActive !== false ? (
-                                  <PowerOff className="w-4 h-4" />
-                                ) : (
-                                  <Power className="w-4 h-4" />
-                                )}
-                              </button>
-                            )}
-                            {(formData.gates.length > 1 || gate._persisted) && (
-                              <button
-                                type="button"
-                                onClick={() => removeGate(gate._id)}
-                                disabled={deletingGate === gate._id}
-                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Xóa cổng"
-                              >
-                                {deletingGate === gate._id ? (
-                                  <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </button>
-                            )}
+                        Hoạt động 24/7
+                      </label>
+                    </div>
+
+                    {/* Opening / Closing time */}
+                    {!formData.is24h && (
+                      <div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Giờ mở cửa <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="time"
+                              value={formData.openingTime}
+                              onChange={(e) => {
+                                setField("openingTime", e.target.value);
+                                if (errors.time)
+                                  setErrors((p) => {
+                                    const n = { ...p };
+                                    delete n.time;
+                                    return n;
+                                  });
+                              }}
+                              className={`input ${errClass("time")}`}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Giờ đóng cửa{" "}
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="time"
+                              value={formData.closingTime}
+                              onChange={(e) => {
+                                setField("closingTime", e.target.value);
+                                if (errors.time)
+                                  setErrors((p) => {
+                                    const n = { ...p };
+                                    delete n.time;
+                                    return n;
+                                  });
+                              }}
+                              className={`input ${errClass("time")}`}
+                            />
                           </div>
                         </div>
+                        <ErrMsg k="time" />
+                      </div>
+                    )}
 
-                        {!isCollapsed && (
-                          <div className="p-4 space-y-4">
-                            {/* Gate name + type */}
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">
-                                  Tên cổng{" "}
-                                  <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={gate.gateName}
-                                  onChange={(e) =>
-                                    updateGate(
-                                      gate._id,
-                                      "gateName",
-                                      e.target.value,
-                                    )
-                                  }
-                                  placeholder="VD: Cổng Vào Tầng Hầm B1"
-                                  className={`input text-sm ${errClass(`gate_${gate._id}_gateName`)}`}
-                                />
-                                <ErrMsg k={`gate_${gate._id}_gateName`} />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">
-                                  Loại cổng
-                                </label>
-                                <select
-                                  value={gate.gateType}
-                                  onChange={(e) =>
-                                    updateGate(
-                                      gate._id,
-                                      "gateType",
-                                      e.target.value,
-                                    )
-                                  }
-                                  className={`input text-sm ${errClass(`gate_${gate._id}_gateType`)}`}
+                    {/* Activation date */}
+                    <DateInputDDMMYYYY
+                      label="Ngày kích hoạt dự kiến"
+                      optionalLabel="(tùy chọn)"
+                      value={formData.scheduledActivationDate}
+                      min={format(new Date(), "yyyy-MM-dd")}
+                      onChange={(v) => setField("scheduledActivationDate", v)}
+                    />
+                  </div>
+                </section>
+              )}
+
+              {currentStep === 2 && (
+                <section className="border-b pb-6">
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Cấu hình cổng & Thiết bị
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Mỗi cổng có thể gắn nhiều thiết bị (Camera, Barie...)
+                      </p>
+                      <ErrMsg k="gatesStructure" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addGate}
+                      className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 font-medium border border-primary-300 hover:border-primary-500 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Thêm cổng
+                    </button>
+                  </div>
+
+                  <div className="space-y-5">
+                    {formData.gates.map((gate, gIdx) => {
+                      const isCollapsed = !!collapsed[gate._id];
+                      const compatibleAvailableDevices =
+                        availableDevices.filter((opt) =>
+                          isDeviceCompatibleWithGateType(opt, gate.gateType),
+                        );
+                      const gateHasErr = Object.keys(errors).some(
+                        (k) =>
+                          k.startsWith(`gate_${gate._id}`) ||
+                          gate.devices.some((d) =>
+                            k.startsWith(`dev_${d._id}`),
+                          ),
+                      );
+
+                      return (
+                        <div
+                          key={gate._id}
+                          className={`border border-gray-200 rounded-lg bg-gray-50 overflow-hidden ${gateHasErr ? "border-l-4 border-l-red-500" : ""}`}
+                        >
+                          {/* Gate header */}
+                          <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
+                            <button
+                              type="button"
+                              onClick={() => toggleCollapse(gate._id)}
+                              className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                            >
+                              {isCollapsed ? (
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <ChevronUp className="w-4 h-4 text-gray-400" />
+                              )}
+                              <span>
+                                Cổng #{gIdx + 1}
+                                {gate.gateName && (
+                                  <span className="ml-1.5 font-normal text-gray-400">
+                                    - {gate.gateName}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                {GATE_TYPE_OPTIONS.find(
+                                  (o) => o.value === gate.gateType,
+                                )?.label || gate.gateType}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {gate.devices.length} thiết bị
+                              </span>
+                              {gate._persisted && (
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded ${
+                                    gate.isActive !== false
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-gray-200 text-gray-500"
+                                  }`}
                                 >
-                                  <option value="" disabled hidden>
-                                    Chọn loại cổng
-                                  </option>
-                                  {GATE_TYPE_OPTIONS.map((o) => (
-                                    <option key={o.value} value={o.value}>
-                                      {o.label}
-                                    </option>
-                                  ))}
-                                </select>
-                                <ErrMsg k={`gate_${gate._id}_gateType`} />
-                              </div>
-                            </div>
-
-                            {/* Devices */}
-                            <div>
-                              <div className="max-h-[55vh] overflow-y-auto pr-1">
-                                <div className="sticky top-0 z-30 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200 mb-3">
-                                  <div className="flex items-center justify-between py-2">
-                                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                                      Thiết bị
-                                    </p>
-                                    <button
-                                      type="button"
-                                      onClick={() => addDevice(gate._id)}
-                                      disabled={isEditMode}
-                                      className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-                                    >
-                                      <Plus className="w-3.5 h-3.5" />
-                                      Thêm thiết bị
-                                    </button>
-                                  </div>
-                                  {isEditMode && (
-                                    <p className="text-[11px] text-gray-400 pb-2">
-                                      Chế độ chỉnh sửa: chỉ cho xem và xóa thiết
-                                      bị.
-                                    </p>
+                                  {gate.isActive !== false
+                                    ? "Hoạt động"
+                                    : "Tắt"}
+                                </span>
+                              )}
+                            </button>
+                            <div className="flex items-center gap-1">
+                              {gate._persisted && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleGateStatus(gate._id)}
+                                  disabled={togglingGate === gate._id}
+                                  title={
+                                    gate.isActive !== false
+                                      ? "Tắt cổng"
+                                      : "Bật cổng"
+                                  }
+                                  className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    gate.isActive !== false
+                                      ? "text-green-600 hover:bg-green-50 hover:text-green-700"
+                                      : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                                  }`}
+                                >
+                                  {togglingGate === gate._id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : gate.isActive !== false ? (
+                                    <PowerOff className="w-4 h-4" />
+                                  ) : (
+                                    <Power className="w-4 h-4" />
                                   )}
-                                  <ErrMsg k={`gate_${gate._id}_devicesCount`} />
+                                </button>
+                              )}
+                              {(formData.gates.length > 1 ||
+                                gate._persisted) && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeGate(gate._id)}
+                                  disabled={deletingGate === gate._id}
+                                  className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Xóa cổng"
+                                >
+                                  {deletingGate === gate._id ? (
+                                    <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-4 h-4" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {!isCollapsed && (
+                            <div className="p-5 space-y-5">
+                              {/* Gate name + type */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    Tên cổng{" "}
+                                    <span className="text-red-500">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={gate.gateName}
+                                    onChange={(e) =>
+                                      updateGate(
+                                        gate._id,
+                                        "gateName",
+                                        e.target.value,
+                                      )
+                                    }
+                                    placeholder="VD: Cổng Vào Tầng Hầm B1"
+                                    className={`input text-sm ${errClass(`gate_${gate._id}_gateName`)}`}
+                                  />
+                                  <ErrMsg k={`gate_${gate._id}_gateName`} />
                                 </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    Loại cổng
+                                  </label>
+                                  <select
+                                    value={gate.gateType}
+                                    onChange={(e) =>
+                                      updateGate(
+                                        gate._id,
+                                        "gateType",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={`input text-sm ${errClass(`gate_${gate._id}_gateType`)}`}
+                                  >
+                                    <option value="" disabled hidden>
+                                      Chọn loại cổng
+                                    </option>
+                                    {GATE_TYPE_OPTIONS.map((o) => (
+                                      <option key={o.value} value={o.value}>
+                                        {o.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ErrMsg k={`gate_${gate._id}_gateType`} />
+                                </div>
+                              </div>
 
-                                <div className="space-y-3 pb-1">
-                                  {gate.devices.map((dev, dIdx) => {
-                                    const canPickExisting =
-                                      !isEditMode && !dev._persisted;
-                                    const lockedByExisting =
-                                      isEditMode ||
-                                      (canPickExisting &&
-                                        !!dev.existingDeviceId);
-                                    const isDeviceCollapsed =
-                                      !!collapsedDevices[dev._id];
-                                    const selectedDeviceType =
-                                      normalizeDeviceType(dev.deviceType);
-                                    const typeFilteredAvailableDevices =
-                                      compatibleAvailableDevices.filter(
-                                        (opt) => {
-                                          if (!selectedDeviceType) return true;
-                                          return (
-                                            normalizeDeviceType(
-                                              opt.deviceType,
-                                            ) === selectedDeviceType
-                                          );
-                                        },
-                                      );
-
-                                    return (
-                                      <div
-                                        key={dev._id}
-                                        className={`border border-gray-200 rounded-lg bg-white ${
-                                          isDeviceCollapsed ? "p-2" : "p-3"
-                                        }`}
+                              {/* Devices */}
+                              <div>
+                                <div className="max-h-[55vh] overflow-y-auto pr-1">
+                                  <div className="sticky top-0 z-30 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200 mb-3">
+                                    <div className="flex items-center justify-between py-2">
+                                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                        Thiết bị
+                                      </p>
+                                      <button
+                                        type="button"
+                                        onClick={() => addDevice(gate._id)}
+                                        disabled={isEditMode}
+                                        className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                                       >
-                                        {/* Device row header */}
+                                        <Plus className="w-3.5 h-3.5" />
+                                        Thêm thiết bị
+                                      </button>
+                                    </div>
+                                    {isEditMode && (
+                                      <p className="text-[11px] text-gray-400 pb-2">
+                                        Chế độ chỉnh sửa: chỉ cho xem và xóa
+                                        thiết bị.
+                                      </p>
+                                    )}
+                                    <ErrMsg
+                                      k={`gate_${gate._id}_devicesCount`}
+                                    />
+                                  </div>
+
+                                  <div className="space-y-4 pb-1">
+                                    {gate.devices.map((dev, dIdx) => {
+                                      const canPickExisting =
+                                        !isEditMode && !dev._persisted;
+                                      const lockedByExisting =
+                                        isEditMode ||
+                                        (canPickExisting &&
+                                          !!dev.existingDeviceId);
+                                      const isDeviceCollapsed =
+                                        !!collapsedDevices[dev._id];
+                                      const selectedDeviceType =
+                                        normalizeDeviceType(dev.deviceType);
+                                      const typeFilteredAvailableDevices =
+                                        compatibleAvailableDevices.filter(
+                                          (opt) => {
+                                            if (!selectedDeviceType)
+                                              return true;
+                                            return (
+                                              normalizeDeviceType(
+                                                opt.deviceType,
+                                              ) === selectedDeviceType
+                                            );
+                                          },
+                                        );
+
+                                      return (
                                         <div
-                                          className={`flex items-center justify-between ${
-                                            isDeviceCollapsed ? "mb-0" : "mb-3"
+                                          key={dev._id}
+                                          className={`border border-gray-200 rounded-lg bg-white ${
+                                            isDeviceCollapsed ? "p-2" : "p-3"
                                           }`}
                                         >
-                                          <span className="text-xs font-medium text-gray-500">
-                                            Thiết bị #{dIdx + 1}
-                                            {dev.deviceName && (
-                                              <span className="ml-1.5 text-gray-400 font-normal">
-                                                - {dev.deviceName}
-                                              </span>
-                                            )}
-                                          </span>
-                                          <div className="flex items-center gap-2">
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                toggleDeviceCollapse(dev._id)
-                                              }
-                                              className="p-0.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                                              title={
-                                                isDeviceCollapsed
-                                                  ? "Mở rộng thiết bị"
-                                                  : "Thu gọn thiết bị"
-                                              }
-                                            >
-                                              {isDeviceCollapsed ? (
-                                                <ChevronDown className="w-3.5 h-3.5" />
-                                              ) : (
-                                                <ChevronUp className="w-3.5 h-3.5" />
+                                          {/* Device row header */}
+                                          <div
+                                            className={`flex items-center justify-between ${
+                                              isDeviceCollapsed
+                                                ? "mb-0"
+                                                : "mb-3"
+                                            }`}
+                                          >
+                                            <span className="text-xs font-medium text-gray-500">
+                                              Thiết bị #{dIdx + 1}
+                                              {dev.deviceName && (
+                                                <span className="ml-1.5 text-gray-400 font-normal">
+                                                  - {dev.deviceName}
+                                                </span>
                                               )}
-                                            </button>
-                                            <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">
-                                              {DEVICE_TYPE_LABEL[
-                                                dev.deviceType
-                                              ] || dev.deviceType}
                                             </span>
-                                            {gate.devices.length > 1 && (
+                                            <div className="flex items-center gap-2">
                                               <button
                                                 type="button"
                                                 onClick={() =>
-                                                  removeDevice(
-                                                    gate._id,
-                                                    dev._id,
-                                                  )
+                                                  toggleDeviceCollapse(dev._id)
                                                 }
-                                                className="p-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                title="Xóa thiết bị"
+                                                className="p-0.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                                                title={
+                                                  isDeviceCollapsed
+                                                    ? "Mở rộng thiết bị"
+                                                    : "Thu gọn thiết bị"
+                                                }
                                               >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </button>
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        {!isDeviceCollapsed && (
-                                          <>
-                                            {canPickExisting && (
-                                              <div className="mb-3">
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                  Dùng thiết bị có sẵn
-                                                  <span className="ml-1 text-gray-400 font-normal">
-                                                    (tùy chọn)
-                                                  </span>
-                                                </label>
-                                                <select
-                                                  value={
-                                                    dev.existingDeviceId || ""
-                                                  }
-                                                  onChange={(e) =>
-                                                    handleExistingDeviceChange(
-                                                      gate._id,
-                                                      dev._id,
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  className={`input text-xs ${errClass(`dev_${dev._id}_existingDeviceId`)}`}
-                                                >
-                                                  <option value="">
-                                                    Tạo thiết bị mới
-                                                  </option>
-                                                  {typeFilteredAvailableDevices.map(
-                                                    (opt) => (
-                                                      <option
-                                                        key={opt.id}
-                                                        value={opt.id}
-                                                        disabled={isExistingDeviceSelectedElsewhere(
-                                                          opt.id,
-                                                          dev._id,
-                                                        )}
-                                                      >
-                                                        {opt.label}
-                                                      </option>
-                                                    ),
-                                                  )}
-                                                </select>
-                                                <ErrMsg
-                                                  k={`dev_${dev._id}_existingDeviceId`}
-                                                />
-                                                {loadingAvailableDevices ? (
-                                                  <p className="text-[11px] text-gray-400 mt-1">
-                                                    Đang tải danh sách thiết bị
-                                                    có sẵn...
-                                                  </p>
-                                                ) : deviceSelectorFallback ? (
-                                                  <p className="text-[11px] text-amber-600 mt-1">
-                                                    Không xác định được trạng
-                                                    thái gán từ API, đang hiển
-                                                    thị toàn bộ thiết bị để bạn
-                                                    chọn.
-                                                  </p>
+                                                {isDeviceCollapsed ? (
+                                                  <ChevronDown className="w-3.5 h-3.5" />
                                                 ) : (
-                                                  <p className="text-[11px] text-gray-400 mt-1">
-                                                    {!selectedDeviceType
-                                                      ? "Chọn loại thiết bị để lọc danh sách thiết bị có sẵn."
-                                                      : typeFilteredAvailableDevices.length >
-                                                          0
-                                                        ? "Chọn thiết bị có sẵn đúng loại để gán vào cổng, hoặc để trống để tạo mới."
-                                                        : gate.gateType
-                                                          ? "Không có thiết bị phù hợp với loại cổng đã chọn."
-                                                          : "Hiện chưa có thiết bị chưa gán trong hệ thống."}
-                                                  </p>
+                                                  <ChevronUp className="w-3.5 h-3.5" />
                                                 )}
-                                              </div>
-                                            )}
-
-                                            {/* Device fields — row 1 */}
-                                            <div className="grid grid-cols-3 gap-2 mb-2">
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                  Loại thiết bị
-                                                </label>
-                                                <select
-                                                  value={dev.deviceType}
-                                                  onChange={(e) =>
-                                                    updateDevice(
+                                              </button>
+                                              <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">
+                                                {DEVICE_TYPE_LABEL[
+                                                  dev.deviceType
+                                                ] || dev.deviceType}
+                                              </span>
+                                              {gate.devices.length > 1 && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    removeDevice(
                                                       gate._id,
                                                       dev._id,
-                                                      "deviceType",
-                                                      e.target.value,
                                                     )
                                                   }
-                                                  disabled={isEditMode}
-                                                  className={`input text-xs ${errClass(`dev_${dev._id}_deviceType`)}`}
+                                                  className="p-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                  title="Xóa thiết bị"
                                                 >
-                                                  <option
-                                                    value=""
-                                                    disabled
-                                                    hidden
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {!isDeviceCollapsed && (
+                                            <>
+                                              {canPickExisting && (
+                                                <div className="mb-3">
+                                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                    Dùng thiết bị có sẵn
+                                                    <span className="ml-1 text-gray-400 font-normal">
+                                                      (tùy chọn)
+                                                    </span>
+                                                  </label>
+                                                  <select
+                                                    value={
+                                                      dev.existingDeviceId || ""
+                                                    }
+                                                    onChange={(e) =>
+                                                      handleExistingDeviceChange(
+                                                        gate._id,
+                                                        dev._id,
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    className={`input text-xs ${errClass(`dev_${dev._id}_existingDeviceId`)}`}
                                                   >
-                                                    Chọn loại thiết bị
-                                                  </option>
-                                                  {DEVICE_TYPE_OPTIONS.map(
-                                                    (o) => (
-                                                      <option
-                                                        key={o.value}
-                                                        value={o.value}
-                                                      >
-                                                        {o.label}
-                                                      </option>
-                                                    ),
+                                                    <option value="">
+                                                      Tạo thiết bị mới
+                                                    </option>
+                                                    {typeFilteredAvailableDevices.map(
+                                                      (opt) => (
+                                                        <option
+                                                          key={opt.id}
+                                                          value={opt.id}
+                                                          disabled={isExistingDeviceSelectedElsewhere(
+                                                            opt.id,
+                                                            dev._id,
+                                                          )}
+                                                        >
+                                                          {opt.label}
+                                                        </option>
+                                                      ),
+                                                    )}
+                                                  </select>
+                                                  <ErrMsg
+                                                    k={`dev_${dev._id}_existingDeviceId`}
+                                                  />
+                                                  {loadingAvailableDevices ? (
+                                                    <p className="text-[11px] text-gray-400 mt-1">
+                                                      Đang tải danh sách thiết
+                                                      bị có sẵn...
+                                                    </p>
+                                                  ) : deviceSelectorFallback ? (
+                                                    <p className="text-[11px] text-amber-600 mt-1">
+                                                      Không xác định được trạng
+                                                      thái gán từ API, đang hiển
+                                                      thị toàn bộ thiết bị để
+                                                      bạn chọn.
+                                                    </p>
+                                                  ) : (
+                                                    <p className="text-[11px] text-gray-400 mt-1">
+                                                      {!selectedDeviceType
+                                                        ? "Chọn loại thiết bị để lọc danh sách thiết bị có sẵn."
+                                                        : typeFilteredAvailableDevices.length >
+                                                            0
+                                                          ? "Chọn thiết bị có sẵn đúng loại để gán vào cổng, hoặc để trống để tạo mới."
+                                                          : gate.gateType
+                                                            ? "Không có thiết bị phù hợp với loại cổng đã chọn."
+                                                            : "Hiện chưa có thiết bị chưa gán trong hệ thống."}
+                                                    </p>
                                                   )}
-                                                </select>
-                                                <ErrMsg
-                                                  k={`dev_${dev._id}_deviceType`}
-                                                />
-                                              </div>
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                  Mã thiết bị
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={dev.deviceCode}
-                                                  onChange={(e) =>
-                                                    updateDevice(
-                                                      gate._id,
-                                                      dev._id,
-                                                      "deviceCode",
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  disabled={lockedByExisting}
-                                                  placeholder="VD: CAM-IN-B1"
-                                                  className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_deviceCode`)}`}
-                                                />
-                                                <ErrMsg
-                                                  k={`dev_${dev._id}_deviceCode`}
-                                                />
-                                              </div>
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                  Tên thiết bị
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={dev.deviceName}
-                                                  onChange={(e) =>
-                                                    updateDevice(
-                                                      gate._id,
-                                                      dev._id,
-                                                      "deviceName",
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  disabled={lockedByExisting}
-                                                  placeholder="VD: Camera Cổng Vào"
-                                                  className="input text-xs disabled:bg-gray-100 disabled:text-gray-500"
-                                                />
-                                              </div>
-                                            </div>
+                                                </div>
+                                              )}
 
-                                            {/* Device fields — row 2 */}
-                                            <div className="grid grid-cols-2 gap-2 mb-2">
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                  Model{" "}
-                                                  {!lockedByExisting && (
-                                                    <span className="text-red-500">
-                                                      *
-                                                    </span>
-                                                  )}
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={dev.model}
-                                                  onChange={(e) =>
-                                                    updateDevice(
-                                                      gate._id,
-                                                      dev._id,
-                                                      "model",
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  disabled={lockedByExisting}
-                                                  placeholder="VD: Hikvision DS-2CD4A26"
-                                                  className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_model`)}`}
-                                                />
-                                                <ErrMsg
-                                                  k={`dev_${dev._id}_model`}
-                                                />
+                                              {/* Device fields — row 1 */}
+                                              <div className="grid grid-cols-3 gap-3 mb-3">
+                                                <div>
+                                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                    Loại thiết bị
+                                                  </label>
+                                                  <select
+                                                    value={dev.deviceType}
+                                                    onChange={(e) =>
+                                                      updateDevice(
+                                                        gate._id,
+                                                        dev._id,
+                                                        "deviceType",
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    disabled={isEditMode}
+                                                    className={`input text-xs ${errClass(`dev_${dev._id}_deviceType`)}`}
+                                                  >
+                                                    <option
+                                                      value=""
+                                                      disabled
+                                                      hidden
+                                                    >
+                                                      Chọn loại thiết bị
+                                                    </option>
+                                                    {DEVICE_TYPE_OPTIONS.map(
+                                                      (o) => (
+                                                        <option
+                                                          key={o.value}
+                                                          value={o.value}
+                                                        >
+                                                          {o.label}
+                                                        </option>
+                                                      ),
+                                                    )}
+                                                  </select>
+                                                  <ErrMsg
+                                                    k={`dev_${dev._id}_deviceType`}
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                    Mã thiết bị
+                                                  </label>
+                                                  <input
+                                                    type="text"
+                                                    value={dev.deviceCode}
+                                                    onChange={(e) =>
+                                                      updateDevice(
+                                                        gate._id,
+                                                        dev._id,
+                                                        "deviceCode",
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    disabled={lockedByExisting}
+                                                    placeholder="VD: CAM-IN-B1"
+                                                    className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_deviceCode`)}`}
+                                                  />
+                                                  <ErrMsg
+                                                    k={`dev_${dev._id}_deviceCode`}
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                    Tên thiết bị
+                                                  </label>
+                                                  <input
+                                                    type="text"
+                                                    value={dev.deviceName}
+                                                    onChange={(e) =>
+                                                      updateDevice(
+                                                        gate._id,
+                                                        dev._id,
+                                                        "deviceName",
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    disabled={lockedByExisting}
+                                                    placeholder="VD: Camera Cổng Vào"
+                                                    className="input text-xs disabled:bg-gray-100 disabled:text-gray-500"
+                                                  />
+                                                </div>
                                               </div>
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                  IP Address{" "}
-                                                  {!lockedByExisting && (
-                                                    <span className="text-red-500">
-                                                      *
-                                                    </span>
-                                                  )}
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={dev.ipAddress}
-                                                  onChange={(e) =>
-                                                    updateDevice(
-                                                      gate._id,
-                                                      dev._id,
-                                                      "ipAddress",
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  disabled={lockedByExisting}
-                                                  placeholder="VD: 192.168.10.50"
-                                                  className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_ipAddress`)}`}
-                                                />
-                                                <ErrMsg
-                                                  k={`dev_${dev._id}_ipAddress`}
-                                                />
-                                              </div>
-                                            </div>
 
-                                            {/* Device fields — row 3 */}
-                                            <div className="grid grid-cols-2 gap-2">
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                  MAC Address
-                                                  <span className="ml-1 text-gray-400 font-normal">
-                                                    (tùy chọn)
-                                                  </span>
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={dev.macAddress}
-                                                  onChange={(e) =>
-                                                    updateDevice(
-                                                      gate._id,
-                                                      dev._id,
-                                                      "macAddress",
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  disabled={lockedByExisting}
-                                                  placeholder="VD: A1:B2:C3:D4:E5:F6"
-                                                  className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_macAddress`)}`}
-                                                />
-                                                <ErrMsg
-                                                  k={`dev_${dev._id}_macAddress`}
-                                                />
+                                              {/* Device fields — row 2 */}
+                                              <div className="grid grid-cols-2 gap-3 mb-3">
+                                                <div>
+                                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                    Model{" "}
+                                                    {!lockedByExisting && (
+                                                      <span className="text-red-500">
+                                                        *
+                                                      </span>
+                                                    )}
+                                                  </label>
+                                                  <input
+                                                    type="text"
+                                                    value={dev.model}
+                                                    onChange={(e) =>
+                                                      updateDevice(
+                                                        gate._id,
+                                                        dev._id,
+                                                        "model",
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    disabled={lockedByExisting}
+                                                    placeholder="VD: Hikvision DS-2CD4A26"
+                                                    className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_model`)}`}
+                                                  />
+                                                  <ErrMsg
+                                                    k={`dev_${dev._id}_model`}
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                    IP Address{" "}
+                                                    {!lockedByExisting && (
+                                                      <span className="text-red-500">
+                                                        *
+                                                      </span>
+                                                    )}
+                                                  </label>
+                                                  <input
+                                                    type="text"
+                                                    value={dev.ipAddress}
+                                                    onChange={(e) =>
+                                                      updateDevice(
+                                                        gate._id,
+                                                        dev._id,
+                                                        "ipAddress",
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    disabled={lockedByExisting}
+                                                    placeholder="VD: 192.168.10.50"
+                                                    className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_ipAddress`)}`}
+                                                  />
+                                                  <ErrMsg
+                                                    k={`dev_${dev._id}_ipAddress`}
+                                                  />
+                                                </div>
                                               </div>
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                  Phiên bản firmware
-                                                  <span className="ml-1 text-gray-400 font-normal">
-                                                    (tùy chọn)
-                                                  </span>
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={dev.firmwareVersion}
-                                                  onChange={(e) =>
-                                                    updateDevice(
-                                                      gate._id,
-                                                      dev._id,
-                                                      "firmwareVersion",
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  disabled={lockedByExisting}
-                                                  placeholder="VD: V5.5.82"
-                                                  className="input text-xs disabled:bg-gray-100 disabled:text-gray-500"
-                                                />
+
+                                              {/* Device fields — row 3 */}
+                                              <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                    MAC Address
+                                                    <span className="ml-1 text-gray-400 font-normal">
+                                                      (tùy chọn)
+                                                    </span>
+                                                  </label>
+                                                  <input
+                                                    type="text"
+                                                    value={dev.macAddress}
+                                                    onChange={(e) =>
+                                                      updateDevice(
+                                                        gate._id,
+                                                        dev._id,
+                                                        "macAddress",
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    disabled={lockedByExisting}
+                                                    placeholder="VD: A1:B2:C3:D4:E5:F6"
+                                                    className={`input text-xs disabled:bg-gray-100 disabled:text-gray-500 ${errClass(`dev_${dev._id}_macAddress`)}`}
+                                                  />
+                                                  <ErrMsg
+                                                    k={`dev_${dev._id}_macAddress`}
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                    Phiên bản firmware
+                                                    <span className="ml-1 text-gray-400 font-normal">
+                                                      (tùy chọn)
+                                                    </span>
+                                                  </label>
+                                                  <input
+                                                    type="text"
+                                                    value={dev.firmwareVersion}
+                                                    onChange={(e) =>
+                                                      updateDevice(
+                                                        gate._id,
+                                                        dev._id,
+                                                        "firmwareVersion",
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    disabled={lockedByExisting}
+                                                    placeholder="VD: V5.5.82"
+                                                    className="input text-xs disabled:bg-gray-100 disabled:text-gray-500"
+                                                  />
+                                                </div>
                                               </div>
-                                            </div>
-                                          </>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                            </>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
 
-              {/* ══ SECTION 3: AI config ══ */}
-              <section>
-                <h3 className="text-base font-semibold text-gray-900 mb-4">
-                  Cấu hình AI
-                </h3>
-                {!hasConfiguredCamera && (
-                  <p className="text-xs text-amber-700 mb-3">
-                    Cần setup ít nhất 1 camera đã cấu hình (chọn thiết bị có sẵn
-                    hoặc nhập mới) để bật chỉnh ngưỡng AI.
-                  </p>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Ngưỡng nhận diện biển số
-                        <span className="text-red-500"> *</span>
-                      </label>
-                      <span className="text-sm font-semibold text-primary-600 tabular-nums">
-                        {formData.licensePlateThreshold || "70"}%
-                      </span>
+              {currentStep === 3 && (
+                <section>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-5">
+                    Cấu hình AI
+                  </h3>
+                  {!hasConfiguredCamera && (
+                    <p className="text-xs text-amber-700 mb-3">
+                      Cần setup ít nhất 1 camera đã cấu hình (chọn thiết bị có
+                      sẵn hoặc nhập mới) để bật chỉnh ngưỡng AI.
+                    </p>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Ngưỡng nhận diện biển số
+                          <span className="text-red-500"> *</span>
+                        </label>
+                        <span className="text-sm font-semibold text-primary-600 tabular-nums">
+                          {formData.licensePlateThreshold || "70"}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        disabled={!hasConfiguredCamera}
+                        value={
+                          formData.licensePlateThreshold === ""
+                            ? 70
+                            : Math.max(
+                                70,
+                                Number(formData.licensePlateThreshold) || 70,
+                              )
+                        }
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          if (v >= 70)
+                            setField("licensePlateThreshold", e.target.value);
+                        }}
+                        className={`w-full h-2.5 accent-primary-600 rounded-lg appearance-none bg-gray-200 ${!hasConfiguredCamera ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${errClass("licensePlateThreshold")}`}
+                      />
+                      <ErrMsg k="licensePlateThreshold" />
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      disabled={!hasConfiguredCamera}
-                      value={
-                        formData.licensePlateThreshold === ""
-                          ? 70
-                          : Math.max(
-                              70,
-                              Number(formData.licensePlateThreshold) || 70,
-                            )
-                      }
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        if (v >= 70)
-                          setField("licensePlateThreshold", e.target.value);
-                      }}
-                      className={`w-full h-2.5 accent-primary-600 rounded-lg appearance-none bg-gray-200 ${!hasConfiguredCamera ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${errClass("licensePlateThreshold")}`}
-                    />
-                    <ErrMsg k="licensePlateThreshold" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Ngưỡng nhận diện khuôn mặt
-                        <span className="text-red-500"> *</span>
-                      </label>
-                      <span className="text-sm font-semibold text-primary-600 tabular-nums">
-                        {formData.faceRecognitionThreshold || "70"}%
-                      </span>
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Ngưỡng nhận diện khuôn mặt
+                          <span className="text-red-500"> *</span>
+                        </label>
+                        <span className="text-sm font-semibold text-primary-600 tabular-nums">
+                          {formData.faceRecognitionThreshold || "70"}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        disabled={!hasConfiguredCamera}
+                        value={
+                          formData.faceRecognitionThreshold === ""
+                            ? 70
+                            : Math.max(
+                                70,
+                                Number(formData.faceRecognitionThreshold) || 70,
+                              )
+                        }
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          if (v >= 70)
+                            setField(
+                              "faceRecognitionThreshold",
+                              e.target.value,
+                            );
+                        }}
+                        className={`w-full h-2.5 accent-primary-600 rounded-lg appearance-none bg-gray-200 ${!hasConfiguredCamera ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${errClass("faceRecognitionThreshold")}`}
+                      />
+                      <ErrMsg k="faceRecognitionThreshold" />
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      disabled={!hasConfiguredCamera}
-                      value={
-                        formData.faceRecognitionThreshold === ""
-                          ? 70
-                          : Math.max(
-                              70,
-                              Number(formData.faceRecognitionThreshold) || 70,
-                            )
-                      }
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        if (v >= 70)
-                          setField("faceRecognitionThreshold", e.target.value);
-                      }}
-                      className={`w-full h-2.5 accent-primary-600 rounded-lg appearance-none bg-gray-200 ${!hasConfiguredCamera ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${errClass("faceRecognitionThreshold")}`}
-                    />
-                    <ErrMsg k="faceRecognitionThreshold" />
                   </div>
-                </div>
-              </section>
+                </section>
+              )}
             </div>
 
             {/* Sticky footer - ghim cố định cạnh dưới modal */}
             <div className="flex-shrink-0 p-6 pt-4 border-t border-gray-200 bg-white">
-              <div className="flex items-center justify-end gap-3">
-                {!lot && (
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  {!isFirstStep && (
+                    <button
+                      type="button"
+                      onClick={goPrevStep}
+                      className="btn btn-secondary"
+                      disabled={submitting}
+                    >
+                      Quay lại
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {!lot && isFirstStep && (
+                    <button
+                      type="button"
+                      onClick={handleAutoFill}
+                      className="btn btn-secondary text-primary-600 hover:text-primary-700 border-primary-200 hover:border-primary-300"
+                      disabled={submitting}
+                      title="Điền dữ liệu mẫu để demo nhanh"
+                    >
+                      Auto fill
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={handleAutoFill}
-                    className="btn btn-secondary text-primary-600 hover:text-primary-700 border-primary-200 hover:border-primary-300"
+                    onClick={onClose}
+                    className="btn btn-secondary"
                     disabled={submitting}
-                    title="Điền dữ liệu mẫu để demo nhanh"
                   >
-                    Auto fill
+                    Hủy
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="btn btn-secondary"
-                  disabled={submitting}
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <span className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>{lot ? "Đang cập nhật..." : "Đang thêm..."}</span>
-                    </span>
+
+                  {!isLastStep ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="btn btn-primary"
+                      disabled={submitting}
+                    >
+                      Tiếp theo
+                    </button>
                   ) : (
-                    <span>{lot ? "Cập nhật" : "Thêm mới"}</span>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={submitting}
+                    >
+                      {submitting ? (
+                        <span className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>
+                            {lot ? "Đang cập nhật..." : "Đang thêm..."}
+                          </span>
+                        </span>
+                      ) : (
+                        <span>{lot ? "Cập nhật" : "Thêm mới"}</span>
+                      )}
+                    </button>
                   )}
-                </button>
+                </div>
               </div>
             </div>
           </form>

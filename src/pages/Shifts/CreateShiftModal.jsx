@@ -48,9 +48,9 @@ const SHIFT_PRESETS = [
     label: "Cả ngày",
     startTime: "07:00",
     endTime: "19:00",
-    bg: "bg-emerald-50 border-emerald-200 text-emerald-700",
-    activeBg: "bg-emerald-500 border-emerald-500 text-white",
-    dot: "bg-emerald-500",
+    bg: "bg-green-50 border-green-200 text-green-700",
+    activeBg: "bg-green-500 border-green-500 text-white",
+    dot: "bg-green-500",
   },
 ];
 
@@ -66,7 +66,7 @@ const DAYS_OF_WEEK = [
 
 const AVATAR_COLORS = [
   "bg-blue-500",
-  "bg-emerald-500",
+  "bg-green-500",
   "bg-violet-500",
   "bg-amber-500",
   "bg-rose-500",
@@ -865,7 +865,7 @@ function CreateShiftModal({
               <div
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
                   lotOperatingHours.is24h
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                    ? "bg-green-50 text-green-700 border border-green-100"
                     : "bg-slate-50 text-slate-700 border border-slate-100"
                 }`}
               >
