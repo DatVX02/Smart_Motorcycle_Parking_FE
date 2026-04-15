@@ -154,7 +154,7 @@ const getConnStatus = (raw) => {
   const key = String(raw ?? "").toUpperCase();
   return (
     CONN_STATUS[key] ?? {
-      label: raw || "—",
+      label: raw || "",
       color: "bg-gray-100 text-gray-600",
       icon: Wifi,
     }
@@ -165,7 +165,7 @@ const getDeviceType = (raw) => {
   const key = normalizeDeviceType(raw);
   return (
     DEVICE_TYPE[key] ?? {
-      label: raw || "—",
+      label: raw || "",
       color: "bg-gray-100 text-gray-600",
       icon: Cpu,
     }

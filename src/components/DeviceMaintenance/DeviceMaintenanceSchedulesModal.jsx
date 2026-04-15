@@ -21,7 +21,7 @@ function segmentColorForStatus(effective) {
 
 /** Xuống dòng theo độ dài (ưu tiên cắt tại dấu cách), không dùng dấu … */
 function wrapMaintenanceTypeLines(text, maxCharsPerLine) {
-  if (!text?.trim()) return ["—"];
+  if (!text?.trim()) return [""];
   const s = String(text).trim();
   const lines = [];
   let remaining = s;
@@ -119,7 +119,7 @@ function MaintenanceTimelineHorizontal({
                         {item.nextMaintenanceDate &&
                         !String(item.nextMaintenanceDate).startsWith("0001")
                           ? formatDate(item.nextMaintenanceDate)
-                          : "—"}
+                          : ""}
                       </span>
                     </p>
 
@@ -289,7 +289,7 @@ export default function DeviceMaintenanceSchedulesModal({
               Lịch bảo trì thiết bị
             </h2>
             <p className="text-sm font-medium text-gray-800 mt-1 truncate">
-              {group.deviceName || "—"}
+              {group.deviceName || ""}
             </p>
             <p className="text-xs text-gray-500">{group.deviceCode}</p>
             <p className="text-xs text-gray-400 italic mt-0.5">
@@ -432,7 +432,7 @@ export default function DeviceMaintenanceSchedulesModal({
                     </span>
                   </div>
                   <p className="text-sm font-medium text-gray-900">
-                    {item.maintenanceType || "—"}
+                    {item.maintenanceType || ""}
                   </p>
                   {item.description && (
                     <p className="text-xs text-gray-600 mt-1 line-clamp-2">

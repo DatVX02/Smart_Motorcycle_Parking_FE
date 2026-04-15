@@ -153,12 +153,12 @@ const STATUS_FILTER_OPTIONS = [
 
 /* Helpers */
 function formatCurrency(amount) {
-  if (amount == null || amount === "") return "-";
+  if (amount == null || amount === "") return "";
   return `${Number(amount).toLocaleString("vi-VN")} VNĐ`;
 }
 
 function formatDateTimeInVietnam(value) {
-  if (!value) return "-";
+  if (!value) return "";
 
   const raw = String(value).trim();
   const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
@@ -217,7 +217,7 @@ function formatCompletedDateTime(value) {
   return formatBackendDateTime(value);
 }
 
-function formatTargetTypeLabel(type, empty = "—") {
+function formatTargetTypeLabel(type, empty = "") {
   if (!type) return empty;
   const normalized = String(type).trim().toLowerCase();
   if (["parking-session", "parkingsession"].includes(normalized)) {
@@ -233,7 +233,7 @@ function formatTargetTypeLabel(type, empty = "—") {
   return String(type);
 }
 
-// function formatCompositionLabel(value, empty = "—") {
+// function formatCompositionLabel(value, empty = "") {
 //   if (!value) return empty;
 //   const normalized = String(value).trim().toLowerCase();
 //   if (normalized === "single") return "Thanh toán đơn";
@@ -260,7 +260,7 @@ function normalizeTargetTypeParam(type) {
 }
 
 /** Làm sạch mô tả component: bỏ phần ID tiền tố và Việt hóa loại giao dịch. */
-function formatComponentDescription(value, empty = "-") {
+function formatComponentDescription(value, empty = "") {
   if (value == null || value === "") return empty;
 
   const raw = String(value).trim();
@@ -300,7 +300,7 @@ function formatComponentDescription(value, empty = "-") {
 }
 
 /** Hiển thị phương thức thanh toán (API có thể trả mã tiếng Anh). */
-function formatPaymentMethodLabel(method, empty = "—") {
+function formatPaymentMethodLabel(method, empty = "") {
   if (method == null || method === "") return empty;
   const s = String(method).trim();
   const normalized = s.toLowerCase().replace(/[\s_-]+/g, "");
@@ -452,7 +452,7 @@ function getTargetIdValue(item) {
 }
 
 function getTargetDisplay(item) {
-  if (!item || typeof item !== "object") return "—";
+  if (!item || typeof item !== "object") return "";
   return (
     pickFirst(
       item.licensePlate,
@@ -460,7 +460,7 @@ function getTargetDisplay(item) {
       item.vehiclePlate,
       item.plate,
       item.targetLabel,
-    ) ?? "—"
+    ) ?? ""
   );
 }
 
@@ -532,7 +532,7 @@ function getSignedAmountMeta(amount) {
     : 0;
   const baseText = formatCurrency(safeAmount);
 
-  if (baseText === "-" || safeAmount === 0) {
+  if (baseText === "" || safeAmount === 0) {
     return { text: baseText, cls: "" };
   }
 
@@ -562,7 +562,7 @@ function getSignedComponentCashAmount(component, targetType) {
 
 function getComponentAmountMeta(component, targetType) {
   if (!component || typeof component !== "object") {
-    return { text: "-", cls: "" };
+    return { text: "", cls: "" };
   }
 
   const amount = Math.abs(getCashAmount(component));
@@ -630,7 +630,7 @@ function getPointsUsed(item) {
 
 function StatusBadge({ tx }) {
   const info = getStatusInfo(tx);
-  if (!info) return <span className="text-gray-400 text-xs">—</span>;
+  if (!info) return <span className="text-gray-400 text-xs"></span>;
   return (
     <span
       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${info.cls}`}
@@ -756,11 +756,11 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
         ["Biển số thanh toán", getTargetDisplay(detail)],
         [
           "Hình thức",
-          formatTargetTypeLabel(detail.targetType ?? targetType, "-"),
+          formatTargetTypeLabel(detail.targetType ?? targetType, ""),
         ],
         // [
         //   "Loại thanh toán",
-        //   formatCompositionLabel(detail.paymentComposition, "-"),
+        //   formatCompositionLabel(detail.paymentComposition, ""),
         // ],
         ["Phương thức", formatPaymentMethods(detail.paymentMethods, detail)],
         ["Tổng tiền giao dịch", detailNetCashAmountMeta.text],
@@ -773,7 +773,7 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
         ["Người dùng", getUserDisplay(detail, userFullNameById)],
         [
           "Bãi gửi xe",
-          detail.parkingLotName ?? detail.lotName ?? detail.lotId ?? "-",
+          detail.parkingLotName ?? detail.lotName ?? detail.lotId ?? "",
         ],
       ]
     : [];
@@ -889,12 +889,11 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
                                 <StatusBadge tx={component} />
                               </td>
                               <td className="px-3 py-2 break-all text-xs text-gray-600">
-                                {component.payosTransactionId ?? "-"}
+                                {component.payosTransactionId ?? ""}
                               </td>
                               <td className="px-3 py-2 text-gray-700">
                                 {formatComponentDescription(
-                                  component.description,
-                                  "-",
+                                  component.description, "",
                                 )}
                               </td>
                               <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
@@ -1652,7 +1651,7 @@ export default function Transactions() {
                       </td>
                       {/* Hình thức */}
                       <td className="p-3 text-center text-gray-500">
-                        {formatTargetTypeLabel(targetTypeValue, "—")}
+                        {formatTargetTypeLabel(targetTypeValue, "")}
                       </td>
                       {/* Thời gian vào */}
                       <td className="p-3 text-center text-gray-500 whitespace-nowrap">

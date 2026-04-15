@@ -47,13 +47,13 @@ function formatSessionTimes(s) {
         minute: "2-digit",
         second: "2-digit",
       })
-    : "—";
+    : "";
   const dateStr = adjustedDate ? adjustedDate.toLocaleDateString("vi-VN") : "";
   return { timeStr, dateStr, raw: rawTime };
 }
 
 function plateOf(s) {
-  return s.licensePlate ?? s.vehiclePlate ?? s.plateNumber ?? "—";
+  return s.licensePlate ?? s.vehiclePlate ?? s.plateNumber ?? "";
 }
 
 function sessionKind(s) {
@@ -107,7 +107,7 @@ function paymentStatusLabel(value) {
   const st = String(value ?? "")
     .trim()
     .toLowerCase();
-  if (!st) return "—";
+  if (!st) return "";
   const map = {
     pending: "Chờ thanh toán",
     completed: "Đã thanh toán",
@@ -119,7 +119,7 @@ function paymentStatusLabel(value) {
 
 function paymentMethodLabel(value) {
   const raw = String(value ?? "").trim();
-  if (!raw) return "—";
+  if (!raw) return "";
   const st = raw.toLowerCase().replace(/[\s_-]+/g, "");
   const map = {
     wallet: "Ví điện tử",
@@ -136,7 +136,7 @@ function paymentMethodLabel(value) {
 
 function paymentTypeLabel(value) {
   const raw = String(value ?? "").trim();
-  if (!raw) return "—";
+  if (!raw) return "";
   const st = raw.toLowerCase().replace(/[\s_-]+/g, "");
   const map = {
     parkingprepayment: "Thanh toán gửi xe trả trước",
@@ -165,25 +165,25 @@ function resolveImageUrl(url) {
 }
 
 function formatDateTime(value) {
-  if (!value) return "—";
+  if (!value) return "";
   const adjusted = dayjs(value).add(7, "hour");
-  return adjusted.isValid() ? adjusted.format("HH:mm:ss DD/MM/YYYY") : "—";
+  return adjusted.isValid() ? adjusted.format("HH:mm:ss DD/MM/YYYY") : "";
 }
 
 function formatCurrency(value) {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "";
   const amount = Number(value);
-  if (Number.isNaN(amount)) return "—";
+  if (Number.isNaN(amount)) return "";
   return `${amount.toLocaleString("vi-VN")} VNĐ`;
 }
 
 function formatValue(value) {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "";
   return String(value);
 }
 
 function formatBool(value) {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "";
   return value ? "Có" : "Không";
 }
 
@@ -679,7 +679,7 @@ export default function ParkingSessions() {
                           "Vãng lai"}
                       </td>
                       <td className="p-3 text-center text-gray-600 text-xs max-w-[160px] break-words">
-                        {s.lotName ?? s.parkingLotName ?? s.lotId ?? "—"}
+                        {s.lotName ?? s.parkingLotName ?? s.lotId ?? ""}
                       </td>
                       <td className="p-3 text-center text-gray-700 whitespace-nowrap">
                         <div className="font-mono text-xs">{timeStr}</div>
@@ -868,8 +868,7 @@ export default function ParkingSessions() {
                   <p className="text-sm font-medium text-gray-900 break-words">
                     {detailSession.lotName ??
                       detailSession.parkingLotName ??
-                      detailSession.lotId ??
-                      "—"}
+                      detailSession.lotId ?? ""}
                   </p>
                 </div>
                 <div>

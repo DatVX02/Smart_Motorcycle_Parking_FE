@@ -26,7 +26,7 @@ import {
 dayjs.locale("vi");
 
 function plateOf(vehicle) {
-  return vehicle?.licensePlate ?? "—";
+  return vehicle?.licensePlate ?? "";
 }
 
 function getVehicleUserId(vehicle) {
@@ -94,18 +94,18 @@ function userDisplay(vehicle, userFullNameById = {}) {
     return userFullNameById[String(userId)];
   }
 
-  return "—";
+  return "";
 }
 
 function formatDateTime(value) {
-  if (!value) return "—";
+  if (!value) return "";
   const d = dayjs(value);
-  if (!d.isValid()) return "—";
+  if (!d.isValid()) return "";
   return d.format("HH:mm:ss DD/MM/YYYY");
 }
 
 function formatValue(value) {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "";
   return String(value);
 }
 

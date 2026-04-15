@@ -274,7 +274,7 @@ const newGate = () => ({
   gateName: "",
   gateType: "",
   isActive: true,
-  devices: [newDevice()],
+  devices: [],
 });
 
 const getDefaultFormData = () => ({
@@ -559,7 +559,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
               gateName: g.gateName || g.name || "",
               gateType: normalizeGateType(g.gateType || g.type),
               isActive: g.isActive !== false,
-              devices: [newDevice()],
+              devices: [],
             });
           }
         });
@@ -1052,16 +1052,42 @@ function ParkingLotModal({ lot, onClose, onSave }) {
 
       if (entryCount !== 1 || exitCount !== 1) {
         newErrors.gatesStructure =
-          "Cần đủ 1 cổng vào và 1 cổng ra. Không dùng cổng 2 chiều khi tạo mới.";
+          "Cần đủ 1 cổng vào và 1 cổng ra";
       }
 
       formData.gates.forEach((g) => {
-        const configuredDeviceCount = g.devices.filter((d) =>
-          isConfiguredDevice(d),
-        ).length;
-        if (configuredDeviceCount < 4) {
-          newErrors[`gate_${g._id}_devicesCount`] =
-            "Mỗi cổng cần tối thiểu 6 thiết bị (2 sensor, 2 camera, 1 barie, 1 lcd).";
+        let camera = 0;
+        let barrier = 0;
+        let sensor = 0;
+        let lcd = 0;
+
+        g.devices.forEach((d) => {
+          if (isConfiguredDevice(d) || d.deviceType) {
+            const type = normalizeDeviceType(d.deviceType);
+            if (type === "CAMERA") camera++;
+            if (type === "BARRIER") barrier++;
+            if (type === "SENSOR") sensor++;
+            if (type === "LCD") lcd++;
+          }
+        });
+
+        const gType = normalizeGateType(g.gateType);
+        if (gType === "entry") {
+          if (camera !== 2 || barrier !== 1 || sensor !== 2 || lcd !== 0) {
+            newErrors[`gate_${g._id}_devicesCount`] =
+              "Cổng vào bắt buộc phải có đúng: 2 Camera, 1 Barie, và 2 Sensor.";
+          }
+        } else if (gType === "exit") {
+          if (camera !== 2 || barrier !== 1 || sensor !== 2 || lcd !== 1) {
+            newErrors[`gate_${g._id}_devicesCount`] =
+              "Cổng ra bắt buộc phải có đúng: 2 Camera, 1 Barie, 2 Sensor, và 1 LCD.";
+          }
+        } else if (gType === "two_way") {
+          // Phòng hờ nếu có cổng 2 chiều
+          if (camera < 2 || barrier < 1 || sensor < 2) {
+            newErrors[`gate_${g._id}_devicesCount`] =
+              "Cổng 2 chiều cần tối thiểu: 2 Camera, 1 Barie, 2 Sensor.";
+          }
         }
       });
     }
@@ -1707,13 +1733,36 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                     )}
 
                     {/* Activation date */}
-                    <DateInputDDMMYYYY
-                      label="Ngày kích hoạt dự kiến"
-                      optionalLabel="(tùy chọn)"
-                      value={formData.scheduledActivationDate}
-                      min={format(new Date(), "yyyy-MM-dd")}
-                      onChange={(v) => setField("scheduledActivationDate", v)}
-                    />
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="checkbox"
+                        id="hasScheduledActivation"
+                        checked={!!formData.scheduledActivationDate}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setField("scheduledActivationDate", format(new Date(), "yyyy-MM-dd"));
+                          } else {
+                            setField("scheduledActivationDate", "");
+                          }
+                        }}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <label
+                        htmlFor="hasScheduledActivation"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        Thiết lập ngày kích hoạt dự kiến
+                      </label>
+                    </div>
+
+                    {formData.scheduledActivationDate && (
+                      <DateInputDDMMYYYY
+                        label="Ngày kích hoạt dự kiến"
+                        value={formData.scheduledActivationDate}
+                        min={format(new Date(), "yyyy-MM-dd")}
+                        onChange={(v) => setField("scheduledActivationDate", v)}
+                      />
+                    )}
                   </div>
                 </section>
               )}
@@ -1849,28 +1898,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
 
                           {!isCollapsed && (
                             <div className="p-5 space-y-5">
-                              {/* Gate name + type */}
+                              {/* Gate type + name */}
                               <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                                    Tên cổng{" "}
-                                    <span className="text-red-500">*</span>
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={gate.gateName}
-                                    onChange={(e) =>
-                                      updateGate(
-                                        gate._id,
-                                        "gateName",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="VD: Cổng Vào Tầng Hầm B1"
-                                    className={`input text-sm ${errClass(`gate_${gate._id}_gateName`)}`}
-                                  />
-                                  <ErrMsg k={`gate_${gate._id}_gateName`} />
-                                </div>
                                 <div>
                                   <label className="block text-xs font-medium text-gray-600 mb-1">
                                     Loại cổng
@@ -1897,6 +1926,26 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                   </select>
                                   <ErrMsg k={`gate_${gate._id}_gateType`} />
                                 </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    Tên cổng{" "}
+                                    <span className="text-red-500">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={gate.gateName}
+                                    onChange={(e) =>
+                                      updateGate(
+                                        gate._id,
+                                        "gateName",
+                                        e.target.value,
+                                      )
+                                    }
+                                    placeholder="VD: Cổng Vào Tầng Hầm B1"
+                                    className={`input text-sm ${errClass(`gate_${gate._id}_gateName`)}`}
+                                  />
+                                  <ErrMsg k={`gate_${gate._id}_gateName`} />
+                                </div>
                               </div>
 
                               {/* Devices */}
@@ -1910,7 +1959,14 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                       <button
                                         type="button"
                                         onClick={() => addDevice(gate._id)}
-                                        disabled={isEditMode}
+                                        disabled={isEditMode || !gate.gateName || !gate.gateType}
+                                        title={
+                                          isEditMode
+                                            ? "Chế độ chỉnh sửa không cho phép thêm thiết bị"
+                                            : (!gate.gateName || !gate.gateType)
+                                              ? "Vui lòng chọn Loại cổng và nhập Tên cổng trước khi tạo thiết bị"
+                                              : "Thêm thiết bị mới"
+                                        }
                                         className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                                       >
                                         <Plus className="w-3.5 h-3.5" />
@@ -2020,77 +2076,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
 
                                           {!isDeviceCollapsed && (
                                             <>
-                                              {canPickExisting && (
-                                                <div className="mb-3">
-                                                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                    Dùng thiết bị có sẵn
-                                                    <span className="ml-1 text-gray-400 font-normal">
-                                                      (tùy chọn)
-                                                    </span>
-                                                  </label>
-                                                  <select
-                                                    value={
-                                                      dev.existingDeviceId || ""
-                                                    }
-                                                    onChange={(e) =>
-                                                      handleExistingDeviceChange(
-                                                        gate._id,
-                                                        dev._id,
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className={`input text-xs ${errClass(`dev_${dev._id}_existingDeviceId`)}`}
-                                                  >
-                                                    <option value="">
-                                                      Tạo thiết bị mới
-                                                    </option>
-                                                    {typeFilteredAvailableDevices.map(
-                                                      (opt) => (
-                                                        <option
-                                                          key={opt.id}
-                                                          value={opt.id}
-                                                          disabled={isExistingDeviceSelectedElsewhere(
-                                                            opt.id,
-                                                            dev._id,
-                                                          )}
-                                                        >
-                                                          {opt.label}
-                                                        </option>
-                                                      ),
-                                                    )}
-                                                  </select>
-                                                  <ErrMsg
-                                                    k={`dev_${dev._id}_existingDeviceId`}
-                                                  />
-                                                  {loadingAvailableDevices ? (
-                                                    <p className="text-[11px] text-gray-400 mt-1">
-                                                      Đang tải danh sách thiết
-                                                      bị có sẵn...
-                                                    </p>
-                                                  ) : deviceSelectorFallback ? (
-                                                    <p className="text-[11px] text-amber-600 mt-1">
-                                                      Không xác định được trạng
-                                                      thái gán từ API, đang hiển
-                                                      thị toàn bộ thiết bị để
-                                                      bạn chọn.
-                                                    </p>
-                                                  ) : (
-                                                    <p className="text-[11px] text-gray-400 mt-1">
-                                                      {!selectedDeviceType
-                                                        ? "Chọn loại thiết bị để lọc danh sách thiết bị có sẵn."
-                                                        : typeFilteredAvailableDevices.length >
-                                                            0
-                                                          ? "Chọn thiết bị có sẵn đúng loại để gán vào cổng, hoặc để trống để tạo mới."
-                                                          : gate.gateType
-                                                            ? "Không có thiết bị phù hợp với loại cổng đã chọn."
-                                                            : "Hiện chưa có thiết bị chưa gán trong hệ thống."}
-                                                    </p>
-                                                  )}
-                                                </div>
-                                              )}
-
-                                              {/* Device fields — row 1 */}
-                                              <div className="grid grid-cols-3 gap-3 mb-3">
+                                              {/* Device fields — row 1: Loại thiết bị + Dùng thiết bị có sẵn */}
+                                              <div className="grid grid-cols-2 gap-3 mb-3">
                                                 <div>
                                                   <label className="block text-xs font-medium text-gray-500 mb-1">
                                                     Loại thiết bị
@@ -2115,7 +2102,13 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                     >
                                                       Chọn loại thiết bị
                                                     </option>
-                                                    {DEVICE_TYPE_OPTIONS.map(
+                                                    {DEVICE_TYPE_OPTIONS.filter(
+                                                      (o) =>
+                                                        !(
+                                                          normalizeGateType(gate.gateType) ===
+                                                            "entry" && o.value === "LCD"
+                                                        )
+                                                    ).map(
                                                       (o) => (
                                                         <option
                                                           key={o.value}
@@ -2130,6 +2123,56 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                     k={`dev_${dev._id}_deviceType`}
                                                   />
                                                 </div>
+
+                                                {canPickExisting ? (
+                                                  <div>
+                                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                      Danh sách các thiết bị
+                                                      
+                                                    </label>
+                                                    <select
+                                                      value={
+                                                        dev.existingDeviceId || ""
+                                                      }
+                                                      onChange={(e) =>
+                                                        handleExistingDeviceChange(
+                                                          gate._id,
+                                                          dev._id,
+                                                          e.target.value,
+                                                        )
+                                                      }
+                                                      className={`input text-xs ${errClass(`dev_${dev._id}_existingDeviceId`)}`}
+                                                    >
+                                                      <option value="">
+                                                        Chọn thiết bị
+                                                      </option>
+                                                      {typeFilteredAvailableDevices.map(
+                                                        (opt) => (
+                                                          <option
+                                                            key={opt.id}
+                                                            value={opt.id}
+                                                            disabled={isExistingDeviceSelectedElsewhere(
+                                                              opt.id,
+                                                              dev._id,
+                                                            )}
+                                                          >
+                                                            {opt.label}
+                                                          </option>
+                                                        ),
+                                                      )}
+                                                    </select>
+                                                    <ErrMsg
+                                                      k={`dev_${dev._id}_existingDeviceId`}
+                                                    />
+
+                                                  </div>
+                                                ) : (
+                                                  <div />
+                                                )}
+                                              </div>
+
+                                              {/* Device fields — row 2: Mã thiết bị + Tên thiết bị */}
+                                              <div className="grid grid-cols-2 gap-3 mb-3">
                                                 <div>
                                                   <label className="block text-xs font-medium text-gray-500 mb-1">
                                                     Mã thiết bị

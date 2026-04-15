@@ -194,7 +194,7 @@ function Accounts() {
                       ? new Date(account.dateOfBirth).toLocaleDateString(
                           "vi-VN",
                         )
-                      : "-"}
+                      : ""}
                   </td>
 
                   <td className="p-3 text-center">

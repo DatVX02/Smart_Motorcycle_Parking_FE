@@ -341,7 +341,23 @@ function CreateShiftModal({
   const shiftId =
     editingShift?.shiftId ?? editingShift?.ShiftId ?? editingShift?.id;
   const [tab, setTab] = useState(isEdit ? "single" : (initialTab ?? "single"));
-  const [editDate, setEditDate] = useState(date);
+
+  // Khi sửa ca: nếu giờ UTC >= 17:00 (cộng 7h sẽ vượt qua nửa đêm sang ngày hôm sau),
+  // cần cộng thêm 1 ngày để hiển thị đúng ngày local
+  const [editDate, setEditDate] = useState(() => {
+    if (!isEdit) return date;
+    const rawStart = String(editingShift?.startTime ?? "").trim();
+    const timePart = rawStart.includes("T") ? rawStart.split("T")[1].replace("Z", "") : rawStart;
+    const hMatch = timePart.match(/^(\d{1,2}):/);
+    const utcHour = hMatch ? Number(hMatch[1]) : 0;
+    if (utcHour >= 17) {
+      // Cộng 7h sẽ vượt 24h → ngày local = ngày UTC + 1
+      const d = new Date(date + "T00:00:00");
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().split("T")[0];
+    }
+    return date;
+  });
   const editDateInputRef = useRef(null);
 
   const [selectedPreset, setSelectedPreset] = useState(
@@ -536,10 +552,25 @@ function CreateShiftModal({
     const apiStartTime = shiftTimeByHours(startTime, -7, true);
     const apiEndTime = shiftTimeByHours(endTime, -7, true);
 
+    // Khi trừ 7h, nếu giờ local < 07:00 thì giờ UTC sẽ lùi sang ngày hôm trước
+    // Ví dụ: 06:00 local → 23:00 UTC ngày hôm trước
+    const startMinutes = timeToMinutes(startTime);
+    const needsDateAdjust = startMinutes < 7 * 60;
+
+    /** Lùi ngày đi 1 nếu giờ UTC vượt qua nửa đêm */
+    const adjustDate = (dateStr) => {
+      if (!needsDateAdjust) return dateStr;
+      const d = new Date(dateStr + "T00:00:00");
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().split("T")[0];
+    };
+
+    const apiShiftDate = adjustDate(activeDate);
+
     const payload = {
       staffId,
       lotId,
-      shiftDate: activeDate,
+      shiftDate: apiShiftDate,
       shiftType: (selectedPreset || "Morning").replace(" ", "_").toUpperCase(),
       startTime: apiStartTime,
       endTime: apiEndTime,
@@ -566,17 +597,22 @@ function CreateShiftModal({
           return;
         }
 
+        // Lùi ngày + lùi workingDays nếu giờ UTC vượt qua nửa đêm
+        const apiWorkingDays = needsDateAdjust
+          ? workingDays.map((d) => (d - 1 + 7) % 7)
+          : workingDays.map(Number);
+
         const bulkPayload = {
           staffId: String(staffId),
           lotId: String(lotId),
-          startDate: date,
-          endDate,
+          startDate: adjustDate(date),
+          endDate: adjustDate(endDate),
           shiftType: (selectedPreset || "Morning")
             .replace(" ", "_")
             .toUpperCase(),
           startTime: apiStartTime,
           endTime: apiEndTime,
-          workingDays: workingDays.map(Number),
+          workingDays: apiWorkingDays,
           shiftStatus,
         };
         const result = await workShiftService.bulkCreate(bulkPayload);

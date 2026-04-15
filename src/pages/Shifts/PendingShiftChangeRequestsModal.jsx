@@ -324,7 +324,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
         month: "long",
         year: "numeric",
       })
-    : "—";
+    : "";
 
   // Nếu request không có shiftId sẵn → tìm từ API theo staffId + ngày hiện tại
   useEffect(() => {
@@ -644,7 +644,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
             <div className="flex items-center gap-2 text-gray-700">
               <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
               <span className="text-gray-500">Ca hiện tại:</span>
-              <span className="font-semibold">{currentDate || "—"}</span>
+              <span className="font-semibold">{currentDate || ""}</span>
               {currentShiftType && (
                 <span className="px-3.5 py-1 rounded-full bg-gray-200 text-gray-600 font-medium inline-flex items-center whitespace-nowrap flex-shrink-0">
                   {SHIFT_TYPE_LABELS[currentShiftType] ?? currentShiftType}
@@ -661,7 +661,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
               <Clock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
               <span className="text-gray-500">Đề xuất đổi sang:</span>
               <span className="font-semibold text-amber-700">
-                {proposedDateRaw || "—"}
+                {proposedDateRaw || ""}
               </span>
               {proposedShiftType && (
                 <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium inline-flex items-center whitespace-nowrap flex-shrink-0">
@@ -942,7 +942,7 @@ function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
                 <p className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                   <span>Ca hiện tại:</span>
-                  <span className="font-medium">{currentDate || "—"}</span>
+                  <span className="font-medium">{currentDate || ""}</span>
                   <span>·</span>
                   <span>
                     {SHIFT_TYPE_LABELS[currentShiftType] ?? currentShiftType}
@@ -958,7 +958,7 @@ function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
                 <p className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                   <span>Đề xuất đổi sang:</span>
-                  <span className="font-medium">{proposedDate || "—"}</span>
+                  <span className="font-medium">{proposedDate || ""}</span>
                   {proposedShiftType && (
                     <>
                       <span>·</span>

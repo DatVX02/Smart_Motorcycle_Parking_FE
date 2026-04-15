@@ -120,7 +120,7 @@ function MonthlyPassPackages() {
 
   const formatPrice = (val) => {
     const n = parseInt(val, 10);
-    return isNaN(n) ? "—" : n.toLocaleString("vi-VN") + " VNĐ";
+    return isNaN(n) ? "" : n.toLocaleString("vi-VN") + " VNĐ";
   };
 
   return (

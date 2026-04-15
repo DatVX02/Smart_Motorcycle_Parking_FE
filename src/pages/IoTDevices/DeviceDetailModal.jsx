@@ -94,7 +94,7 @@ const getStatus = (raw) => {
   const key = String(raw ?? "").toUpperCase();
   return (
     CONN_STATUS[key] ?? {
-      label: raw || "—",
+      label: raw || "",
       cls: "bg-gray-100 text-gray-600",
       Icon: Wifi,
     }
@@ -103,7 +103,7 @@ const getStatus = (raw) => {
 
 const getType = (raw) => {
   const key = normalizeDeviceType(raw);
-  return DEVICE_TYPE[key] ?? { label: raw || "—", Icon: Cpu };
+  return DEVICE_TYPE[key] ?? { label: raw || "", Icon: Cpu };
 };
 
 function InfoRow({
@@ -198,7 +198,7 @@ function DeviceDetailModal({ device, onClose }) {
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900 leading-tight">
-                {d.deviceName || d.name || "—"}
+                {d.deviceName || d.name || ""}
               </h2>
               <span className="text-sm text-gray-500">{dtype.label}</span>
             </div>

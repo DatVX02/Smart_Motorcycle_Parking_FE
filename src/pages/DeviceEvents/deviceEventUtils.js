@@ -2,7 +2,7 @@ export function labelFromMap(map, key, fallback) {
   const k = String(key ?? "")
     .trim()
     .toLowerCase();
-  if (!k || k === "—") return fallback;
+  if (!k || k === "") return fallback;
   return map[k] ?? fallback;
 }
 
@@ -15,7 +15,7 @@ export function normStatus(status) {
 /** EventStatus API: còn mở / đang xử lý (thống kê «Hoạt động»). */
 export function isActiveOperationalStatus(status) {
   const s = normStatus(status);
-  if (!s || s === "—") return false;
+  if (!s || s === "") return false;
   return [
     "active",
     "processing",
@@ -30,7 +30,7 @@ export function isActiveOperationalStatus(status) {
 /** EventStatus API: đã kết thúc / đóng (thống kê «Ngừng hoạt động»). */
 export function isInactiveOperationalStatus(status) {
   const s = normStatus(status);
-  if (!s || s === "—") return false;
+  if (!s || s === "") return false;
   return [
     "resolved",
     "ignored",
@@ -66,7 +66,7 @@ function mapSeverityToLevel(eventType) {
 }
 
 function formatFriendlyDateTime(value) {
-  if (value == null || value === "") return "—";
+  if (value == null || value === "") return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleString("vi-VN", {
@@ -114,7 +114,7 @@ function pickText(...values) {
 /** Không hiển thị khối JSON trùng với dòng chữ đã rút gọn */
 function parseEventData(eventData) {
   if (eventData == null || eventData === "") {
-    return { summary: "—", pretty: "" };
+    return { summary: "", pretty: "" };
   }
   const s = String(eventData).trim();
   try {
@@ -136,34 +136,34 @@ function parseEventData(eventData) {
   } catch {
     /* not JSON */
   }
-  return { summary: s || "—", pretty: s.length > 80 ? s : "" };
+  return { summary: s || "", pretty: s.length > 80 ? s : "" };
 }
 
 export function normalizeDeviceEvent(raw, index) {
   const eventId = raw.eventId ?? raw.id ?? `evt-${index}`;
   const eventType =
-    pickText(raw.eventType, raw.event_type, raw.type, raw.eventName) || "—";
+    pickText(raw.eventType, raw.event_type, raw.type, raw.eventName) || "";
   const eventStatus =
-    pickText(raw.eventStatus, raw.event_status, raw.status, raw.state) || "—";
+    pickText(raw.eventStatus, raw.event_status, raw.status, raw.state) || "";
   const eventSource =
-    pickText(raw.eventSource, raw.event_source, raw.source) || "—";
+    pickText(raw.eventSource, raw.event_source, raw.source) || "";
   const level = mapSeverityToLevel(eventType);
   const { summary, pretty } = parseEventData(raw.eventData ?? raw.event_data);
 
   const deviceCode = pickText(raw.deviceCode, raw.device_code, raw.code);
-  const deviceId = pickText(raw.deviceId, raw.device_id, deviceCode) || "—";
+  const deviceId = pickText(raw.deviceId, raw.device_id, deviceCode) || "";
   const inferredName = inferDeviceNameFromCode(deviceCode);
   const deviceName =
-    pickText(raw.deviceName, raw.device_name, inferredName) || "—";
-  const lotId = pickText(raw.lotId, raw.lot_id, raw.parkingLotId) || "—";
+    pickText(raw.deviceName, raw.device_name, inferredName) || "";
+  const lotId = pickText(raw.lotId, raw.lot_id, raw.parkingLotId) || "";
   const lotName =
-    pickText(raw.lotName, raw.lot_name, raw.parkingLotName) || "—";
+    pickText(raw.lotName, raw.lot_name, raw.parkingLotName) || "";
 
   return {
     id: eventId,
     eventId,
     deviceId,
-    deviceCode: deviceCode || "—",
+    deviceCode: deviceCode || "",
     deviceName,
     lotId,
     lotName,

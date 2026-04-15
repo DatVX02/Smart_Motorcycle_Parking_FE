@@ -34,7 +34,7 @@ export function parseResultData(rawValue) {
 }
 
 export function getRecognitionTypeLabel(type) {
-  return RECOGNITION_TYPE_LABELS[type] ?? type ?? "-";
+  return RECOGNITION_TYPE_LABELS[type] ?? type ?? "";
 }
 
 export function getRecognitionTypeBadgeClass(type) {
@@ -45,7 +45,7 @@ export function getRecognitionTypeBadgeClass(type) {
 }
 
 export function formatDateTime(value) {
-  if (!value) return "-";
+  if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
 
@@ -61,9 +61,9 @@ export function formatDateTime(value) {
 }
 
 export function formatConfidence(value) {
-  if (value == null || value === "") return "-";
+  if (value == null || value === "") return "";
   const n = Number(value);
-  if (!Number.isFinite(n)) return "-";
+  if (!Number.isFinite(n)) return "";
 
   if (n <= 1) return `${(n * 100).toFixed(2)}%`;
   return `${n.toFixed(2)}%`;
@@ -82,7 +82,7 @@ export function resolveProcessingTimeMs(processingTimeMs, resultData) {
 
 export function formatProcessingTime(processingTimeMs, resultData) {
   const value = resolveProcessingTimeMs(processingTimeMs, resultData);
-  if (value == null) return "-";
+  if (value == null) return "";
   return `${Math.round(value).toLocaleString("vi-VN")} ms`;
 }
 

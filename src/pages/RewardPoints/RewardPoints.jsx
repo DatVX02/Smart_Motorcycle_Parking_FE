@@ -23,7 +23,7 @@ import loyaltyConfigService from "../../services/loyaltyConfigService";
 import parkingLotService from "../../services/parkingLotService";
 
 const formatDate = (iso) => {
-  if (!iso) return "—";
+  if (!iso) return "";
   return new Date(iso).toLocaleString("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -34,7 +34,7 @@ const formatDate = (iso) => {
 };
 
 const formatNumber = (num) =>
-  num != null ? Number(num).toLocaleString("vi-VN") : "—";
+  num != null ? Number(num).toLocaleString("vi-VN") : "";
 
 function RewardPoints() {
   const [configs, setConfigs] = useState([]);
@@ -109,7 +109,7 @@ function RewardPoints() {
 
   const getLotName = (lotId) => {
     const lot = lots.find((l) => getLotId(l) === lotId);
-    return lot ? getLotLabel(lot) : lotId || "—";
+    return lot ? getLotLabel(lot) : lotId || "";
   };
 
   const handleCreate = () => {
