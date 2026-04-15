@@ -39,6 +39,14 @@ const workShiftService = {
     apiClient
       .get("/api/v1/work-shifts/shift-change-requests/pending")
       .then(unwrap),
+  getAdminShiftChangeNotifications: (options = {}) => {
+    const params = {};
+    if (options.pageNumber != null) params.pageNumber = options.pageNumber;
+    if (options.pageSize != null) params.pageSize = options.pageSize;
+    return apiClient
+      .get("/api/v1/notifications/admin/all", { params })
+      .then(unwrap);
+  },
   processShiftChangeRequest: (payload) =>
     apiClient
       .post("/api/v1/work-shifts/shift-change-requests/process", payload)

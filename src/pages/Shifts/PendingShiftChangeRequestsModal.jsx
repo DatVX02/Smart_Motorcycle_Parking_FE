@@ -16,6 +16,7 @@ import {
 import toast from "react-hot-toast";
 import workShiftService from "../../services/workShiftService";
 import staffService from "../../services/staffService";
+import parkingLotService from "../../services/parkingLotService";
 
 const SHIFT_TYPE_LABELS = {
   Morning: "Ca sáng",
@@ -81,7 +82,7 @@ function toIsoDate(dateStr = "") {
 function getAvatarColor(id = "") {
   const colors = [
     "bg-blue-500",
-    "bg-emerald-500",
+    "bg-green-500",
     "bg-violet-500",
     "bg-amber-500",
     "bg-rose-500",
@@ -163,7 +164,17 @@ function getLotIdValue(shift) {
   );
 }
 
-function getShiftTimes(shiftTypeKey, fallbackShift) {
+function getShiftTimes(shiftTypeKey, fallbackShift, lotOperatingHours) {
+  if (shiftTypeKey === "FULL_DAY" && lotOperatingHours) {
+    if (lotOperatingHours.is24h) {
+      return { startTime: "00:00", endTime: "23:59" };
+    }
+    return {
+      startTime: lotOperatingHours.openingTime || "06:00",
+      endTime: lotOperatingHours.closingTime || "19:00",
+    };
+  }
+
   const preset = SHIFT_TIME_PRESETS[shiftTypeKey];
   if (preset) return preset;
 
@@ -182,6 +193,21 @@ function getShiftTimes(shiftTypeKey, fallbackShift) {
     startTime: start || "06:00",
     endTime: end || "14:00",
   };
+}
+
+async function getLotOperatingHours(lotId) {
+  if (!lotId) return null;
+  try {
+    const detail = await parkingLotService.getParkingLotDetail(lotId);
+    const lotInfo = detail?.lotInfo ?? detail ?? {};
+    return {
+      openingTime: String(lotInfo?.openingTime ?? "").slice(0, 5) || "06:00",
+      closingTime: String(lotInfo?.closingTime ?? "").slice(0, 5) || "19:00",
+      is24h: Boolean(lotInfo?.is24h),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function resolveLotIdForCreation({
@@ -457,7 +483,12 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
               currentShiftData?.ShiftType ||
               currentShiftType,
           ) || "MORNING";
-        const times = getShiftTimes(shiftType, currentShiftData);
+        const lotOperatingHours = await getLotOperatingHours(lotId);
+        const times = getShiftTimes(
+          shiftType,
+          currentShiftData,
+          lotOperatingHours,
+        );
 
         const created = await workShiftService.create({
           staffId: String(staffId),
@@ -574,11 +605,11 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
       dot: "bg-violet-500",
     },
     FULL_DAY: {
-      bg: "bg-emerald-50",
-      border: "border-emerald-200",
-      text: "text-emerald-700",
-      ring: "ring-emerald-400",
-      dot: "bg-emerald-500",
+      bg: "bg-green-50",
+      border: "border-green-200",
+      text: "text-green-700",
+      ring: "ring-green-400",
+      dot: "bg-green-500",
     },
   };
 
@@ -587,8 +618,8 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden my-auto">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-          <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Check className="w-4.5 h-4.5 text-emerald-600" />
+          <div className="w-9 h-9 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Check className="w-4.5 h-4.5 text-green-600" />
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-gray-900">
@@ -650,9 +681,9 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                <Calendar className="w-3.5 h-3.5 text-green-500" />
                 Ca có sẵn vào{" "}
-                <span className="text-emerald-700 capitalize">
+                <span className="text-green-700 capitalize">
                   {displayProposedDate}
                 </span>
               </p>
@@ -778,7 +809,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
               onChange={(e) => setAdminNote(e.target.value)}
               placeholder="Ghi chú cho nhân viên (không bắt buộc)..."
               rows={2}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
             />
           </div>
         </div>
@@ -798,7 +829,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
               loadingShifts ||
               (hasMatchingShifts && !selectedShiftId)
             }
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
           >
             {loading ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -877,7 +908,7 @@ function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
       <div
         className={`rounded-xl border overflow-hidden transition-all duration-200 ${
           localState === "approved"
-            ? "border-emerald-200 bg-emerald-50/40"
+            ? "border-green-200 bg-green-50/40"
             : localState === "rejected"
               ? "border-red-200 bg-red-50/30"
               : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
@@ -896,7 +927,7 @@ function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="font-semibold text-gray-900">{staffName}</p>
                 {localState === "approved" && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700 border border-green-200">
                     <CheckCircle2 className="w-3 h-3" /> Đã duyệt
                   </span>
                 )}
@@ -951,7 +982,7 @@ function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => setShowApproveModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm"
                   >
                     <Check className="w-3.5 h-3.5" /> Duyệt
                   </button>
@@ -1026,6 +1057,46 @@ const FILTER_TABS = [
   { key: "rejected", label: "Đã từ chối" },
 ];
 
+function normalizeDecisionText(value = "") {
+  return String(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
+}
+
+function getResultStatusFromNotification(notification) {
+  const text = normalizeDecisionText(
+    `${notification?.title ?? ""}\n${notification?.message ?? ""}`,
+  );
+  const compact = text.replace(/\s+/g, " ");
+  if (
+    compact.includes("da duyet") ||
+    compact.includes("duoc duyet") ||
+    compact.includes("approved") ||
+    compact.includes("trang thai phieu: approved") ||
+    compact.includes("trang thai phieu: da duyet")
+  ) {
+    return "approved";
+  }
+  if (
+    compact.includes("tu choi") ||
+    compact.includes("bi tu choi") ||
+    compact.includes("rejected") ||
+    compact.includes("trang thai phieu: rejected") ||
+    compact.includes("trang thai phieu: da tu choi")
+  ) {
+    return "rejected";
+  }
+  return null;
+}
+
+function parseCreatedAtMs(notification) {
+  const raw = notification?.createdAt;
+  const t = raw ? Date.parse(raw) : NaN;
+  return Number.isNaN(t) ? 0 : t;
+}
+
 /* ── Modal chính ── */
 function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
   const [requests, setRequests] = useState([]);
@@ -1033,11 +1104,14 @@ function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
   const [cardStates, setCardStates] = useState({}); // { [id]: "approved" | "rejected" }
   const [activeFilter, setActiveFilter] = useState("all");
 
-  const loadPending = async () => {
+  const loadRequests = async () => {
     setLoading(true);
     try {
-      const data = await workShiftService.getPendingShiftChangeRequests();
-      const arr = Array.isArray(data)
+      const data = await workShiftService.getAdminShiftChangeNotifications({
+        pageNumber: 1,
+        pageSize: 200,
+      });
+      const notifications = Array.isArray(data)
         ? data
         : Array.isArray(data?.items)
           ? data.items
@@ -1046,8 +1120,62 @@ function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
             : Array.isArray(data?.data?.items)
               ? data.data.items
               : [];
-      setRequests(arr);
-      setCardStates({});
+
+      const requestNotifications = notifications.filter(
+        (n) => String(n?.type ?? "").toUpperCase() === "SHIFT_CHANGE_REQUEST",
+      );
+      const resultNotifications = notifications.filter(
+        (n) =>
+          String(n?.type ?? "").toUpperCase() === "SHIFT_CHANGE_REQUEST_RESULT",
+      );
+
+      const latestResultByRelatedId = new Map();
+      resultNotifications
+        .slice()
+        .sort((a, b) => parseCreatedAtMs(b) - parseCreatedAtMs(a))
+        .forEach((n) => {
+          const relatedId = String(n?.relatedId ?? "").trim();
+          if (!relatedId || latestResultByRelatedId.has(relatedId)) return;
+          latestResultByRelatedId.set(relatedId, n);
+        });
+
+      const requestByKey = new Map();
+      requestNotifications
+        .slice()
+        .sort((a, b) => parseCreatedAtMs(b) - parseCreatedAtMs(a))
+        .forEach((n) => {
+          const key = String(n?.relatedId ?? getNotificationId(n)).trim();
+          if (!key || requestByKey.has(key)) return;
+          requestByKey.set(key, n);
+        });
+
+      const mergedRequests = [...requestByKey.values()]
+        .map((req) => {
+          const relatedId = String(req?.relatedId ?? "").trim();
+          const latestResult = relatedId
+            ? latestResultByRelatedId.get(relatedId)
+            : null;
+          return {
+            ...req,
+            _statusFromServer: latestResult
+              ? getResultStatusFromNotification(latestResult)
+              : null,
+          };
+        })
+        .sort((a, b) => parseCreatedAtMs(b) - parseCreatedAtMs(a));
+
+      const nextStates = {};
+      mergedRequests.forEach((req) => {
+        const reqId = getNotificationId(req);
+        if (!reqId) return;
+        if (req._statusFromServer === "approved")
+          nextStates[reqId] = "approved";
+        if (req._statusFromServer === "rejected")
+          nextStates[reqId] = "rejected";
+      });
+
+      setRequests(mergedRequests);
+      setCardStates(nextStates);
     } catch (err) {
       toast.error(
         err?.response?.data?.message ??
@@ -1061,7 +1189,7 @@ function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
   };
 
   useEffect(() => {
-    loadPending();
+    loadRequests();
   }, []);
 
   const handleProcessed = (id, status) => {
@@ -1111,7 +1239,7 @@ function PendingShiftChangeRequestsModal({ parkingLots, onClose, onSuccess }) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button
-              onClick={loadPending}
+              onClick={loadRequests}
               title="Tải lại"
               className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             >

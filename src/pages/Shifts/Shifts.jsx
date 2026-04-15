@@ -129,7 +129,7 @@ const LEGEND_ITEMS = [
 ];
 const AVATAR_COLORS = [
   "bg-blue-500",
-  "bg-emerald-500",
+  "bg-green-500",
   "bg-violet-500",
   "bg-amber-500",
   "bg-rose-500",
@@ -463,8 +463,8 @@ function ShiftTooltip({ tooltip }) {
               </div>
             )}
             <div className="flex items-center gap-1.5">
-              <Clock className="w-3 h-3 text-emerald-500 flex-shrink-0" />
-              <span className="font-medium text-emerald-700">
+              <Clock className="w-3 h-3 text-green-500 flex-shrink-0" />
+              <span className="font-medium text-green-700">
                 Check-in/out: {checkIn || "—"} / {checkOut || "—"}
               </span>
             </div>
@@ -1019,15 +1019,94 @@ function Shifts() {
 
   const loadPendingCount = async () => {
     try {
-      const data = await workShiftService.getPendingShiftChangeRequests();
-      const arr = Array.isArray(data)
+      const normalizeDecisionText = (value = "") =>
+        String(value)
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/đ/g, "d");
+
+      const getResultStatusFromNotification = (notification) => {
+        const compact = normalizeDecisionText(
+          `${notification?.title ?? ""}\n${notification?.message ?? ""}`,
+        ).replace(/\s+/g, " ");
+
+        if (
+          compact.includes("da duyet") ||
+          compact.includes("duoc duyet") ||
+          compact.includes("approved") ||
+          compact.includes("trang thai phieu: approved") ||
+          compact.includes("trang thai phieu: da duyet")
+        ) {
+          return "approved";
+        }
+        if (
+          compact.includes("tu choi") ||
+          compact.includes("bi tu choi") ||
+          compact.includes("rejected") ||
+          compact.includes("trang thai phieu: rejected") ||
+          compact.includes("trang thai phieu: da tu choi")
+        ) {
+          return "rejected";
+        }
+        return null;
+      };
+
+      const parseCreatedAtMs = (notification) => {
+        const raw = notification?.createdAt;
+        const t = raw ? Date.parse(raw) : NaN;
+        return Number.isNaN(t) ? 0 : t;
+      };
+
+      const data = await workShiftService.getAdminShiftChangeNotifications({
+        pageNumber: 1,
+        pageSize: 200,
+      });
+      const notifications = Array.isArray(data)
         ? data
-        : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data?.items)
-            ? data.items
-            : (data?.data?.items ?? []);
-      setPendingCount(arr.length);
+        : Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data?.data?.items)
+              ? data.data.items
+              : [];
+
+      const requestNotifications = notifications.filter(
+        (n) => String(n?.type ?? "").toUpperCase() === "SHIFT_CHANGE_REQUEST",
+      );
+      const resultNotifications = notifications.filter(
+        (n) =>
+          String(n?.type ?? "").toUpperCase() === "SHIFT_CHANGE_REQUEST_RESULT",
+      );
+
+      const latestResultByRelatedId = new Map();
+      resultNotifications
+        .slice()
+        .sort((a, b) => parseCreatedAtMs(b) - parseCreatedAtMs(a))
+        .forEach((n) => {
+          const relatedId = String(n?.relatedId ?? "").trim();
+          if (!relatedId || latestResultByRelatedId.has(relatedId)) return;
+          latestResultByRelatedId.set(relatedId, n);
+        });
+
+      const pendingRequestKeys = new Set();
+      requestNotifications
+        .slice()
+        .sort((a, b) => parseCreatedAtMs(b) - parseCreatedAtMs(a))
+        .forEach((n) => {
+          const key = String(n?.relatedId ?? n?.notificationId ?? "").trim();
+          if (!key || pendingRequestKeys.has(key)) return;
+          const result = latestResultByRelatedId.get(
+            String(n?.relatedId ?? "").trim(),
+          );
+          const status = result
+            ? getResultStatusFromNotification(result)
+            : null;
+          if (!status) pendingRequestKeys.add(key);
+        });
+
+      setPendingCount(pendingRequestKeys.size);
     } catch {
       // silent – badge không hiện nếu lỗi
     }
@@ -1583,9 +1662,9 @@ function Shifts() {
               label="Ca đang trực:"
               value={`${inProgressCount} ca`}
               lots={inProgressByLot}
-              colorClass="bg-emerald-50 text-emerald-700"
-              dotColor="text-emerald-600"
-              headerClass="bg-emerald-50 border-emerald-100"
+              colorClass="bg-green-50 text-green-700"
+              dotColor="text-green-600"
+              headerClass="bg-green-50 border-green-100"
             />
             <StatCard
               icon={Users}
@@ -2346,14 +2425,14 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-1 bg-emerald-50 rounded-xl p-2.5 border border-emerald-100">
+            <div className="flex flex-col gap-1 bg-green-50 rounded-xl p-2.5 border border-green-100">
               <div className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-emerald-500" />
-                <span className="text-xs text-emerald-700 font-medium">
+                <Clock className="w-4 h-4 text-green-500" />
+                <span className="text-xs text-green-700 font-medium">
                   Check-in / Check-out thực tế
                 </span>
               </div>
-              <span className="text-xs text-emerald-700 font-semibold">
+              <span className="text-xs text-green-700 font-semibold">
                 {checkIn || "—"} → {checkOut || "—"}
               </span>
             </div>

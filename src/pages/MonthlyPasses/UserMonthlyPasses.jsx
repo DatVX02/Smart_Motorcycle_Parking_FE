@@ -87,7 +87,7 @@ function statusStyle(status) {
   if (status === "active") {
     return {
       label: "Đang hoạt động",
-      className: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+      className: "bg-green-100 text-green-700 border border-green-200",
     };
   }
   if (status === "expired") {
@@ -98,7 +98,7 @@ function statusStyle(status) {
   }
   return {
     label: "Đang hoạt động",
-    className: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+    className: "bg-green-100 text-green-700 border border-green-200",
   };
 }
 

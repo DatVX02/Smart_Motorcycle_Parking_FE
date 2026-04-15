@@ -125,8 +125,8 @@ const DEVICE_TYPE_MAP = {
     label: "Sensor",
     variant: "success",
     Icon: Cpu,
-    iconBg: "bg-emerald-100",
-    iconColor: "text-emerald-600",
+    iconBg: "bg-green-100",
+    iconColor: "text-green-600",
   },
 };
 
