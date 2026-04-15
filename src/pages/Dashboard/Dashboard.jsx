@@ -170,7 +170,212 @@ function formatCurrency(value) {
   return `${amount.toLocaleString("vi-VN")} VNĐ`;
 }
 
-function extractTodayRevenue(rawRevenue, sessions) {
+function normalizeStatus(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+function normalizeTargetTypeParam(value) {
+  if (!value) return "";
+  const normalized = String(value).trim().toLowerCase();
+  if (["parking", "parking_session", "parkingsession"].includes(normalized)) {
+    return "parking-session";
+  }
+  if (["monthly", "monthly_pass", "monthlypass"].includes(normalized)) {
+    return "monthly-pass";
+  }
+  if (["wallet", "wallet_deposit", "walletdeposit"].includes(normalized)) {
+    return "wallet-deposit";
+  }
+  if (["wallet_withdraw", "walletwithdraw"].includes(normalized)) {
+    return "wallet-withdraw";
+  }
+  return normalized;
+}
+
+function pickFirst(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return undefined;
+}
+
+function getPaymentStatusValue(item) {
+  if (!item || typeof item !== "object") return "";
+  return normalizeStatus(
+    item.paymentStatus ??
+      item.payment_status ??
+      item.status ??
+      item.paymentState ??
+      item.payment_state ??
+      item.state ??
+      item.PaymentStatus ??
+      item.Status,
+  );
+}
+
+function isSuccessfulPaymentStatus(value) {
+  const normalized = normalizeStatus(value);
+  return (
+    normalized === "completed" ||
+    normalized === "overtimepaid" ||
+    normalized === "prepaid"
+  );
+}
+
+function isFailedPaymentStatus(value) {
+  return normalizeStatus(value) === "failed";
+}
+
+function getCashAmount(item) {
+  return Number(
+    pickFirst(
+      item?.cashAmount,
+      item?.amount,
+      item?.totalAmount,
+      item?.paidAmount,
+      0,
+    ),
+  );
+}
+
+function getTargetTypeValue(item) {
+  if (!item || typeof item !== "object") return undefined;
+  return normalizeTargetTypeParam(
+    pickFirst(item.targetType, item.referenceType, item.entityType),
+  );
+}
+
+function getCashflowDirection(targetType) {
+  const normalized = normalizeTargetTypeParam(targetType);
+  if (normalized === "wallet-withdraw") return "out";
+  if (
+    ["parking-session", "monthly-pass", "wallet-deposit"].includes(normalized)
+  ) {
+    return "in";
+  }
+  return "neutral";
+}
+
+function getSignedComponentCashAmount(component, targetType) {
+  if (!component || typeof component !== "object") return 0;
+
+  const amount = Math.abs(getCashAmount(component));
+  const status = getPaymentStatusValue(component);
+
+  if (isFailedPaymentStatus(status)) return -amount;
+
+  if (isSuccessfulPaymentStatus(status)) {
+    const direction = getCashflowDirection(targetType);
+    if (direction === "out") return -amount;
+    if (direction === "in") return amount;
+  }
+
+  return 0;
+}
+
+function getNetCashAmountWithFailed(item) {
+  if (!item || typeof item !== "object") return 0;
+
+  const resolvedTargetType = getTargetTypeValue(item);
+
+  if (Array.isArray(item.components) && item.components.length) {
+    return item.components.reduce(
+      (sum, component) =>
+        sum + getSignedComponentCashAmount(component, resolvedTargetType),
+      0,
+    );
+  }
+
+  const amount = Math.abs(getCashAmount(item));
+  const status = getPaymentStatusValue(item);
+
+  if (isFailedPaymentStatus(status)) return -amount;
+
+  if (isSuccessfulPaymentStatus(status)) {
+    const direction = getCashflowDirection(resolvedTargetType);
+    if (direction === "out") return -amount;
+    if (direction === "in") return amount;
+  }
+
+  return 0;
+}
+
+function parseBackendDateToMs(value) {
+  if (!value) return NaN;
+  const raw = String(value).trim();
+  if (!raw) return NaN;
+
+  const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
+  const matched = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/,
+  );
+
+  let date;
+  if (hasTimezone) {
+    date = new Date(raw);
+  } else if (matched) {
+    const [, year, month, day, hour, minute, second = "00"] = matched;
+    date = new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second),
+      ),
+    );
+  } else {
+    date = new Date(raw);
+  }
+
+  const ms = date.getTime();
+  return Number.isFinite(ms) ? ms : NaN;
+}
+
+function getTransactionDate(transaction) {
+  const raw =
+    transaction?.createdAt ??
+    transaction?.paymentTime ??
+    transaction?.updatedAt;
+  if (!raw) return null;
+  const ms = parseBackendDateToMs(raw);
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms);
+}
+
+function sumTodayRevenueFromTransactions(transactions) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const d = now.getDate();
+
+  let sum = 0;
+  let hasTodayTransaction = false;
+
+  for (const tx of transactions) {
+    const txDate = getTransactionDate(tx);
+    if (!txDate) continue;
+
+    if (
+      txDate.getFullYear() !== y ||
+      txDate.getMonth() !== m ||
+      txDate.getDate() !== d
+    ) {
+      continue;
+    }
+
+    sum += getNetCashAmountWithFailed(tx);
+    hasTodayTransaction = true;
+  }
+
+  return hasTodayTransaction ? sum : null;
+}
+
+function extractTodayRevenue(rawRevenue, sessions, revenueTransactions) {
   const directKeys = [
     "todayRevenue",
     "revenueToday",
@@ -208,6 +413,13 @@ function extractTodayRevenue(rawRevenue, sessions) {
     }
 
     if (hasTodayRow) return sum;
+  }
+
+  const revenueFromTransactions = sumTodayRevenueFromTransactions(
+    Array.isArray(revenueTransactions) ? revenueTransactions : [],
+  );
+  if (Number.isFinite(revenueFromTransactions)) {
+    return revenueFromTransactions;
   }
 
   let sessionRevenue = 0;
@@ -701,8 +913,9 @@ export default function Dashboard() {
   const faultyCount = deviceAlerts.length;
 
   const todayRevenue = useMemo(
-    () => extractTodayRevenue(revenueData, sessionsFromApi),
-    [revenueData, sessionsFromApi],
+    () =>
+      extractTodayRevenue(revenueData, sessionsFromApi, revenueTransactions),
+    [revenueData, sessionsFromApi, revenueTransactions],
   );
 
   const trafficData = useMemo(

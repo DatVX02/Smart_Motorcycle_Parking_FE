@@ -27,6 +27,7 @@ import IncidentReports from "./pages/IncidentReports/IncidentReports";
 import RecognitionLogs from "./pages/RecognitionLogs/RecognitionLogs";
 import PayByPlate from "./pages/PayByPlate/PayByPlate";
 import WithdrawRequests from "./pages/WithdrawRequest/WithdrawRequests";
+import Settings from "./pages/Settings/Settings";
 
 function App() {
   return (
@@ -47,6 +48,7 @@ function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="settings" element={<Settings />} />
           <Route path="accounts" element={<Accounts />} />
           <Route path="accounts/staff" element={<AccountStaff />} />
           <Route path="parking-lots" element={<ParkingLots />} />
