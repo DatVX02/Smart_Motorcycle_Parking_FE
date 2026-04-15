@@ -520,67 +520,55 @@ function IoTDevices() {
 
   return (
     <div className="space-y-5">
-      {/* Statistics - 6 thẻ trên 1 hàng (scroll ngang trên mobile) */}
-      <div className="flex overflow-x-auto gap-3 pb-2 -mx-1 px-1 sm:grid sm:grid-cols-6 sm:overflow-visible sm:mx-0 sm:px-0">
-        <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
-          <StatCard
-            icon={Cpu}
-            iconColor="text-blue-600"
-            label="Tổng thiết bị"
-            value={totalCount}
-            valueSuffix="Thiết bị"
-          />
-        </div>
-        <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
-          <StatCard
-            icon={Wifi}
-            iconColor="text-green-600"
-            label="Trực tuyến"
-            value={onlineCount}
-            valueSuffix="Thiết bị"
-            bgTint="bg-green-500/30"
-          />
-        </div>
-        <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
-          <StatCard
-            icon={Wifi}
-            iconColor="text-blue-600"
-            label="Sẵn sàng"
-            value={readyCount}
-            valueSuffix="Thiết bị"
-            bgTint="bg-blue-500/30"
-          />
-        </div>
-        <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
-          <StatCard
-            icon={WifiOff}
-            iconColor="text-red-600"
-            label="Ngoại tuyến"
-            value={offlineCount}
-            valueSuffix="Thiết bị"
-            bgTint="bg-red-500/30"
-          />
-        </div>
-        <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
-          <StatCard
-            icon={PowerOff}
-            iconColor="text-gray-600"
-            label="Ngừng hoạt động"
-            value={inactiveCount}
-            valueSuffix="Thiết bị"
-            bgTint="bg-gray-400/30"
-          />
-        </div>
-        <div className="flex-shrink-0 w-[140px] sm:w-auto sm:min-w-0">
-          <StatCard
-            icon={Wrench}
-            iconColor="text-amber-600"
-            label="Bảo trì/Hư hỏng"
-            value={brokenMaintenanceCount}
-            valueSuffix="Thiết bị"
-            bgTint="bg-amber-500/30"
-          />
-        </div>
+      {/* Statistics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <StatCard
+          icon={Cpu}
+          iconColor="text-blue-600"
+          label="Tổng thiết bị"
+          value={totalCount}
+          valueSuffix="Thiết bị"
+        />
+        <StatCard
+          icon={Wifi}
+          iconColor="text-green-600"
+          label="Trực tuyến"
+          value={onlineCount}
+          valueSuffix="Thiết bị"
+          bgTint="bg-green-500/30"
+        />
+        <StatCard
+          icon={Wifi}
+          iconColor="text-blue-600"
+          label="Sẵn sàng"
+          value={readyCount}
+          valueSuffix="Thiết bị"
+          bgTint="bg-blue-500/30"
+        />
+        <StatCard
+          icon={WifiOff}
+          iconColor="text-red-600"
+          label="Ngoại tuyến"
+          value={offlineCount}
+          valueSuffix="Thiết bị"
+          bgTint="bg-red-500/30"
+        />
+        <StatCard
+          icon={PowerOff}
+          iconColor="text-gray-600"
+          label="Ngừng hoạt động"
+          value={inactiveCount}
+          valueSuffix="Thiết bị"
+          bgTint="bg-gray-400/30"
+        />
+        <StatCard
+          icon={Wrench}
+          iconColor="text-amber-600"
+          label="Bảo trì/Hư hỏng"
+          value={brokenMaintenanceCount}
+          valueSuffix="Thiết bị"
+          bgTint="bg-amber-500/30"
+        />
       </div>
 
       {/* Filters - same style as Transactions */}

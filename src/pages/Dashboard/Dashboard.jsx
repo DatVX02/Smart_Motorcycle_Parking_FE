@@ -166,8 +166,8 @@ function getHourlyTrafficData(sessionItems, sessionEvents) {
 
 function formatCurrency(value) {
   const amount = Number(value ?? 0);
-  if (!Number.isFinite(amount)) return "0 VNĐ";
-  return `${amount.toLocaleString("vi-VN")} VNĐ`;
+  if (!Number.isFinite(amount)) return "0";
+  return amount.toLocaleString("vi-VN");
 }
 
 function normalizeStatus(value) {
@@ -939,7 +939,8 @@ export default function Dashboard() {
   const stats = [
     {
       title: "Tổng chỗ trống",
-      value: totalAvailableSpots || "0",
+      value: Number(totalAvailableSpots || 0).toLocaleString("vi-VN"),
+      unit: "Chỗ",
       icon: Motorbike,
       color: "bg-blue-500",
       bgTint: "white",
@@ -947,7 +948,8 @@ export default function Dashboard() {
     },
     {
       title: "Tỉ lệ lấp đầy TB",
-      value: avgOccupancy + "%",
+      value: String(avgOccupancy ?? "0"),
+      unit: "%",
       icon: TrendingUp,
       color: "bg-green-500",
       bgTint: "green",
@@ -955,7 +957,8 @@ export default function Dashboard() {
     },
     {
       title: "Tổng thiết bị",
-      value: faultyCount,
+      value: Number(faultyCount || 0).toLocaleString("vi-VN"),
+      unit: "Thiết bị",
       icon: AlertTriangle,
       color: "bg-orange-500",
       bgTint: "amber",
@@ -964,6 +967,7 @@ export default function Dashboard() {
     {
       title: "Doanh thu tạm tính hôm nay",
       value: formatCurrency(todayRevenue),
+      unit: "VNĐ",
       icon: CircleDollarSign,
       color: "bg-emerald-500",
       bgTint: "green",
@@ -974,7 +978,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-10">
       {/* Thẻ thống kê — style giống Quản lý bãi xe */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
