@@ -203,9 +203,7 @@ function DeviceModal({ device, onClose, onSave }) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Mã thiết bị
-                <span className="ml-1 text-gray-400 text-xs font-normal">
-                  (tùy chọn)
-                </span>
+                
               </label>
               <input
                 type="text"
@@ -234,9 +232,7 @@ function DeviceModal({ device, onClose, onSave }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tên cổng gán
-              <span className="ml-1 text-gray-400 text-xs font-normal">
-                (tùy chọn)
-              </span>
+              
             </label>
             <select
               value={formData.gateId || ""}
@@ -302,9 +298,7 @@ function DeviceModal({ device, onClose, onSave }) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 MAC Address
-                <span className="ml-1 text-gray-400 text-xs font-normal">
-                  (tùy chọn)
-                </span>
+                
               </label>
               <input
                 type="text"
@@ -318,9 +312,7 @@ function DeviceModal({ device, onClose, onSave }) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Firmware Version
-                <span className="ml-1 text-gray-400 text-xs font-normal">
-                  (tùy chọn)
-                </span>
+                
               </label>
               <input
                 type="text"

@@ -38,9 +38,7 @@ function SecurityMonitoringWidget({ alerts = [], loading = false }) {
           <h2 className="text-lg font-semibold text-slate-900">
             Cảnh báo an ninh
           </h2>
-          <p className="text-xs text-slate-500">
-            Danh sách đen, khuôn mặt lạ và xe lưu bãi quá 24h/48h
-          </p>
+          
         </div>
       </div>
 

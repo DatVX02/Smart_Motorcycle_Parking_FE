@@ -6,6 +6,8 @@ import {
   ShieldAlert,
   TrendingUp,
   WifiOff,
+  Server,
+  Cpu,
 } from "lucide-react";
 import { useAdminHub } from "../../hooks/useAdminHub";
 import StatCard from "./StatCard";
@@ -957,12 +959,12 @@ export default function Dashboard() {
     },
     {
       title: "Tổng thiết bị",
-      value: Number(faultyCount || 0).toLocaleString("vi-VN"),
+      value: Number(devices.length || 0).toLocaleString("vi-VN"),
       unit: "Thiết bị",
-      icon: AlertTriangle,
-      color: "bg-orange-500",
+      icon: Cpu,
+      color: "bg-amber-500",
       bgTint: "amber",
-      iconColor: "text-orange-600",
+      iconColor: "text-amber-600",
     },
     {
       title: "Doanh thu tạm tính hôm nay",

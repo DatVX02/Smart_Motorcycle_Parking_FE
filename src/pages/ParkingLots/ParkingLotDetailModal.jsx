@@ -477,10 +477,6 @@ function ParkingLotDetailModal({ lot, onClose }) {
   }, [trafficRange, trafficSessions]);
 
   const accessLogs = useMemo(() => {
-    if (!trafficRange.valid) return [];
-
-    const start = trafficRange.start;
-    const end = trafficRange.end;
     const events = [];
 
     for (const s of trafficSessions) {
@@ -488,7 +484,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
       const baseId = s.sessionId ?? s.id ?? plate;
 
       const inAt = adjustApiDate(s.entryTime ?? s.checkInTime ?? s.createdAt);
-      if (inAt && inAt >= start && inAt <= end) {
+      if (inAt) {
         events.push({
           key: `in-${baseId}-${inAt.getTime()}`,
           type: "in",
@@ -500,7 +496,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
       const outAt = adjustApiDate(
         s.exitTime ?? s.checkOutTime ?? s.completedAt,
       );
-      if (outAt && outAt >= start && outAt <= end) {
+      if (outAt) {
         events.push({
           key: `out-${baseId}-${outAt.getTime()}`,
           type: "out",
@@ -512,7 +508,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
 
     events.sort((a, b) => b.time.getTime() - a.time.getTime());
     return events.slice(0, 10);
-  }, [trafficRange, trafficSessions]);
+  }, [trafficSessions]);
 
   const isCritical = occupancy >= 90;
   const barColor = isCritical

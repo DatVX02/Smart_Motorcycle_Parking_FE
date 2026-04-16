@@ -698,7 +698,6 @@ export default function ParkingVehicles() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
                   {[
-                    ["Mã phương tiện", detailVehicle.vehicleId],
                     ["Biển số", plateOf(detailVehicle)],
                     [
                       "Người dùng",

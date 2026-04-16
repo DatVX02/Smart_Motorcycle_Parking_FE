@@ -1249,7 +1249,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     const validationErrors = buildValidationErrors();
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) {
@@ -1491,6 +1491,24 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         }
 
         // 3. Cập nhật thông tin bãi + đóng modal
+        if (lotInfo.hourlyRate != null && String(lotInfo.hourlyRate) !== String(lot.hourlyRate ?? "")) {
+          try {
+            const tomorrowMidnight = new Date();
+            tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+            tomorrowMidnight.setHours(0, 0, 0, 0);
+            
+            await parkingLotService.schedulePriceUpdate(lot.id ?? lot.lotId, {
+              newHourlyRate: lotInfo.hourlyRate,
+              scheduledPriceUpdateDate: tomorrowMidnight.toISOString(),
+            });
+            toast.success("Đã ghi nhận thay đổi giá theo giờ");
+          } catch (err) {
+            console.warn("Cập nhật giá qua lịch thất bại:", err);
+          }
+        }
+        
+        // Xóa hourlyRate để API update sửa thông tin chung không làm cập nhật giá tức thì
+        delete lotInfo.hourlyRate;
         await onSave({ lotInfo });
       } else {
         // CREATE MODE
@@ -1504,8 +1522,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   };
 
   const handleFormSubmit = (e) => {
+    e.preventDefault();
     if (!isLastStep) {
-      e.preventDefault();
       handleNextStep();
       return;
     }
@@ -1733,35 +1751,44 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                     )}
 
                     {/* Activation date */}
-                    <div className="flex items-center gap-2 mt-1">
-                      <input
-                        type="checkbox"
-                        id="hasScheduledActivation"
-                        checked={!!formData.scheduledActivationDate}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setField("scheduledActivationDate", format(new Date(), "yyyy-MM-dd"));
-                          } else {
-                            setField("scheduledActivationDate", "");
-                          }
-                        }}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                      />
-                      <label
-                        htmlFor="hasScheduledActivation"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Thiết lập ngày kích hoạt dự kiến
-                      </label>
-                    </div>
+                    {!lot && (
+                      <>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="checkbox"
+                            id="hasScheduledActivation"
+                            checked={!!formData.scheduledActivationDate}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setField(
+                                  "scheduledActivationDate",
+                                  format(new Date(), "yyyy-MM-dd"),
+                                );
+                              } else {
+                                setField("scheduledActivationDate", "");
+                              }
+                            }}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          />
+                          <label
+                            htmlFor="hasScheduledActivation"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Thiết lập ngày kích hoạt dự kiến
+                          </label>
+                        </div>
 
-                    {formData.scheduledActivationDate && (
-                      <DateInputDDMMYYYY
-                        label="Ngày kích hoạt dự kiến"
-                        value={formData.scheduledActivationDate}
-                        min={format(new Date(), "yyyy-MM-dd")}
-                        onChange={(v) => setField("scheduledActivationDate", v)}
-                      />
+                        {formData.scheduledActivationDate && (
+                          <DateInputDDMMYYYY
+                            label="Ngày kích hoạt dự kiến"
+                            value={formData.scheduledActivationDate}
+                            min={format(new Date(), "yyyy-MM-dd")}
+                            onChange={(v) =>
+                              setField("scheduledActivationDate", v)
+                            }
+                          />
+                        )}
+                      </>
                     )}
                   </div>
                 </section>
@@ -1959,13 +1986,11 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                       <button
                                         type="button"
                                         onClick={() => addDevice(gate._id)}
-                                        disabled={isEditMode || !gate.gateName || !gate.gateType}
+                                        disabled={!gate.gateName || !gate.gateType}
                                         title={
-                                          isEditMode
-                                            ? "Chế độ chỉnh sửa không cho phép thêm thiết bị"
-                                            : (!gate.gateName || !gate.gateType)
-                                              ? "Vui lòng chọn Loại cổng và nhập Tên cổng trước khi tạo thiết bị"
-                                              : "Thêm thiết bị mới"
+                                          (!gate.gateName || !gate.gateType)
+                                            ? "Vui lòng chọn Loại cổng và nhập Tên cổng trước khi tạo thiết bị"
+                                            : "Thêm thiết bị mới"
                                         }
                                         className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                                       >
@@ -1973,12 +1998,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                         Thêm thiết bị
                                       </button>
                                     </div>
-                                    {isEditMode && (
-                                      <p className="text-[11px] text-gray-400 pb-2">
-                                        Chế độ chỉnh sửa: chỉ cho xem và xóa
-                                        thiết bị.
-                                      </p>
-                                    )}
+
                                     <ErrMsg
                                       k={`gate_${gate._id}_devicesCount`}
                                     />
@@ -1986,12 +2006,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
 
                                   <div className="space-y-4 pb-1">
                                     {gate.devices.map((dev, dIdx) => {
-                                      const canPickExisting =
-                                        !isEditMode && !dev._persisted;
-                                      const lockedByExisting =
-                                        isEditMode ||
-                                        (canPickExisting &&
-                                          !!dev.existingDeviceId);
+                                      const canPickExisting = !dev._persisted;
+                                      const lockedByExisting = dev._persisted || (canPickExisting && !!dev.existingDeviceId);
                                       const isDeviceCollapsed =
                                         !!collapsedDevices[dev._id];
                                       const selectedDeviceType =
@@ -2056,7 +2072,6 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                   dev.deviceType
                                                 ] || dev.deviceType}
                                               </span>
-                                              {gate.devices.length > 1 && (
                                                 <button
                                                   type="button"
                                                   onClick={() =>
@@ -2070,7 +2085,6 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                 >
                                                   <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
-                                              )}
                                             </div>
                                           </div>
 
@@ -2092,7 +2106,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                         e.target.value,
                                                       )
                                                     }
-                                                    disabled={isEditMode}
+                                                    disabled={dev._persisted}
                                                     className={`input text-xs ${errClass(`dev_${dev._id}_deviceType`)}`}
                                                   >
                                                     <option
@@ -2283,9 +2297,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                 <div>
                                                   <label className="block text-xs font-medium text-gray-500 mb-1">
                                                     MAC Address
-                                                    <span className="ml-1 text-gray-400 font-normal">
-                                                      (tùy chọn)
-                                                    </span>
+                                                    
                                                   </label>
                                                   <input
                                                     type="text"
@@ -2309,9 +2321,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                 <div>
                                                   <label className="block text-xs font-medium text-gray-500 mb-1">
                                                     Phiên bản firmware
-                                                    <span className="ml-1 text-gray-400 font-normal">
-                                                      (tùy chọn)
-                                                    </span>
+                                                    
                                                   </label>
                                                   <input
                                                     type="text"
@@ -2479,9 +2489,10 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                     </button>
                   ) : (
                     <button
-                      type="submit"
+                      type="button"
                       className="btn btn-primary"
                       disabled={submitting}
+                      onClick={(e) => handleSubmit(e)}
                     >
                       {submitting ? (
                         <span className="flex items-center gap-2">

@@ -97,8 +97,10 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
   const [selectedStaffIds, setSelectedStaffIds] = useState([]);
   const getMinShiftDate = () => {
     const t = new Date();
-    t.setDate(t.getDate() + 1);
-    return t.toISOString().split("T")[0];
+    const yy = t.getFullYear();
+    const mm = String(t.getMonth() + 1).padStart(2, "0");
+    const dd = String(t.getDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}`;
   };
   const [shiftDate, setShiftDate] = useState(getMinShiftDate);
   const [lotId, setLotId] = useState(
@@ -196,11 +198,10 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
   };
 
   const handleSubmit = async () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    if (new Date(shiftDate + "T00:00:00") < tomorrow) {
-      toast.error("Chỉ được chia lịch từ ngày mai trở đi");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (new Date(shiftDate + "T00:00:00") < today) {
+      toast.error("Chỉ được chia lịch từ hôm nay trở đi");
       return;
     }
     if (selectedStaffIds.length === 0) {

@@ -300,8 +300,8 @@ function toCalendarEvent(shift, todayYmd) {
   const startStr =
     startTime && date ? `${date}T${startTime.slice(0, 5)}` : date || undefined;
   const endStr = endTime && date ? `${date}T${endTime.slice(0, 5)}` : undefined;
-  /** Hôm nay và các ngày trước: chỉ xem, không bấm / không xóa hàng loạt (chia ca chỉ từ ngày mai). */
-  const isReadOnlyShift = Boolean(date && todayYmd && date <= todayYmd);
+  /** Các ngày trước: chỉ xem, không bấm / không xóa hàng loạt. */
+  const isReadOnlyShift = Boolean(date && todayYmd && date < todayYmd);
 
   return {
     id: String(shift.shiftId ?? shift.ShiftId ?? shift.id ?? Math.random()),
@@ -321,9 +321,8 @@ function DroppableLotCalendar({ lotId, children }) {
     <div
       ref={setNodeRef}
       data-lot-id={lotId}
-      className={`relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full transition-all duration-200 ${
-        isOver ? "ring-2 ring-blue-500 bg-blue-50/30" : ""
-      }`}
+      className={`relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full transition-all duration-200 ${isOver ? "ring-2 ring-blue-500 bg-blue-50/30" : ""
+        }`}
     >
       {children}
     </div>
@@ -470,7 +469,7 @@ function ShiftTooltip({ tooltip }) {
             <div className="flex items-center gap-1.5">
               <Clock className="w-3 h-3 text-green-500 flex-shrink-0" />
               <span className="font-medium text-green-700">
-                Check-in/out: {checkIn || ""} / {checkOut || ""}
+                Check-in/out: {checkIn || "—"} / {checkOut || "—"}
               </span>
             </div>
             {lotName && (
@@ -513,7 +512,7 @@ function ShiftTooltip({ tooltip }) {
               className="text-[10px] font-semibold"
               style={{ color: STATUS_COLORS[statusKey] ?? "#6B7280" }}
             >
-              {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? ""}
+              {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? "—"}
             </span>
             {/* <span className="text-[10px] text-gray-400 ml-auto">
               {readOnly ? "Chỉ xem (không chỉnh sửa)" : "Nhấn để xem chi tiết"}
@@ -1210,11 +1209,10 @@ function Shifts() {
       setActiveStaff(null);
       if (!targetDate || !targetLotId) return;
 
-      const tomorrowMidnight = new Date();
-      tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
-      tomorrowMidnight.setHours(0, 0, 0, 0);
-      if (new Date(targetDate + "T00:00:00") < tomorrowMidnight) {
-        toast.error("Chỉ được chia lịch từ ngày mai trở đi");
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
+      if (new Date(targetDate + "T00:00:00") < todayMidnight) {
+        toast.error("Chỉ được chia lịch từ hôm nay trở đi");
         return;
       }
 
@@ -1249,11 +1247,10 @@ function Shifts() {
   }, []);
 
   const handleDateClick = (info, lotId) => {
-    const tomorrowMidnight = new Date();
-    tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
-    tomorrowMidnight.setHours(0, 0, 0, 0);
-    if (new Date(info.dateStr + "T00:00:00") < tomorrowMidnight) {
-      toast.error("Chỉ được chia lịch từ ngày mai trở đi");
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    if (new Date(info.dateStr + "T00:00:00") < todayMidnight) {
+      toast.error("Chỉ được chia lịch từ hôm nay trở đi");
       return;
     }
     // Click vào 1 ô ngày = luôn mở modal tạo ca đơn (single)
@@ -1344,9 +1341,8 @@ function Shifts() {
 
   const handleRangeSelect = useCallback(
     (selectInfo, calendarLotId) => {
-      const tomorrowDate = new Date();
-      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-      tomorrowDate.setHours(0, 0, 0, 0);
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
 
       const endExclusive = new Date(selectInfo.endStr + "T00:00:00");
       endExclusive.setDate(endExclusive.getDate() - 1);
@@ -1385,9 +1381,9 @@ function Shifts() {
         return;
       }
 
-      if (selectInfo.start < tomorrowDate) {
+      if (selectInfo.start < todayDate) {
         selectInfo.view.calendar.unselect();
-        toast.error("Chỉ được chia lịch từ ngày mai trở đi");
+        toast.error("Chỉ được chia lịch từ hôm nay trở đi");
         return;
       }
       setSelectedRange({ start: startStr, end: endStr });
@@ -1488,8 +1484,8 @@ function Shifts() {
     const base =
       activeStatsLotId != null
         ? (shiftsByLot[activeStatsLotId] ?? []).filter(
-            (s) => !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
-          )
+          (s) => !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+        )
         : allShiftsArray;
     return base.filter((s) => {
       if (
@@ -1714,11 +1710,10 @@ function Shifts() {
                 if (isMultiDeleteMode) exitMultiDeleteMode();
                 else setIsMultiDeleteMode(true);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shadow-sm ${
-                isMultiDeleteMode
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shadow-sm ${isMultiDeleteMode
                   ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 ring-1 ring-red-100"
                   : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-red-600"
-              }`}
+                }`}
               title={
                 isMultiDeleteMode ? "Thoát chế độ chọn" : "Chọn nhiều ca để xóa"
               }
@@ -2033,7 +2028,7 @@ function Shifts() {
                   if (
                     filterShiftType &&
                     (s.shiftType ?? s.ShiftType ?? "").toUpperCase() !==
-                      filterShiftType
+                    filterShiftType
                   )
                     return false;
                   if (
@@ -2180,16 +2175,14 @@ function Shifts() {
                         }
                         selectAllow={(selectInfo) => {
                           if (isMultiDeleteMode) return true;
-                          const tomorrow = new Date();
-                          tomorrow.setDate(tomorrow.getDate() + 1);
-                          tomorrow.setHours(0, 0, 0, 0);
-                          return selectInfo.start >= tomorrow;
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          return selectInfo.start >= today;
                         }}
                         dayCellClassNames={(arg) => {
-                          const tomorrow = new Date();
-                          tomorrow.setDate(tomorrow.getDate() + 1);
-                          tomorrow.setHours(0, 0, 0, 0);
-                          return arg.date < tomorrow
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          return arg.date < today
                             ? ["fc-past-disabled"]
                             : [];
                         }}
@@ -2342,16 +2335,16 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
   const date = rawDate.split("T")[0] ?? "";
   const displayDate = date
     ? new Date(date + "T00:00:00").toLocaleDateString("vi-VN", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    : "";
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+    : "—";
 
   const shiftType = (shift.shiftType ?? shift.ShiftType ?? "").toUpperCase();
   const statusKey = shiftStatusKey(shift);
-  const statusLabel = STATUS_LABELS[statusKey] ?? shift.shiftStatus ?? "";
+  const statusLabel = STATUS_LABELS[statusKey] ?? shift.shiftStatus ?? "—";
   const statusColor = STATUS_COLORS[statusKey] ?? "#6B7280";
   const barColor = SHIFT_COLORS[shiftType] ?? statusColor;
   const { checkIn, checkOut } = getAttendanceTimeLabels(shift);
@@ -2424,8 +2417,8 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                   </span>
                 </div>
                 <span className="text-xs text-gray-700">
-                  {toUtcTimeLabel(shift.startTime) || ""} →{" "}
-                  {toUtcTimeLabel(shift.endTime) || ""}
+                  {toUtcTimeLabel(shift.startTime) || "—"} →{" "}
+                  {toUtcTimeLabel(shift.endTime) || "—"}
                 </span>
               </div>
             </div>
@@ -2438,7 +2431,7 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                 </span>
               </div>
               <span className="text-xs text-green-700 font-semibold">
-                {checkIn || ""} → {checkOut || ""}
+                {checkIn || "—"} → {checkOut || "—"}
               </span>
             </div>
 
