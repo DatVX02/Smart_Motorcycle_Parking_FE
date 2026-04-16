@@ -257,6 +257,8 @@ export default function PayByPlate() {
     const payload = {
       licensePlate: normalizedPlate,
       paymentMethod: "payos",
+      returnUrl: window.location.origin + "/pay-by-plate",
+      cancelUrl: window.location.origin + "/pay-by-plate",
     };
 
     if (!isImmediate) {
@@ -300,7 +302,7 @@ export default function PayByPlate() {
             createdAt: new Date().toISOString(),
           }),
         );
-        window.open(normalized.paymentUrl, "_blank", "noopener,noreferrer");
+        window.location.href = normalized.paymentUrl;
         toast.success("Đã tạo liên kết PayOS");
       } else if (normalized.totalAmount === 0) {
         localStorage.removeItem(PAY_BY_PLATE_PENDING_KEY);

@@ -112,11 +112,7 @@ export default function PayByPlateResultCard({
                   type="button"
                   className="bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-700 hover:to-cyan-700"
                   onClick={() =>
-                    window.open(
-                      result.paymentUrl,
-                      "_blank",
-                      "noopener,noreferrer",
-                    )
+                    window.location.href = result.paymentUrl
                   }
                 >
                   <ArrowUpRight className="mr-2 h-4 w-4" />

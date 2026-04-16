@@ -93,13 +93,13 @@ function DateInputDDMMYYYY({ label, value, min, onChange, placeholder }) {
   const displayValue =
     value && /^\d{4}-\d{2}-\d{2}$/.test(value)
       ? (() => {
-          try {
-            const d = parse(value, "yyyy-MM-dd", new Date());
-            return format(d, "dd/MM/yyyy");
-          } catch {
-            return value;
-          }
-        })()
+        try {
+          const d = parse(value, "yyyy-MM-dd", new Date());
+          return format(d, "dd/MM/yyyy");
+        } catch {
+          return value;
+        }
+      })()
       : "";
 
   return (
@@ -110,9 +110,8 @@ function DateInputDDMMYYYY({ label, value, min, onChange, placeholder }) {
       </label>
       <div className="relative">
         <div
-          className={`w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm flex items-center gap-2 bg-white min-h-[42px] ${
-            displayValue ? "text-slate-800" : "text-slate-400"
-          }`}
+          className={`w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm flex items-center gap-2 bg-white min-h-[42px] ${displayValue ? "text-slate-800" : "text-slate-400"
+            }`}
         >
           <span>{displayValue || placeholder}</span>
           <Calendar className="w-4 h-4 text-slate-400 ml-auto flex-shrink-0" />
@@ -341,23 +340,7 @@ function CreateShiftModal({
   const shiftId =
     editingShift?.shiftId ?? editingShift?.ShiftId ?? editingShift?.id;
   const [tab, setTab] = useState(isEdit ? "single" : (initialTab ?? "single"));
-
-  // Khi sửa ca: nếu giờ UTC >= 17:00 (cộng 7h sẽ vượt qua nửa đêm sang ngày hôm sau),
-  // cần cộng thêm 1 ngày để hiển thị đúng ngày local
-  const [editDate, setEditDate] = useState(() => {
-    if (!isEdit) return date;
-    const rawStart = String(editingShift?.startTime ?? "").trim();
-    const timePart = rawStart.includes("T") ? rawStart.split("T")[1].replace("Z", "") : rawStart;
-    const hMatch = timePart.match(/^(\d{1,2}):/);
-    const utcHour = hMatch ? Number(hMatch[1]) : 0;
-    if (utcHour >= 17) {
-      // Cộng 7h sẽ vượt 24h → ngày local = ngày UTC + 1
-      const d = new Date(date + "T00:00:00");
-      d.setDate(d.getDate() + 1);
-      return d.toISOString().split("T")[0];
-    }
-    return date;
-  });
+  const [editDate, setEditDate] = useState(date);
   const editDateInputRef = useRef(null);
 
   const [selectedPreset, setSelectedPreset] = useState(
@@ -382,10 +365,10 @@ function CreateShiftModal({
   const [shiftStatus] = useState(
     isEdit
       ? (
-          editingShift?.shiftStatus ??
-          editingShift?.ShiftStatus ??
-          "SCHEDULED"
-        ).toUpperCase()
+        editingShift?.shiftStatus ??
+        editingShift?.ShiftStatus ??
+        "SCHEDULED"
+      ).toUpperCase()
       : "SCHEDULED",
   );
   const [loading, setLoading] = useState(false);
@@ -418,10 +401,10 @@ function CreateShiftModal({
 
   const shiftSuggestions = lotOperatingHours
     ? calculateShiftSuggestions(
-        lotOperatingHours.openingTime,
-        lotOperatingHours.closingTime,
-        lotOperatingHours.is24h,
-      )
+      lotOperatingHours.openingTime,
+      lotOperatingHours.closingTime,
+      lotOperatingHours.is24h,
+    )
     : null;
 
   useEffect(() => {
@@ -522,11 +505,10 @@ function CreateShiftModal({
       toast.error("Vui lòng chọn nhân viên");
       return;
     }
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    if (new Date(activeDate + "T00:00:00") < tomorrow) {
-      toast.error("Chỉ được chia lịch từ ngày mai trở đi");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (new Date(activeDate + "T00:00:00") < today) {
+      toast.error("Chỉ được chia lịch từ hôm nay trở đi");
       return;
     }
     if (!lotId) {
@@ -552,25 +534,10 @@ function CreateShiftModal({
     const apiStartTime = shiftTimeByHours(startTime, -7, true);
     const apiEndTime = shiftTimeByHours(endTime, -7, true);
 
-    // Khi trừ 7h, nếu giờ local < 07:00 thì giờ UTC sẽ lùi sang ngày hôm trước
-    // Ví dụ: 06:00 local → 23:00 UTC ngày hôm trước
-    const startMinutes = timeToMinutes(startTime);
-    const needsDateAdjust = startMinutes < 7 * 60;
-
-    /** Lùi ngày đi 1 nếu giờ UTC vượt qua nửa đêm */
-    const adjustDate = (dateStr) => {
-      if (!needsDateAdjust) return dateStr;
-      const d = new Date(dateStr + "T00:00:00");
-      d.setDate(d.getDate() - 1);
-      return d.toISOString().split("T")[0];
-    };
-
-    const apiShiftDate = adjustDate(activeDate);
-
     const payload = {
       staffId,
       lotId,
-      shiftDate: apiShiftDate,
+      shiftDate: activeDate,
       shiftType: (selectedPreset || "Morning").replace(" ", "_").toUpperCase(),
       startTime: apiStartTime,
       endTime: apiEndTime,
@@ -597,22 +564,17 @@ function CreateShiftModal({
           return;
         }
 
-        // Lùi ngày + lùi workingDays nếu giờ UTC vượt qua nửa đêm
-        const apiWorkingDays = needsDateAdjust
-          ? workingDays.map((d) => (d - 1 + 7) % 7)
-          : workingDays.map(Number);
-
         const bulkPayload = {
           staffId: String(staffId),
           lotId: String(lotId),
-          startDate: adjustDate(date),
-          endDate: adjustDate(endDate),
+          startDate: date,
+          endDate,
           shiftType: (selectedPreset || "Morning")
             .replace(" ", "_")
             .toUpperCase(),
           startTime: apiStartTime,
           endTime: apiEndTime,
-          workingDays: apiWorkingDays,
+          workingDays: workingDays.map(Number),
           shiftStatus,
         };
         const result = await workShiftService.bulkCreate(bulkPayload);
@@ -640,12 +602,12 @@ function CreateShiftModal({
   const shiftTimeError =
     lotId && lotOperatingHours && !lotOperatingHours.is24h
       ? isShiftWithinOperatingHours(
-          startTime,
-          endTime,
-          lotOperatingHours.openingTime,
-          lotOperatingHours.closingTime,
-          false,
-        )
+        startTime,
+        endTime,
+        lotOperatingHours.openingTime,
+        lotOperatingHours.closingTime,
+        false,
+      )
       : null;
 
   const displayDate = (() => {
@@ -690,21 +652,19 @@ function CreateShiftModal({
           <div className="flex border-b border-slate-100 bg-slate-50/30">
             <button
               onClick={() => setTab("single")}
-              className={`flex-1 py-3 text-sm font-semibold transition-all ${
-                tab === "single"
+              className={`flex-1 py-3 text-sm font-semibold transition-all ${tab === "single"
                   ? "border-b-2 border-blue-500 text-blue-600 bg-white/50"
                   : "text-slate-500 hover:text-slate-700"
-              }`}
+                }`}
             >
               Ca đơn
             </button>
             <button
               onClick={() => setTab("bulk")}
-              className={`flex-1 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                tab === "bulk"
+              className={`flex-1 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${tab === "bulk"
                   ? "border-b-2 border-blue-500 text-blue-600 bg-white/50"
                   : "text-slate-500 hover:text-slate-700"
-              }`}
+                }`}
             >
               <Repeat className="w-3.5 h-3.5" />
               Theo tuần
@@ -771,7 +731,6 @@ function CreateShiftModal({
                 value={editDate}
                 min={(() => {
                   const t = new Date();
-                  t.setDate(t.getDate() + 1);
                   return t.toISOString().split("T")[0];
                 })()}
                 onChange={(e) => setEditDate(e.target.value)}
@@ -826,13 +785,12 @@ function CreateShiftModal({
                       type="button"
                       onClick={() => toggleDay(d.value)}
                       disabled={!isInRange}
-                      className={`flex-1 py-2 text-xs rounded-lg border font-semibold transition-all ${
-                        !isInRange
+                      className={`flex-1 py-2 text-xs rounded-lg border font-semibold transition-all ${!isInRange
                           ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
                           : isSelected
                             ? "bg-blue-500 text-white border-blue-500 shadow-sm"
                             : "bg-white text-gray-500 border-gray-200 hover:border-blue-300"
-                      }`}
+                        }`}
                     >
                       {d.label}
                     </button>
@@ -878,11 +836,10 @@ function CreateShiftModal({
             </select>
             {lotId && lotOperatingHours && (
               <div
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
-                  lotOperatingHours.is24h
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${lotOperatingHours.is24h
                     ? "bg-green-50 text-green-700 border border-green-100"
                     : "bg-slate-50 text-slate-700 border border-slate-100"
-                }`}
+                  }`}
               >
                 <Clock className="w-3.5 h-3.5 flex-shrink-0" />
                 {lotOperatingHours.is24h ? (
@@ -915,13 +872,12 @@ function CreateShiftModal({
                     key={preset.type}
                     onClick={() => isAvailable && handlePresetSelect(preset)}
                     disabled={!isAvailable}
-                    className={`p-3 text-left rounded-xl border-2 transition-all flex flex-col gap-1 ${
-                      !isAvailable
+                    className={`p-3 text-left rounded-xl border-2 transition-all flex flex-col gap-1 ${!isAvailable
                         ? "bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60"
                         : isSelected
                           ? preset.activeBg
                           : `${preset.bg} hover:border-opacity-80 hover:shadow-sm`
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2">
                       <div
