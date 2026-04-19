@@ -1125,37 +1125,17 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           if (!ipRegex.test(ip)) {
             newErrors[`dev_${d._id}_ipAddress`] =
               "IP không hợp lệ (VD: 192.168.1.100)";
-          } else if (seenIps.has(ip)) {
-            newErrors[`dev_${seenIps.get(ip)}_ipAddress`] =
-              "IP bị trùng với thiết bị khác";
-            newErrors[`dev_${d._id}_ipAddress`] =
-              "IP bị trùng với thiết bị khác";
-          } else {
-            seenIps.set(ip, d._id);
           }
         }
 
         if (code) {
-          if (seenCodes.has(code)) {
-            newErrors[`dev_${seenCodes.get(code)}_deviceCode`] =
-              "Mã thiết bị bị trùng";
-            newErrors[`dev_${d._id}_deviceCode`] = "Mã thiết bị bị trùng";
-          } else {
-            seenCodes.set(code, d._id);
-          }
+          // Bỏ qua validate trùng mã thiết bị
         }
 
         if (mac) {
           if (!macRegex.test(mac)) {
             newErrors[`dev_${d._id}_macAddress`] =
               "MAC không hợp lệ (VD: AA:BB:CC:DD:EE:FF)";
-          } else if (seenMacs.has(mac)) {
-            newErrors[`dev_${seenMacs.get(mac)}_macAddress`] =
-              "MAC bị trùng với thiết bị khác";
-            newErrors[`dev_${d._id}_macAddress`] =
-              "MAC bị trùng với thiết bị khác";
-          } else {
-            seenMacs.set(mac, d._id);
           }
         }
 

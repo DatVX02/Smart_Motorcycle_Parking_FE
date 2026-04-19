@@ -261,6 +261,29 @@ function getLocalYmd(d = new Date()) {
 }
 
 /**
+ * Trả về YYYY-MM-DD **theo giờ local (UTC+7)** từ dữ liệu shift.
+ * DB lưu ngày UTC, nhưng khi startTime UTC >= 17h thì local date = UTC date + 1.
+ * Ví dụ: DB shift ngày 16, startTime 23:00 UTC → local ngày 17, 06:00.
+ */
+function getLocalShiftDate(shift) {
+  const raw =
+    shift?.shiftDate ?? shift?.workDate ?? shift?.date ?? shift?.ShiftDate ?? "";
+  let date = raw ? raw.split("T")[0] : "";
+  if (!date) return date;
+
+  const rawSt = String(shift?.startTime ?? shift?.StartTime ?? shift?.start ?? "").trim();
+  const tp = rawSt.includes("T") ? rawSt.split("T")[1].replace("Z", "") : rawSt;
+  const hm = tp.match(/^(\d{1,2}):/);
+  const utcH = hm ? Number(hm[1]) : -1;
+  if (utcH >= 17) {
+    const d = new Date(date + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    date = getLocalYmd(d);
+  }
+  return date;
+}
+
+/**
  * Khoảng đếm "Ca đã lên lịch": từ hôm nay (hoặc đầu tháng nếu đang xem tháng tương lai)
  * đến hết tháng đang xem — không tính ngày đã qua trong tháng.
  * Trả về null nếu cả tháng đã nằm trước hôm nay.
@@ -279,13 +302,12 @@ function getScheduledStatsDateRangeYmd(viewedMonth, todayYmd) {
 }
 
 function toCalendarEvent(shift, todayYmd) {
-  const rawDate =
-    shift.shiftDate ?? shift.workDate ?? shift.date ?? shift.ShiftDate ?? "";
-  const date = rawDate ? rawDate.split("T")[0] : "";
+  const date = getLocalShiftDate(shift);
   const rawStartTime = shift.startTime ?? shift.StartTime ?? shift.start ?? "";
   const rawEndTime = shift.endTime ?? shift.EndTime ?? shift.end ?? "";
   const startTime = toUtcTimeLabel(rawStartTime);
   const endTime = toUtcTimeLabel(rawEndTime);
+
   const staffName =
     shift.staffName ??
     shift.StaffName ??
@@ -300,8 +322,8 @@ function toCalendarEvent(shift, todayYmd) {
   const startStr =
     startTime && date ? `${date}T${startTime.slice(0, 5)}` : date || undefined;
   const endStr = endTime && date ? `${date}T${endTime.slice(0, 5)}` : undefined;
-  /** Các ngày trước: chỉ xem, không bấm / không xóa hàng loạt. */
-  const isReadOnlyShift = Boolean(date && todayYmd && date < todayYmd);
+  /** Hôm nay và các ngày trước: chỉ xem, không bấm / không xóa hàng loạt (chia ca chỉ từ ngày mai). */
+  const isReadOnlyShift = Boolean(date && todayYmd && date <= todayYmd);
 
   return {
     id: String(shift.shiftId ?? shift.ShiftId ?? shift.id ?? Math.random()),
@@ -321,8 +343,9 @@ function DroppableLotCalendar({ lotId, children }) {
     <div
       ref={setNodeRef}
       data-lot-id={lotId}
-      className={`relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full transition-all duration-200 ${isOver ? "ring-2 ring-blue-500 bg-blue-50/30" : ""
-        }`}
+      className={`relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full transition-all duration-200 ${
+        isOver ? "ring-2 ring-blue-500 bg-blue-50/30" : ""
+      }`}
     >
       {children}
     </div>
@@ -469,7 +492,7 @@ function ShiftTooltip({ tooltip }) {
             <div className="flex items-center gap-1.5">
               <Clock className="w-3 h-3 text-green-500 flex-shrink-0" />
               <span className="font-medium text-green-700">
-                Check-in/out: {checkIn || "—"} / {checkOut || "—"}
+                Check-in/out: {checkIn || ""} / {checkOut || ""}
               </span>
             </div>
             {lotName && (
@@ -512,7 +535,7 @@ function ShiftTooltip({ tooltip }) {
               className="text-[10px] font-semibold"
               style={{ color: STATUS_COLORS[statusKey] ?? "#6B7280" }}
             >
-              {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? "—"}
+              {STATUS_LABELS[statusKey] ?? shift?.shiftStatus ?? ""}
             </span>
             {/* <span className="text-[10px] text-gray-400 ml-auto">
               {readOnly ? "Chỉ xem (không chỉnh sửa)" : "Nhấn để xem chi tiết"}
@@ -1358,12 +1381,7 @@ function Shifts() {
             inactiveStaffIds.has(String(shift.staffId ?? shift.StaffId ?? ""))
           )
             continue;
-          const date = (
-            shift.shiftDate ??
-            shift.workDate ??
-            shift.date ??
-            ""
-          ).split("T")[0];
+          const date = getLocalShiftDate(shift);
           if (
             date &&
             date >= startStr &&
@@ -1412,12 +1430,7 @@ function Shifts() {
     const { start, end } = selectedRange;
     const staffIdsWithShiftsInRange = new Set();
     for (const shift of allShiftsArray) {
-      const date = (
-        shift.shiftDate ??
-        shift.workDate ??
-        shift.date ??
-        ""
-      ).split("T")[0];
+      const date = getLocalShiftDate(shift);
       if (date && date >= start && date <= end) {
         staffIdsWithShiftsInRange.add(
           String(shift.staffId ?? shift.StaffId ?? ""),
@@ -1467,7 +1480,7 @@ function Shifts() {
           String(s.staffId ?? s.StaffId ?? "") !== String(filterStaffId)
         )
           return false;
-        return isInViewedMonth(s.shiftDate ?? s.workDate ?? s.date ?? "");
+        return isInViewedMonth(getLocalShiftDate(s));
       }),
     [shiftsByLot, inactiveStaffIds, isInViewedMonth, filterStaffId],
   );
@@ -1484,8 +1497,8 @@ function Shifts() {
     const base =
       activeStatsLotId != null
         ? (shiftsByLot[activeStatsLotId] ?? []).filter(
-          (s) => !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
-        )
+            (s) => !inactiveStaffIds.has(String(s.staffId ?? s.StaffId ?? "")),
+          )
         : allShiftsArray;
     return base.filter((s) => {
       if (
@@ -1493,10 +1506,7 @@ function Shifts() {
         String(s.staffId ?? s.StaffId ?? "") !== String(filterStaffId)
       )
         return false;
-      return (
-        (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0] ===
-        todayLocalStr
-      );
+      return getLocalShiftDate(s) === todayLocalStr;
     });
   }, [
     activeStatsLotId,
@@ -1520,9 +1530,7 @@ function Shifts() {
             String(s.staffId ?? s.StaffId ?? "") !== String(filterStaffId)
           )
             return false;
-          return (
-            (s.shiftDate ?? s.workDate ?? "").split("T")[0] === todayLocalStr
-          );
+          return getLocalShiftDate(s) === todayLocalStr;
         }).length,
       })),
     [
@@ -1546,7 +1554,7 @@ function Shifts() {
         count: lotShiftsInMonth(lot.id).filter((s) => {
           if (shiftStatusKey(s) !== "SCHEDULED") return false;
           if (!scheduledStatsDateRange) return false;
-          const d = (s.shiftDate ?? s.workDate ?? s.date ?? "").split("T")[0];
+          const d = getLocalShiftDate(s);
           return (
             d >= scheduledStatsDateRange.start &&
             d <= scheduledStatsDateRange.end
@@ -1579,20 +1587,22 @@ function Shifts() {
   const scheduledCount = scheduledByLot.reduce((s, l) => s + l.count, 0);
   const inProgressCount = inProgressByLot.reduce((s, l) => s + l.count, 0);
 
-  const gridLayoutClass =
-    {
-      1: "grid-cols-1",
-      2: "grid-cols-1 xl:grid-cols-2",
-      3: "grid-cols-1 lg:grid-cols-2 xl:grid-cols-3",
-      4: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
-    }[gridCols] || "grid-cols-1";
-
   const visibleLots =
     viewMode === "tab"
       ? tabShowsAllLots
         ? parkingLots
         : parkingLots.filter((l) => String(l.id) === String(activeTabLotId))
       : parkingLots;
+
+  const actualGridCols = visibleLots.length === 1 ? 1 : gridCols;
+
+  const gridLayoutClass =
+    {
+      1: "grid-cols-1",
+      2: "grid-cols-1 xl:grid-cols-2",
+      3: "grid-cols-1 lg:grid-cols-2 xl:grid-cols-3",
+      4: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+    }[actualGridCols] || "grid-cols-1";
 
   return (
     <DndContext
@@ -1710,10 +1720,11 @@ function Shifts() {
                 if (isMultiDeleteMode) exitMultiDeleteMode();
                 else setIsMultiDeleteMode(true);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shadow-sm ${isMultiDeleteMode
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shadow-sm ${
+                isMultiDeleteMode
                   ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 ring-1 ring-red-100"
                   : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-red-600"
-                }`}
+              }`}
               title={
                 isMultiDeleteMode ? "Thoát chế độ chọn" : "Chọn nhiều ca để xóa"
               }
@@ -2028,7 +2039,7 @@ function Shifts() {
                   if (
                     filterShiftType &&
                     (s.shiftType ?? s.ShiftType ?? "").toUpperCase() !==
-                    filterShiftType
+                      filterShiftType
                   )
                     return false;
                   if (
@@ -2036,12 +2047,7 @@ function Shifts() {
                     String(s.staffId ?? s.StaffId ?? "") !== filterStaffId
                   )
                     return false;
-                  const shiftDate = (
-                    s.shiftDate ??
-                    s.workDate ??
-                    s.date ??
-                    ""
-                  ).split("T")[0];
+                  const shiftDate = getLocalShiftDate(s);
                   if (filterDateFrom || filterDateTo) {
                     if (filterDateFrom && shiftDate < filterDateFrom)
                       return false;
@@ -2050,9 +2056,7 @@ function Shifts() {
                   return true;
                 });
                 const lotVisibleShiftCount = lotShifts.filter((s) =>
-                  isInCalendarVisibleRange(
-                    s.shiftDate ?? s.workDate ?? s.date ?? "",
-                  ),
+                  isInCalendarVisibleRange(getLocalShiftDate(s)),
                 ).length;
                 const calendarEvents = lotShifts.map((s) =>
                   toCalendarEvent(s, todayLocalStr),
@@ -2175,14 +2179,16 @@ function Shifts() {
                         }
                         selectAllow={(selectInfo) => {
                           if (isMultiDeleteMode) return true;
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          return selectInfo.start >= today;
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          tomorrow.setHours(0, 0, 0, 0);
+                          return selectInfo.start >= tomorrow;
                         }}
                         dayCellClassNames={(arg) => {
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          return arg.date < today
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          tomorrow.setHours(0, 0, 0, 0);
+                          return arg.date < tomorrow
                             ? ["fc-past-disabled"]
                             : [];
                         }}
@@ -2331,20 +2337,20 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
 
   const name = shift.staffName ?? shift.StaffName ?? "Nhân viên";
   const staffId = shift.staffId ?? shift.StaffId ?? "";
-  const rawDate = shift.shiftDate ?? shift.workDate ?? shift.date ?? "";
-  const date = rawDate.split("T")[0] ?? "";
+  const date = getLocalShiftDate(shift);
+
   const displayDate = date
     ? new Date(date + "T00:00:00").toLocaleDateString("vi-VN", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-    : "—";
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "";
 
   const shiftType = (shift.shiftType ?? shift.ShiftType ?? "").toUpperCase();
   const statusKey = shiftStatusKey(shift);
-  const statusLabel = STATUS_LABELS[statusKey] ?? shift.shiftStatus ?? "—";
+  const statusLabel = STATUS_LABELS[statusKey] ?? shift.shiftStatus ?? "";
   const statusColor = STATUS_COLORS[statusKey] ?? "#6B7280";
   const barColor = SHIFT_COLORS[shiftType] ?? statusColor;
   const { checkIn, checkOut } = getAttendanceTimeLabels(shift);
@@ -2417,8 +2423,8 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                   </span>
                 </div>
                 <span className="text-xs text-gray-700">
-                  {toUtcTimeLabel(shift.startTime) || "—"} →{" "}
-                  {toUtcTimeLabel(shift.endTime) || "—"}
+                  {toUtcTimeLabel(shift.startTime) || ""} →{" "}
+                  {toUtcTimeLabel(shift.endTime) || ""}
                 </span>
               </div>
             </div>
@@ -2431,7 +2437,7 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                 </span>
               </div>
               <span className="text-xs text-green-700 font-semibold">
-                {checkIn || "—"} → {checkOut || "—"}
+                {checkIn || ""} → {checkOut || ""}
               </span>
             </div>
 
@@ -2550,3 +2556,4 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
 }
 
 export default Shifts;
+
