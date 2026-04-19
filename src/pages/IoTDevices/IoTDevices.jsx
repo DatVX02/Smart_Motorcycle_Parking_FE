@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Cpu,
   Camera,
@@ -18,14 +18,19 @@ import {
   ChevronLeft,
   ChevronRight,
   Flag,
+  Radio,
+  Loader2,
+  MoreVertical,
+  Edit3,
 } from "lucide-react";
 
-import { EyeTwoTone, EditTwoTone } from "@ant-design/icons";
+import { EyeTwoTone } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
 import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
+import mqttTestService from "../../services/mqttTestService";
 
 function StatCard({
   icon: Icon,
@@ -246,6 +251,7 @@ function IoTDevices() {
   const [loading, setLoading] = useState(true);
 
   const [selected, setSelected] = useState(null);
+  const [testingDeviceId, setTestingDeviceId] = useState(null);
 
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -374,6 +380,47 @@ function IoTDevices() {
     });
   };
 
+  const handleTestConnection = async (device) => {
+    const deviceId = device.deviceId ?? device.id;
+    if (!deviceId) {
+      toast.error("Không xác định được mã thiết bị để test.");
+      return;
+    }
+
+    const deviceLabel =
+      device.deviceName || device.deviceCode || device.name || `#${deviceId}`;
+
+    setTestingDeviceId(String(deviceId));
+    const toastId = toast.loading(
+      `Đang gửi tín hiệu test đến "${deviceLabel}"...`,
+    );
+    try {
+      await mqttTestService.sendTest({
+        lotId: device.lotId ?? device.parkingLotId ?? null,
+        gateId: device.gateId ?? device.gate_id ?? null,
+        gateName: device.gateName ?? "",
+        deviceId,
+        deviceCode: device.deviceCode ?? "",
+        deviceName: device.deviceName ?? device.name ?? "",
+        deviceType: device.deviceType ?? "",
+        ipAddress: device.ipAddress ?? "",
+        macAddress: (device.macAddress ?? "").toUpperCase(),
+      });
+      toast.success(`Đã gửi tín hiệu test đến "${deviceLabel}".`, {
+        id: toastId,
+      });
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.title ||
+        err?.message ||
+        "Không thể gửi tín hiệu test. Vui lòng thử lại.";
+      toast.error(msg, { id: toastId, duration: 5000 });
+    } finally {
+      setTestingDeviceId(null);
+    }
+  };
+
   /** Thoát trạng thái bảo trì → Sẵn sàng (sau khi xong bảo trì tại chỗ hoặc không dùng trang lịch) */
   const handleExitMaintenance = (device) => {
     setConfirmDialog({
@@ -438,8 +485,20 @@ function IoTDevices() {
       }
 
       await fetchDevices();
-    } catch {
-      toast.error("Thao tác thất bại", { duration: 1000 });
+    } catch (err) {
+      const actionLabelMap = {
+        delete: "xóa thiết bị",
+        unassign: "ngắt gán thiết bị",
+        deactivate: "ngừng hoạt động thiết bị",
+        activate: "bật lại thiết bị",
+        exitMaintenance: "đưa thiết bị về trạng thái sẵn sàng",
+        startMaintenance: "chuyển thiết bị sang trạng thái bảo trì",
+      };
+      const actionLabel = actionLabelMap[type] || "thực hiện thao tác";
+      toast.error(
+        err?.response?.data?.message ||
+          `Không thể ${actionLabel}. Vui lòng thử lại.`,
+      );
     }
   };
 
@@ -649,7 +708,7 @@ function IoTDevices() {
             {paginatedOperational.map((device) => (
               <div
                 key={device.id ?? device.deviceId}
-                className="w-full max-w-[360px]"
+                className="w-full max-w-[360px] h-full"
               >
                 <DeviceCard
                   device={device}
@@ -669,6 +728,11 @@ function IoTDevices() {
                   onActivate={handleActivate}
                   onDeactivate={handleDeactivate}
                   onExitMaintenance={handleExitMaintenance}
+                  onTestConnection={handleTestConnection}
+                  testing={
+                    testingDeviceId ===
+                    String(device.deviceId ?? device.id ?? "")
+                  }
                   onEdit={() => {
                     setSelected(device);
                     setShowModal(true);
@@ -735,7 +799,7 @@ function IoTDevices() {
             {paginatedNeedsAction.map((device) => (
               <div
                 key={device.id ?? device.deviceId}
-                className="w-full max-w-[360px]"
+                className="w-full max-w-[360px] h-full"
               >
                 <DeviceCard
                   device={device}
@@ -755,6 +819,11 @@ function IoTDevices() {
                   onActivate={handleActivate}
                   onDeactivate={handleDeactivate}
                   onExitMaintenance={handleExitMaintenance}
+                  onTestConnection={handleTestConnection}
+                  testing={
+                    testingDeviceId ===
+                    String(device.deviceId ?? device.id ?? "")
+                  }
                   onEdit={() => {
                     setSelected(device);
                     setShowModal(true);
@@ -881,6 +950,8 @@ function DeviceCard({
   onActivate,
   onDeactivate,
   onExitMaintenance,
+  onTestConnection,
+  testing = false,
   onEdit,
   onDelete,
 }) {
@@ -892,8 +963,27 @@ function DeviceCard({
   const isInactive = connUpper === "INACTIVE";
   const isMaintenance = connUpper === "MAINTENANCE";
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
+  const runAndClose = (fn) => {
+    setMenuOpen(false);
+    fn?.();
+  };
+
   return (
-    <div className="bg-white rounded-3xl shadow border p-6 w-full min-w-0">
+    <div className="bg-white rounded-3xl shadow border p-6 w-full min-w-0 h-full flex flex-col">
       <div className="flex justify-between items-start gap-3 mb-3">
         <div className="flex gap-3 items-center min-w-0 flex-1">
           <DevIcon className="w-8 h-8 flex-shrink-0 text-blue-600" />
@@ -926,74 +1016,116 @@ function DeviceCard({
           </span>
         </div>
       </div>
-      <div className="space-y-1 text-sm mb-4">
+      <div className="space-y-1 text-sm mb-4 flex-1">
         {device.gateName && <Row label="Cổng" value={device.gateName} />}
         {device.ipAddress && <Row label="IP" value={device.ipAddress} />}
         {device.model && <Row label="Model" value={device.model} />}
         {device.macAddress && <Row label="MAC" value={device.macAddress} />}
       </div>
-      <div className="flex gap-2 pt-3 border-t flex-wrap">
-        <button
-          onClick={onDetail}
-          className="flex-1 min-w-[100px] btn btn-secondary text-sm"
-        >
+      <div className="flex gap-2 pt-3 border-t mt-auto">
+        <button onClick={onDetail} className="flex-1 btn btn-secondary text-sm">
           <EyeTwoTone /> Chi tiết
         </button>
-        {device.gateName && (
+        {onTestConnection && (
           <button
-            onClick={() => onUnassign(device)}
-            className="p-2 text-orange-500 hover:bg-orange-50 rounded-lg"
+            type="button"
+            onClick={() => onTestConnection(device)}
+            disabled={testing}
+            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            title={testing ? "Đang test kết nối..." : "Test kết nối"}
+            aria-label="Test kết nối"
           >
-            <Unlink className="w-4 h-4" />
+            {testing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Radio className="w-4 h-4" />
+            )}
           </button>
         )}
-        <button
-          onClick={() => onMaintenance(device)}
-          className="p-2 text-yellow-600 rounded-lg hover:bg-amber-50"
-          title="Bảo trì"
-        >
-          <Wrench className="w-4 h-4" />
-        </button>
-        {isMaintenance ? (
+        {/* Kebab menu: gom các action ít dùng */}
+        <div className="relative" ref={menuRef}>
           <button
             type="button"
-            onClick={() => onExitMaintenance(device)}
-            className="p-2 text-green-600 rounded-lg hover:bg-green-50"
-            title="Hoạt động lại sau bảo trì"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Thao tác khác"
+            aria-label="Thao tác khác"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
           >
-            <Power className="w-4 h-4" />
+            <MoreVertical className="w-4 h-4" />
           </button>
-        ) : isInactive ? (
-          <button
-            type="button"
-            onClick={() => onActivate(device)}
-            className="p-2 text-green-600 rounded-lg hover:bg-green-50"
-            title="Bật lại"
-          >
-            <Power className="w-4 h-4" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onDeactivate(device)}
-            className="p-2 text-gray-600 rounded-lg hover:bg-gray-100"
-            title="Ngừng hoạt động"
-          >
-            <PowerOff className="w-4 h-4" />
-          </button>
-        )}
-        <button
-          onClick={onEdit}
-          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-        >
-          <EditTwoTone />
-        </button>
-        <button
-          onClick={() => onDelete(device)}
-          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute left-full bottom-0 ml-2 z-20 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => runAndClose(() => onMaintenance?.(device))}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-amber-50 hover:text-amber-700"
+              >
+                <Wrench className="w-4 h-4" /> Bảo trì
+              </button>
+              {isMaintenance ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runAndClose(() => onExitMaintenance?.(device))}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-green-50 hover:text-green-700"
+                >
+                  <Power className="w-4 h-4" /> Hoạt động lại sau bảo trì
+                </button>
+              ) : isInactive ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runAndClose(() => onActivate?.(device))}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-green-50 hover:text-green-700"
+                >
+                  <Power className="w-4 h-4" /> Bật lại
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runAndClose(() => onDeactivate?.(device))}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-gray-100"
+                >
+                  <PowerOff className="w-4 h-4" /> Ngừng hoạt động
+                </button>
+              )}
+              {device.gateName && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runAndClose(() => onUnassign?.(device))}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-orange-50 hover:text-orange-700"
+                >
+                  <Unlink className="w-4 h-4" /> Gỡ khỏi bãi
+                </button>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => runAndClose(() => onEdit?.(device))}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <Edit3 className="w-4 h-4" /> Chỉnh sửa
+              </button>
+              <div className="my-1 border-t border-gray-100" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => runAndClose(() => onDelete?.(device))}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" /> Xóa thiết bị
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

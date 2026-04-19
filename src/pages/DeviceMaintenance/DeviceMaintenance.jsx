@@ -216,7 +216,10 @@ const DeviceMaintenance = () => {
       setDevices(merged);
     } catch (err) {
       console.error(err);
-      toast.error("Không thể tải danh sách bảo trì", { duration: 1000 });
+      toast.error(
+        err?.response?.data?.message ||
+          "Không thể tải danh sách bảo trì thiết bị. Vui lòng thử lại.",
+      );
     } finally {
       setLoading(false);
     }
@@ -238,7 +241,10 @@ const DeviceMaintenance = () => {
       setLots(Array.from(lotsMap.values()));
     } catch (err) {
       console.error(err);
-      toast.error("Không thể tải danh sách bãi", { duration: 1000 });
+      toast.error(
+        err?.response?.data?.message ||
+          "Không thể tải danh sách bãi gửi xe. Vui lòng thử lại.",
+      );
     }
   };
 

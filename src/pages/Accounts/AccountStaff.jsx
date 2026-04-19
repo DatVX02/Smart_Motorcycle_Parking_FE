@@ -1,12 +1,22 @@
 import { useState, useEffect } from "react";
-import { Search, Users, UserCheck, UserX, Plus, Check } from "lucide-react";
+import { createPortal } from "react-dom";
+import {
+  Search,
+  Users,
+  UserCheck,
+  UserX,
+  Plus,
+  Check,
+  X,
+  User,
+  Loader2,
+} from "lucide-react";
 import staffService from "@/services/staffService";
 import authService from "@/services/authService";
 import {
   Image,
   Pagination,
   Tag,
-  Modal,
   Form,
   Input,
   Upload,
@@ -46,6 +56,7 @@ function AccountStaff() {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [avatarVersion, setAvatarVersion] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const currentUser = authService.getCurrentUser();
   const currentUserEmail = String(currentUser?.email ?? "")
@@ -181,8 +192,11 @@ function AccountStaff() {
       });
 
       setPreview(staff.faceImageUrl);
-    } catch {
-      toast.error("Không lấy được thông tin staff");
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message ||
+          "Không lấy được thông tin nhân viên.",
+      );
     }
   };
 
@@ -216,7 +230,7 @@ function AccountStaff() {
         error?.response?.data?.title ??
         error?.response?.data?.errors?.[0] ??
         error?.message ??
-        "Thêm nhân viên thất bại";
+        "Không thể thêm nhân viên. Vui lòng thử lại.";
       toast.error(msg);
     }
   };
@@ -240,7 +254,10 @@ function AccountStaff() {
 
       setPreview(staff.faceImageUrl);
     } catch (error) {
-      toast.error("Không lấy được thông tin staff");
+      toast.error(
+        error?.response?.data?.message ||
+          "Không lấy được thông tin nhân viên.",
+      );
     }
   };
 
@@ -269,7 +286,13 @@ function AccountStaff() {
       closeModal();
     } catch (error) {
       console.error(error);
-      toast.error("Cập nhật thất bại");
+      const msg =
+        error?.response?.data?.message ??
+        error?.response?.data?.title ??
+        error?.response?.data?.errors?.[0] ??
+        error?.message ??
+        "Không thể cập nhật nhân viên. Vui lòng thử lại.";
+      toast.error(msg);
     }
   };
 
@@ -292,7 +315,10 @@ function AccountStaff() {
 
       setPreview(staff.faceImageUrl);
     } catch (error) {
-      toast.error("Không lấy được thông tin staff");
+      toast.error(
+        error?.response?.data?.message ||
+          "Không lấy được thông tin nhân viên.",
+      );
     }
   };
 
@@ -305,7 +331,10 @@ function AccountStaff() {
 
       await fetchAccounts();
     } catch (error) {
-      toast.error("Xóa thất bại");
+      toast.error(
+        error?.response?.data?.message ||
+          "Không thể xóa nhân viên. Vui lòng thử lại.",
+      );
     }
   };
 
@@ -313,11 +342,14 @@ function AccountStaff() {
     try {
       await staffService.toggleStatus(id);
 
-      toast.success("Cập nhật trạng thái thành công", { duration: 1000 });
+      toast.success("Cập nhật trạng thái thành công", { duration: 1500 });
 
       await fetchAccounts();
     } catch (error) {
-      toast.error("Cập nhật trạng thái thất bại", { duration: 1000 });
+      toast.error(
+        error?.response?.data?.message ||
+          "Không thể cập nhật trạng thái nhân viên. Vui lòng thử lại.",
+      );
     }
   };
 
@@ -536,90 +568,177 @@ function AccountStaff() {
         />
       </div>
 
-      <Modal
-        title={
-          isViewMode
-            ? "Xem chi tiết nhân viên"
-            : isEditMode
-              ? "Cập nhật nhân viên"
-              : "Thêm nhân viên"
-        }
-        open={isModalOpen}
-        onCancel={closeModal}
-        onOk={
-          isViewMode
-            ? closeModal
-            : isEditMode
-              ? handleUpdateStaff
-              : handleSubmit
-        }
-        okText={isEditMode ? "Cập nhật" : "Thêm nhân viên"}
-        cancelText="Hủy"
-        okButtonProps={{
-          style: { display: isViewMode ? "none" : "inline-block" },
-        }}
-        cancelButtonProps={{
-          style: { display: isViewMode ? "none" : "inline-block" },
-        }}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            label="Họ tên"
-            name="fullName"
-            rules={[{ required: true, message: "Vui lòng nhập họ tên" }]}
-          >
-            <Input disabled={isViewMode} />
-          </Form.Item>
-
-          <Form.Item
-            label="Email"
-            name="email"
-            rules={[{ required: true, message: "Vui lòng nhập email" }]}
-          >
-            <Input disabled={isViewMode} />
-          </Form.Item>
-
-          <Form.Item label="Số điện thoại" name="phoneContact">
-            <Input disabled={isViewMode} />
-          </Form.Item>
-
-          {!isEditMode && !isViewMode && (
-            <Form.Item
-              label="Password"
-              name="password"
-              rules={[{ required: true, message: "Vui lòng nhập password" }]}
-            >
-              <Input.Password disabled={isViewMode} />
-            </Form.Item>
-          )}
-
-          <Form.Item label="Ảnh khuôn mặt">
-            <Upload
-              beforeUpload={handleBeforeUpload}
-              maxCount={1}
-              showUploadList={false}
-            >
-              <button
-                type="button"
-                className="btn border"
-                disabled={isViewMode}
-              >
-                <UploadOutlined /> Tải lên ảnh khuôn mặt
-              </button>
-            </Upload>
-
-            {preview && (
-              <div className="mt-4">
-                <Image
-                  src={preview}
-                  alt="preview"
-                  className="w-32 border shadow"
-                />
+      {isModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={closeModal}
+            />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="flex items-center justify-between p-5 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <User className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {isViewMode
+                      ? "Chi tiết nhân viên"
+                      : isEditMode
+                        ? "Chỉnh sửa nhân viên"
+                        : "Thêm nhân viên"}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
               </div>
-            )}
-          </Form.Item>
-        </Form>
-      </Modal>
+
+              {/* Body */}
+              <div className="p-6">
+                <Form form={form} layout="vertical" disabled={submitting}>
+                  <Form.Item
+                    label={
+                      <span className="text-sm font-medium text-gray-700">
+                        Họ tên <span className="text-red-500">*</span>
+                      </span>
+                    }
+                    name="fullName"
+                    rules={[{ required: true, message: "Vui lòng nhập họ tên" }]}
+                  >
+                    <Input
+                      disabled={isViewMode}
+                      placeholder="Nhập họ tên nhân viên"
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    label={
+                      <span className="text-sm font-medium text-gray-700">
+                        Email <span className="text-red-500">*</span>
+                      </span>
+                    }
+                    name="email"
+                    rules={[
+                      { required: true, message: "Vui lòng nhập email" },
+                      { type: "email", message: "Email không hợp lệ" },
+                    ]}
+                  >
+                    <Input disabled={isViewMode} placeholder="Nhập email" />
+                  </Form.Item>
+
+                  <Form.Item
+                    label={
+                      <span className="text-sm font-medium text-gray-700">
+                        Số điện thoại
+                      </span>
+                    }
+                    name="phoneContact"
+                  >
+                    <Input
+                      disabled={isViewMode}
+                      placeholder="Nhập số điện thoại"
+                    />
+                  </Form.Item>
+
+                  {!isEditMode && !isViewMode && (
+                    <Form.Item
+                      label={
+                        <span className="text-sm font-medium text-gray-700">
+                          Mật khẩu <span className="text-red-500">*</span>
+                        </span>
+                      }
+                      name="password"
+                      rules={[
+                        { required: true, message: "Vui lòng nhập mật khẩu" },
+                        {
+                          min: 6,
+                          message: "Mật khẩu phải có ít nhất 6 ký tự",
+                        },
+                      ]}
+                    >
+                      <Input.Password placeholder="Nhập mật khẩu" />
+                    </Form.Item>
+                  )}
+
+                  <Form.Item
+                    label={
+                      <span className="text-sm font-medium text-gray-700">
+                        Ảnh khuôn mặt
+                      </span>
+                    }
+                    className="mb-0"
+                  >
+                    {!isViewMode && (
+                      <Upload
+                        beforeUpload={handleBeforeUpload}
+                        maxCount={1}
+                        showUploadList={false}
+                      >
+                        <Button icon={<UploadOutlined />}>
+                          Tải lên ảnh khuôn mặt
+                        </Button>
+                      </Upload>
+                    )}
+
+                    {preview && (
+                      <div className="mt-3">
+                        <Image
+                          src={preview}
+                          alt="preview"
+                          className="rounded-lg border shadow-sm"
+                          style={{ maxWidth: 160 }}
+                        />
+                      </div>
+                    )}
+                  </Form.Item>
+                </Form>
+              </div>
+
+              {/* Footer */}
+              {!isViewMode && (
+                <div className="flex items-center justify-end gap-3 p-5 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    disabled={submitting}
+                    className="btn btn-secondary"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setSubmitting(true);
+                      try {
+                        if (isEditMode) {
+                          await handleUpdateStaff();
+                        } else {
+                          await handleSubmit();
+                        }
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    disabled={submitting}
+                    className="btn btn-primary flex items-center gap-2"
+                  >
+                    {submitting && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    {isEditMode ? "Cập nhật" : "Thêm nhân viên"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

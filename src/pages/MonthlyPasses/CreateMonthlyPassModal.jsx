@@ -29,7 +29,7 @@ function CreateMonthlyPassModal({
   const [monthCount, setMonthCount] = useState(editingPkg?.monthCount ?? 1);
   const [price, setPrice] = useState(
     editingPkg?.price != null
-      ? parseInt(editingPkg.price, 10).toLocaleString("vi-VN")
+      ? `${parseInt(editingPkg.price, 10).toLocaleString("vi-VN")} VNĐ`
       : "",
   );
   const [loading, setLoading] = useState(false);
@@ -43,7 +43,7 @@ function CreateMonthlyPassModal({
       setMonthCount(editingPkg.monthCount ?? 1);
       setPrice(
         editingPkg.price != null
-          ? parseInt(editingPkg.price, 10).toLocaleString("vi-VN")
+          ? `${parseInt(editingPkg.price, 10).toLocaleString("vi-VN")} VNĐ`
           : "",
       );
     }
@@ -134,7 +134,7 @@ function CreateMonthlyPassModal({
   const formatPriceInput = (val) => {
     const num = String(val).replace(/\D/g, "");
     if (!num) return "";
-    return parseInt(num, 10).toLocaleString("vi-VN");
+    return `${parseInt(num, 10).toLocaleString("vi-VN")} VNĐ`;
   };
 
   const handlePriceChange = (e) => {
@@ -243,9 +243,10 @@ function CreateMonthlyPassModal({
               </label>
               <input
                 type="text"
+                inputMode="numeric"
                 value={price}
                 onChange={handlePriceChange}
-                placeholder="600000"
+                placeholder="Ví dụ: 600.000 VNĐ"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder:text-gray-400"
               />
             </div>

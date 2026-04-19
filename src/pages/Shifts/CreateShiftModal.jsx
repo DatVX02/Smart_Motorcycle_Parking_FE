@@ -707,7 +707,11 @@ function CreateShiftModal({
       onClose();
     } catch (err) {
       const data = err?.response?.data;
-      let msg = data?.message ?? data?.title ?? err?.message ?? "Có lỗi xảy ra";
+      let msg =
+        data?.message ??
+        data?.title ??
+        err?.message ??
+        "Không thể tạo ca trực. Vui lòng thử lại.";
       if (data?.errors && typeof data.errors === "object") {
         const parts = Object.entries(data.errors)
           .flatMap(([, v]) => (Array.isArray(v) ? v : [v]))

@@ -88,7 +88,9 @@ function RewardPoints() {
       setConfigs(data);
     } catch (err) {
       showToast(
-        err?.response?.data?.message || "Không thể tải danh sách cấu hình.",
+        err?.response?.data?.message ||
+          err?.message ||
+          "Không thể tải danh sách cấu hình điểm thưởng. Vui lòng thử lại.",
         "error",
       );
     } finally {
@@ -151,7 +153,9 @@ function RewardPoints() {
       fetchConfigs();
     } catch (err) {
       showToast(
-        err?.response?.data?.message || "Xóa thất bại, vui lòng thử lại.",
+        err?.response?.data?.message ||
+          err?.message ||
+          "Không thể xóa cấu hình điểm thưởng. Vui lòng thử lại.",
         "error",
       );
     } finally {

@@ -282,27 +282,34 @@ function ParkingLotDetailModal({ lot, onClose }) {
     loadTrafficSessions();
   }, [lot?.id, loadData, loadTrafficSessions]);
 
-  /* flatten all devices */
+  /* flatten all devices — chỉ đếm thiết bị còn gắn với một cổng hợp lệ của bãi */
   const allDevices = useMemo(() => {
     const detailDevices = Array.isArray(detail?.devices) ? detail.devices : [];
     const devs = detailDevices.length > 0 ? detailDevices : devicesByLot;
-    return devs.map((dev) => ({
-      ...dev,
-      gateId:
-        dev.gateId ?? dev.gate_id ?? dev.gate?.gateId ?? dev.gate?.id ?? null,
-      gateName:
-        gates.find(
-          (g) =>
-            String(g.gateId ?? g.id ?? "") ===
-            String(
-              dev.gateId ??
-                dev.gate_id ??
-                dev.gate?.gateId ??
-                dev.gate?.id ??
-                "",
-            ),
-        )?.gateName || "",
-    }));
+    const validGateIds = new Set(
+      gates.map((g) => String(g.gateId ?? g.id ?? "")).filter(Boolean),
+    );
+    return devs
+      .map((dev) => {
+        const gateId =
+          dev.gateId ??
+          dev.gate_id ??
+          dev.gate?.gateId ??
+          dev.gate?.id ??
+          null;
+        return {
+          ...dev,
+          gateId,
+          gateName:
+            gates.find(
+              (g) => String(g.gateId ?? g.id ?? "") === String(gateId ?? ""),
+            )?.gateName || "",
+        };
+      })
+      .filter(
+        (dev) =>
+          dev.gateId != null && validGateIds.has(String(dev.gateId)),
+      );
   }, [detail, gates, devicesByLot]);
 
   /* Tạo thiết bị mới cho cổng */

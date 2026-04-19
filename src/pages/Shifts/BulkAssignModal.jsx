@@ -249,7 +249,7 @@ function BulkAssignModal({ allStaff, parkingLots, onClose, onSuccess }) {
         err?.response?.data?.message ??
         err?.response?.data?.title ??
         err?.message ??
-        "Có lỗi xảy ra";
+        "Không thể gán ca trực hàng loạt. Vui lòng thử lại.";
       toast.error(msg);
     } finally {
       setLoading(false);

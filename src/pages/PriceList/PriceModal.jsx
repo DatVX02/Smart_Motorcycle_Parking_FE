@@ -87,17 +87,22 @@ function PriceModal({ price, onClose, onSave }) {
               Giá (VNĐ)
             </label>
             <input
-              type="number"
-              value={formData.price}
-              onChange={(e) =>
+              type="text"
+              inputMode="numeric"
+              value={
+                formData.price
+                  ? `${Number(formData.price).toLocaleString("vi-VN")} VNĐ`
+                  : ""
+              }
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "");
                 setFormData({
                   ...formData,
-                  price: parseInt(e.target.value) || 0,
-                })
-              }
+                  price: digits ? parseInt(digits, 10) : 0,
+                });
+              }}
               className="input"
-              min="0"
-              step="1000"
+              placeholder="Ví dụ: 20.000 VNĐ"
               required
             />
           </div>

@@ -26,14 +26,17 @@ const UpdateNextMaintenanceModal = ({
                 reason: reason || null
             });
 
-            toast.success("Cập nhật thành công", {duration: 1000});
+            toast.success("Cập nhật ngày bảo trì thành công", {duration: 1500});
 
             onUpdated();
             onClose();
 
-        } catch {
+        } catch (err) {
 
-            toast.error("Không thể cập nhật", {duration: 10000});
+            toast.error(
+                err?.response?.data?.message ||
+                    "Không thể cập nhật ngày bảo trì. Vui lòng thử lại.",
+            );
 
         }
 

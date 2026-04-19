@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, Loader2, Calendar } from "lucide-react";
 import { format, parseISO, isValid, isBefore, isEqual } from "date-fns";
@@ -52,6 +52,12 @@ const formatNumberInput = (n) => {
   if (n == null || n === "") return "";
   const num = typeof n === "number" ? n : parseFormattedNumber(n);
   return num != null ? Number(num).toLocaleString("vi-VN") : "";
+};
+
+/** Format số tiền có hậu tố VNĐ */
+const formatMoneyInput = (n) => {
+  const formatted = formatNumberInput(n);
+  return formatted ? `${formatted} VNĐ` : "";
 };
 
 /** Chuyển ISO string hoặc Date sang giá trị nội bộ (YYYY-MM-DDTHH:mm) */
@@ -140,47 +146,20 @@ function LoyaltyConfigModal({
   onSave,
 }) {
   const isEdit = Boolean(config);
-
-  /* Bãi xe đã có cấu hình (khi edit: loại trừ cấu hình đang sửa) */
-  const configsExcludingCurrent = useMemo(
-    () =>
-      existingConfigs.filter(
-        (c) => (c.id ?? c.configId) !== (config?.id ?? config?.configId),
-      ),
-    [existingConfigs, config],
-  );
-  const lotIdsWithConfig = useMemo(
-    () =>
-      new Set(
-        configsExcludingCurrent.map((c) =>
-          String(c.lotId ?? c.parkingLotId ?? ""),
-        ),
-      ),
-    [configsExcludingCurrent],
-  );
-  const lotsWithoutConfig = useMemo(
-    () =>
-      (lots ?? []).filter((lot) => {
-        const id = String(lot.lotId ?? lot.id ?? "");
-        return !lotIdsWithConfig.has(id);
-      }),
-    [lots, lotIdsWithConfig],
-  );
-  const currentLotId = String(config?.lotId ?? config?.parkingLotId ?? "");
-  const availableLots = useMemo(
-    () => (isEdit ? (lots ?? []) : lotsWithoutConfig),
-    [isEdit, lots, lotsWithoutConfig],
-  );
+  const availableLots = lots ?? [];
+  const currentConfigId = config?.id ?? config?.configId ?? null;
 
   const initNum = (val) =>
     val != null && val !== "" ? formatNumberInput(Number(val)) : "";
+  const initMoney = (val) =>
+    val != null && val !== "" ? formatMoneyInput(Number(val)) : "";
 
   const [formData, setFormData] = useState({
     lotId: config?.lotId ?? config?.parkingLotId ?? "",
     pointsPer1000Vnd: initNum(
       config?.pointsPer1000vnd ?? config?.pointsPer1000Vnd,
     ),
-    vndPerPoint: initNum(config?.vndPerPoint),
+    vndPerPoint: initMoney(config?.vndPerPoint),
     isActive: config?.isActive ?? true,
     startDate: toDateTimeLocalValue(config?.startDate),
     endDate: toDateTimeLocalValue(config?.endDate),
@@ -199,23 +178,25 @@ function LoyaltyConfigModal({
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleNumberChange = (field, rawValue) => {
+  const handleNumberChange = (field, rawValue, withMoneySuffix = false) => {
     const parsed = parseFormattedNumber(rawValue);
+    const formatter = withMoneySuffix ? formatMoneyInput : formatNumberInput;
     const display =
       rawValue === "" || rawValue === null
         ? ""
         : parsed != null
-          ? formatNumberInput(parsed)
+          ? formatter(parsed)
           : rawValue;
     setFormData((prev) => ({ ...prev, [field]: display }));
   };
 
-  const handleNumberBlur = (field) => {
+  const handleNumberBlur = (field, withMoneySuffix = false) => {
     const val = formData[field];
     if (val === "" || val == null) return;
     const parsed = parseFormattedNumber(val);
     if (parsed != null) {
-      setFormData((prev) => ({ ...prev, [field]: formatNumberInput(parsed) }));
+      const formatter = withMoneySuffix ? formatMoneyInput : formatNumberInput;
+      setFormData((prev) => ({ ...prev, [field]: formatter(parsed) }));
     }
   };
 
@@ -228,14 +209,6 @@ function LoyaltyConfigModal({
       return;
     }
 
-    const selectedLotId = String(formData.lotId);
-    if (
-      lotIdsWithConfig.has(selectedLotId) &&
-      (!isEdit || selectedLotId !== currentLotId)
-    ) {
-      setError("Bãi xe này đã có cấu hình. Mỗi bãi xe chỉ được 1 cấu hình.");
-      return;
-    }
     if (!formData.startDate || !formData.endDate) {
       setError("Vui lòng nhập ngày bắt đầu và kết thúc.");
       return;
@@ -248,6 +221,28 @@ function LoyaltyConfigModal({
     }
     if (isBefore(end, start) || isEqual(end, start)) {
       setError("Ngày kết thúc phải sau ngày bắt đầu.");
+      return;
+    }
+
+    /* Check trùng khoảng thời gian với cấu hình khác của cùng bãi xe */
+    const selectedLotId = String(formData.lotId);
+    const overlapped = existingConfigs.find((c) => {
+      const cId = c.id ?? c.configId ?? null;
+      if (cId && cId === currentConfigId) return false;
+      const cLotId = String(c.lotId ?? c.parkingLotId ?? "");
+      if (cLotId !== selectedLotId) return false;
+      if (!c.startDate || !c.endDate) return false;
+      const cStart = new Date(c.startDate);
+      const cEnd = new Date(c.endDate);
+      if (!isValid(cStart) || !isValid(cEnd)) return false;
+      return start <= cEnd && cStart <= end;
+    });
+    if (overlapped) {
+      const fmt = (d) =>
+        format(new Date(d), "dd/MM/yyyy HH:mm");
+      setError(
+        `Khoảng thời gian bị trùng với cấu hình đã có (${fmt(overlapped.startDate)} - ${fmt(overlapped.endDate)}). Vui lòng chọn khoảng thời gian khác.`,
+      );
       return;
     }
 
@@ -298,7 +293,7 @@ function LoyaltyConfigModal({
   return createPortal(
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg my-auto"
+        className="bg-white rounded-lg shadow-xl w-full max-w-2xl my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -333,39 +328,20 @@ function LoyaltyConfigModal({
               required
             >
               <option value="">-- Chọn bãi gửi xe --</option>
-              {!isEdit && availableLots.length === 0 ? (
-                <option value="" disabled>
-                  Tất cả bãi gửi xe đã có cấu hình
-                </option>
-              ) : (
-                availableLots.map((lot) => {
-                  const id = lot.lotId ?? lot.id ?? "";
-                  const hasConfig = lotIdsWithConfig.has(String(id));
-                  const label = lot.lotName ?? lot.name ?? id;
-                  return (
-                    <option
-                      key={id}
-                      value={id}
-                      disabled={isEdit && hasConfig && id !== currentLotId}
-                    >
-                      {label}
-                      {isEdit && hasConfig && id !== currentLotId
-                        ? " (Đã có cấu hình)"
-                        : ""}
-                    </option>
-                  );
-                })
-              )}
+              {availableLots.map((lot) => {
+                const id = lot.lotId ?? lot.id ?? "";
+                const label = lot.lotName ?? lot.name ?? id;
+                return (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
-            {!isEdit && availableLots.length === 0 && (
-              <p className="text-sm text-amber-600 mt-1">
-                Mỗi bãi xe chỉ được 1 cấu hình. Tất cả bãi đã được cấu hình.
-              </p>
-            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="flex flex-col">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tỷ lệ tích điểm (Điểm / 1.000VNĐ){" "}
                 <span className="text-red-500">*</span>
@@ -379,10 +355,10 @@ function LoyaltyConfigModal({
                   handleNumberChange("pointsPer1000Vnd", e.target.value)
                 }
                 onBlur={() => handleNumberBlur("pointsPer1000Vnd")}
-                className="input"
+                className="input mt-auto"
               />
             </div>
-            <div>
+            <div className="flex flex-col">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Giá trị quy đổi (VNĐ / 1 điểm){" "}
                 <span className="text-red-500">*</span>
@@ -390,19 +366,19 @@ function LoyaltyConfigModal({
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="Nhập số tiền..."
+                placeholder="Ví dụ: 1.000 VNĐ"
                 value={formData.vndPerPoint}
                 onChange={(e) =>
-                  handleNumberChange("vndPerPoint", e.target.value)
+                  handleNumberChange("vndPerPoint", e.target.value, true)
                 }
-                onBlur={() => handleNumberBlur("vndPerPoint")}
-                className="input"
+                onBlur={() => handleNumberBlur("vndPerPoint", true)}
+                className="input mt-auto"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="flex flex-col">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Ngày bắt đầu <span className="text-red-500">*</span>
               </label>
@@ -412,7 +388,7 @@ function LoyaltyConfigModal({
                 placeholder="dd/mm/yy"
               />
             </div>
-            <div>
+            <div className="flex flex-col">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Ngày kết thúc <span className="text-red-500">*</span>
               </label>

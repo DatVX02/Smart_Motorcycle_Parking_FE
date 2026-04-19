@@ -278,9 +278,12 @@ export default function Settings() {
     } catch (error) {
       const status = error?.response?.status;
       if (status === 404 || status === 405) {
-        toast.error("API cập nhật hồ sơ chưa sẵn sàng trên backend");
+        toast.error("Chức năng cập nhật hồ sơ chưa khả dụng. Vui lòng liên hệ quản trị viên.");
       } else {
-        toast.error("Không thể lưu thông tin cá nhân");
+        toast.error(
+          error?.response?.data?.message ||
+            "Không thể lưu thông tin cá nhân. Vui lòng thử lại.",
+        );
       }
     } finally {
       setSavingProfile(false);

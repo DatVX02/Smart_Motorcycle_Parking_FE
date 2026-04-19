@@ -11,6 +11,7 @@ import {
   Power,
   PowerOff,
   Loader2,
+  Radio,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import parkingLotService from "../../services/parkingLotService";
@@ -18,6 +19,7 @@ import gateService from "../../services/gateService";
 import iotDeviceService from "../../services/iotDeviceService";
 import aiConfigService from "../../services/aiConfigService";
 import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
+import mqttTestService from "../../services/mqttTestService";
 import { getDefaultDemoSample } from "./parkingLotDemoData";
 
 const createMaintenanceForDevice = async (deviceId) => {
@@ -303,6 +305,12 @@ const toPercent = (v) =>
 const toDecimal = (v) =>
   v == null ? null : v > 1 ? parseFloat((v / 100).toFixed(4)) : parseFloat(v);
 const toDigitsOnly = (value) => String(value ?? "").replace(/\D/g, "");
+const stripLeadingZeros = (digits) => {
+  const s = String(digits ?? "");
+  if (!s) return "";
+  const trimmed = s.replace(/^0+/, "");
+  return trimmed || "0";
+};
 const formatViThousands = (value) => {
   const digits = toDigitsOnly(value);
   if (!digits) return "";
@@ -367,6 +375,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   const [collapsed, setCollapsed] = useState({}); // gate _id → bool
   const [collapsedDevices, setCollapsedDevices] = useState({}); // device _id → bool
   const [deletingGate, setDeletingGate] = useState(null); // gate _id đang xóa
+  const [deletingDevice, setDeletingDevice] = useState(null); // device _id đang xóa
+  const [testingGate, setTestingGate] = useState(null); // gate _id đang test MQTT
   const [togglingGate, setTogglingGate] = useState(null); // gate _id đang chuyển trạng thái
   const [currentStep, setCurrentStep] = useState(1);
   const aiConfigIdRef = useRef(null); // lưu configId để update sau
@@ -627,8 +637,14 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       });
   };
 
-  const setNumericField = (field, value) => {
-    setField(field, toDigitsOnly(value));
+  const setNumericField = (field, value, maxLength) => {
+    let digits = toDigitsOnly(value);
+    if (maxLength && digits.length > maxLength) {
+      digits = digits.slice(0, maxLength);
+    }
+    /* Gõ "0" đơn lẻ thì giữ lại, còn "0000123" → "123" */
+    const normalized = digits === "" ? "" : stripLeadingZeros(digits);
+    setField(field, normalized === "0" ? "" : normalized);
   };
 
   const addGate = () =>
@@ -797,6 +813,83 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     }
   };
 
+  const handleTestConnection = async (gId) => {
+    const gate = formData.gates.find((g) => g._id === gId);
+    if (!gate) return;
+
+    const allDevices = Array.isArray(gate.devices) ? gate.devices : [];
+    /* Chỉ test các thiết bị đã được chọn từ "Danh sách các thiết bị" (có existingDeviceId) */
+    const devices = allDevices.filter((d) =>
+      (d.existingDeviceId || "").trim(),
+    );
+    if (devices.length === 0) {
+      toast.error(
+        "Vui lòng chọn thiết bị từ danh sách trước khi test kết nối.",
+      );
+      return;
+    }
+
+    setTestingGate(gId);
+    const gateLabel = gate.gateName?.trim() || `#${gId}`;
+    const toastId = toast.loading(
+      `Đang test ${devices.length} thiết bị ở cổng "${gateLabel}"...`,
+    );
+
+    let successCount = 0;
+    const failures = [];
+
+    for (const dev of devices) {
+      const deviceLabel =
+        dev.deviceName?.trim() ||
+        dev.deviceCode?.trim() ||
+        DEVICE_TYPE_LABEL[dev.deviceType] ||
+        dev.deviceType ||
+        "Thiết bị";
+      try {
+        await mqttTestService.sendTest({
+          lotId: lot?.id ?? null,
+          gateId: gate._persisted ? gate._id : null,
+          gateName: gate.gateName?.trim() || "",
+          gateType: gate.gateType || "",
+          deviceId: dev.existingDeviceId || dev.deviceId || null,
+          deviceCode: dev.deviceCode?.trim() || "",
+          deviceName: dev.deviceName?.trim() || "",
+          deviceType: dev.deviceType || "",
+          ipAddress: dev.ipAddress?.trim() || "",
+          macAddress: dev.macAddress?.trim()?.toUpperCase() || "",
+        });
+        successCount += 1;
+      } catch (err) {
+        const msg =
+          err?.response?.data?.message ||
+          err?.response?.data?.title ||
+          err?.message ||
+          "Lỗi không xác định";
+        failures.push(`${deviceLabel} (${msg})`);
+      }
+    }
+
+    setTestingGate(null);
+
+    const total = devices.length;
+    if (failures.length === 0) {
+      toast.success(
+        `Đã gửi tín hiệu test đến ${successCount}/${total} thiết bị ở cổng "${gateLabel}".`,
+        { id: toastId },
+      );
+    } else if (successCount === 0) {
+      toast.error(
+        `Không thể test bất kỳ thiết bị nào ở cổng "${gateLabel}". Thiết bị lỗi: ${failures.join("; ")}`,
+        { id: toastId, duration: 6000 },
+      );
+    } else {
+      toast.error(
+        `Đã test ${successCount}/${total} thiết bị ở cổng "${gateLabel}". Thiết bị lỗi: ${failures.join("; ")}`,
+        { id: toastId, duration: 6000 },
+      );
+    }
+  };
+
   const updateGate = (gId, field, value) => {
     setFormData((prev) => ({
       ...prev,
@@ -881,7 +974,40 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       ),
     }));
 
-  const removeDevice = (gId, dId) => {
+  const removeDevice = async (gId, dId) => {
+    const gate = formData.gates.find((g) => g._id === gId);
+    const device = gate?.devices?.find((d) => d._id === dId);
+
+    /* Nếu thiết bị đã persist (có trong backend) thì GỠ khỏi bãi (không xóa) */
+    if (device?._persisted) {
+      const deviceBackendId =
+        device.existingDeviceId || device.deviceId || device._id;
+      if (!deviceBackendId) {
+        toast.error("Không xác định được mã thiết bị để gỡ.");
+        return;
+      }
+
+      setDeletingDevice(dId);
+      try {
+        try {
+          await iotDeviceService.unassign(deviceBackendId);
+        } catch (err) {
+          const msg =
+            err?.response?.data?.message ||
+            err?.response?.data?.title ||
+            "Không thể gỡ thiết bị khỏi bãi. Vui lòng thử lại.";
+          toast.error(msg, { duration: 5000 });
+          return;
+        }
+
+        toast.success(
+          `Đã gỡ thiết bị "${device.deviceName || device.deviceCode || deviceBackendId}" khỏi bãi.`,
+        );
+      } finally {
+        setDeletingDevice(null);
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
       gates: prev.gates.map((g) =>
@@ -1051,8 +1177,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       ).length;
 
       if (entryCount !== 1 || exitCount !== 1) {
-        newErrors.gatesStructure =
-          "Cần đủ 1 cổng vào và 1 cổng ra";
+        newErrors.gatesStructure = "Cần đủ 1 cổng vào và 1 cổng ra";
       }
 
       formData.gates.forEach((g) => {
@@ -1471,12 +1596,15 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         }
 
         // 3. Cập nhật thông tin bãi + đóng modal
-        if (lotInfo.hourlyRate != null && String(lotInfo.hourlyRate) !== String(lot.hourlyRate ?? "")) {
+        if (
+          lotInfo.hourlyRate != null &&
+          String(lotInfo.hourlyRate) !== String(lot.hourlyRate ?? "")
+        ) {
           try {
             const tomorrowMidnight = new Date();
             tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
             tomorrowMidnight.setHours(0, 0, 0, 0);
-            
+
             await parkingLotService.schedulePriceUpdate(lot.id ?? lot.lotId, {
               newHourlyRate: lotInfo.hourlyRate,
               scheduledPriceUpdateDate: tomorrowMidnight.toISOString(),
@@ -1486,7 +1614,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
             console.warn("Cập nhật giá qua lịch thất bại:", err);
           }
         }
-        
+
         // Xóa hourlyRate để API update sửa thông tin chung không làm cập nhật giá tức thì
         delete lotInfo.hourlyRate;
         await onSave({ lotInfo });
@@ -1628,7 +1756,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                     {/* Capacity */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Tổng số chỗ đỗ <span className="text-red-500">*</span>
+                        Tổng số chỗ gửi xe{" "}
+                        <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -1648,19 +1777,24 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Giá theo giờ <span className="text-red-500">*</span>
+                          Giá theo giờ (VNĐ){" "}
+                          <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9.]*"
-                          value={formatViThousands(formData.hourlyRate)}
-                          onChange={(e) =>
-                            setNumericField("hourlyRate", e.target.value)
-                          }
-                          className={`input ${errClass("hourlyRate")}`}
-                          placeholder="VD: 20.000"
-                        />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={formatViThousands(formData.hourlyRate)}
+                            onChange={(e) =>
+                              setNumericField("hourlyRate", e.target.value, 9)
+                            }
+                            className={`input pr-14 ${errClass("hourlyRate")}`}
+                            placeholder="Ví dụ: 20.000"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none select-none">
+                            VNĐ
+                          </span>
+                        </div>
                         <ErrMsg k="hourlyRate" />
                       </div>
                     </div>
@@ -1859,6 +1993,24 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                               )}
                             </button>
                             <div className="flex items-center gap-1">
+                              {gate.devices.some(
+                                (d) => (d.existingDeviceId || "").trim(),
+                              ) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleTestConnection(gate._id)}
+                                  disabled={testingGate === gate._id}
+                                  title="Test kết nối"
+                                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 bg-blue-50 rounded hover:bg-blue-100 hover:border-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {testingGate === gate._id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Radio className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>Test kết nối</span>
+                                </button>
+                              )}
                               {gate._persisted && (
                                 <button
                                   type="button"
@@ -1966,9 +2118,11 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                       <button
                                         type="button"
                                         onClick={() => addDevice(gate._id)}
-                                        disabled={!gate.gateName || !gate.gateType}
+                                        disabled={
+                                          !gate.gateName || !gate.gateType
+                                        }
                                         title={
-                                          (!gate.gateName || !gate.gateType)
+                                          !gate.gateName || !gate.gateType
                                             ? "Vui lòng chọn Loại cổng và nhập Tên cổng trước khi tạo thiết bị"
                                             : "Thêm thiết bị mới"
                                         }
@@ -1987,7 +2141,10 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                   <div className="space-y-4 pb-1">
                                     {gate.devices.map((dev, dIdx) => {
                                       const canPickExisting = !dev._persisted;
-                                      const lockedByExisting = dev._persisted || (canPickExisting && !!dev.existingDeviceId);
+                                      const lockedByExisting =
+                                        dev._persisted ||
+                                        (canPickExisting &&
+                                          !!dev.existingDeviceId);
                                       const isDeviceCollapsed =
                                         !!collapsedDevices[dev._id];
                                       const selectedDeviceType =
@@ -2052,19 +2209,26 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                   dev.deviceType
                                                 ] || dev.deviceType}
                                               </span>
-                                                <button
-                                                  type="button"
-                                                  onClick={() =>
-                                                    removeDevice(
-                                                      gate._id,
-                                                      dev._id,
-                                                    )
-                                                  }
-                                                  className="p-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                  title="Xóa thiết bị"
-                                                >
-                                                  <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  removeDevice(
+                                                    gate._id,
+                                                    dev._id,
+                                                  )
+                                                }
+                                                disabled={
+                                                  deletingDevice === dev._id
+                                                }
+                                                className="p-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title={
+                                                  deletingDevice === dev._id
+                                                    ? "Đang gỡ..."
+                                                    : "Gỡ thiết bị khỏi bãi"
+                                                }
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
                                             </div>
                                           </div>
 
@@ -2099,19 +2263,19 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                     {DEVICE_TYPE_OPTIONS.filter(
                                                       (o) =>
                                                         !(
-                                                          normalizeGateType(gate.gateType) ===
-                                                            "entry" && o.value === "LCD"
-                                                        )
-                                                    ).map(
-                                                      (o) => (
-                                                        <option
-                                                          key={o.value}
-                                                          value={o.value}
-                                                        >
-                                                          {o.label}
-                                                        </option>
-                                                      ),
-                                                    )}
+                                                          normalizeGateType(
+                                                            gate.gateType,
+                                                          ) === "entry" &&
+                                                          o.value === "LCD"
+                                                        ),
+                                                    ).map((o) => (
+                                                      <option
+                                                        key={o.value}
+                                                        value={o.value}
+                                                      >
+                                                        {o.label}
+                                                      </option>
+                                                    ))}
                                                   </select>
                                                   <ErrMsg
                                                     k={`dev_${dev._id}_deviceType`}
@@ -2122,11 +2286,11 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                   <div>
                                                     <label className="block text-xs font-medium text-gray-500 mb-1">
                                                       Danh sách các thiết bị
-                                                      
                                                     </label>
                                                     <select
                                                       value={
-                                                        dev.existingDeviceId || ""
+                                                        dev.existingDeviceId ||
+                                                        ""
                                                       }
                                                       onChange={(e) =>
                                                         handleExistingDeviceChange(
@@ -2158,7 +2322,6 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                     <ErrMsg
                                                       k={`dev_${dev._id}_existingDeviceId`}
                                                     />
-
                                                   </div>
                                                 ) : (
                                                   <div />
@@ -2277,7 +2440,6 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                 <div>
                                                   <label className="block text-xs font-medium text-gray-500 mb-1">
                                                     MAC Address
-                                                    
                                                   </label>
                                                   <input
                                                     type="text"
@@ -2301,7 +2463,6 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                 <div>
                                                   <label className="block text-xs font-medium text-gray-500 mb-1">
                                                     Phiên bản firmware
-                                                    
                                                   </label>
                                                   <input
                                                     type="text"
