@@ -1,7 +1,7 @@
 import {
   BrowserRouter as Router,
   Routes,
-  Route,
+  Routes,
   Navigate,
 } from "react-router-dom";
 import Layout from "./components/layout/Layout";
