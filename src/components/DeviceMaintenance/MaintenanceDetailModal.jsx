@@ -65,8 +65,11 @@ const MaintenanceDetailModal = ({
 
         setDeviceDetail(device);
       }
-    } catch {
-      toast.error("Không thể tải chi tiết", { duration: 1000 });
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message ||
+          "Không thể tải chi tiết bảo trì. Vui lòng thử lại.",
+      );
     }
   }, [maintenanceId]);
 
@@ -97,7 +100,7 @@ const MaintenanceDetailModal = ({
       const msg =
         err?.response?.data?.message ||
         err?.response?.data?.title ||
-        "Không thể cập nhật trạng thái bảo trì";
+        "Không thể cập nhật trạng thái bảo trì. Vui lòng thử lại.";
       toast.error(msg, { duration: 2500 });
     } finally {
       setUpdating(false);

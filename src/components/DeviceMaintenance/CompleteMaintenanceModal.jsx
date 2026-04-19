@@ -36,9 +36,12 @@ const CompleteMaintenanceModal = ({
 
                 setMaintenance(data);
 
-            } catch {
+            } catch (err) {
 
-                toast.error("Không thể tải dữ liệu", {duration: 1000});
+                toast.error(
+                    err?.response?.data?.message ||
+                        "Không thể tải chi tiết bảo trì. Vui lòng thử lại.",
+                );
 
             }
 
@@ -82,14 +85,17 @@ const CompleteMaintenanceModal = ({
                 }
             }
 
-            toast.success("Cập nhật bảo trì thành công", {duration: 1000});
+            toast.success("Cập nhật bảo trì thành công", {duration: 1500});
 
             onUpdated();
             onClose();
 
-        } catch {
+        } catch (err) {
 
-            toast.error("Không thể cập nhật", {duration: 1000});
+            toast.error(
+                err?.response?.data?.message ||
+                    "Không thể cập nhật bảo trì. Vui lòng thử lại.",
+            );
 
         }
 

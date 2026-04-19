@@ -302,7 +302,10 @@ export default function ParkingSessions() {
       setAllSessions(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
-      toast.error("Không thể tải danh sách phiên gửi xe");
+      toast.error(
+        e?.response?.data?.message ||
+          "Không thể tải danh sách phiên gửi xe. Vui lòng thử lại.",
+      );
       setAllSessions([]);
     } finally {
       setLoading(false);

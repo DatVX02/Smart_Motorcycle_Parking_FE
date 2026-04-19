@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Receipt,
   Eye,
@@ -286,7 +287,13 @@ function formatComponentDescription(value, empty = "") {
       /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
       "",
     )
+    // Xoa placeholder "string - string", "string-string", hoac chuoi "string" lap lai
+    .replace(/\bstring\s*[-–]\s*string\b/gi, "")
+    .replace(/\bstring\b/gi, "")
+    // Xoa so tien trong ngoac o cuoi mo ta, vi du: "(100,000,000 VNĐ)" / "( 100.000 VND )"
+    .replace(/\s*\(\s*[\d.,]+\s*(?:VN[ĐD]|VND|đ)?\s*\)\s*$/gi, "")
     .replace(/\s{2,}/g, " ")
+    .replace(/\s+([(),.])/g, "$1")
     .replace(/[,_-]+$/g, "")
     .trim();
 
@@ -778,13 +785,13 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
       ]
     : [];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative mt-2 sm:mt-4 bg-white rounded-2xl shadow-2xl w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-6xl max-h-[94vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[94vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -954,7 +961,8 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

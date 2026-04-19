@@ -212,24 +212,34 @@ export default function DeviceMaintenanceSchedulesModal({
   const handleCreateSchedule = async () => {
     const maintenanceType = newSchedule.maintenanceType.trim();
     if (!maintenanceType) {
-      toast.error("Vui lòng nhập loại bảo trì", { duration: 1200 });
+      toast.error("Vui lòng nhập loại bảo trì", { duration: 1500 });
+      return;
+    }
+
+    if (!newSchedule.nextMaintenanceDate) {
+      toast.error("Vui lòng chọn ngày bảo trì tiếp theo", { duration: 1500 });
+      return;
+    }
+
+    const description = newSchedule.description.trim();
+    if (!description) {
+      toast.error("Vui lòng nhập mô tả công việc bảo trì", { duration: 1500 });
       return;
     }
 
     const deviceId = getCurrentDeviceId();
     if (!deviceId) {
-      toast.error("Không tìm thấy mã thiết bị để tạo lịch", { duration: 1200 });
+      toast.error("Không tìm thấy mã thiết bị để tạo lịch", { duration: 1500 });
       return;
     }
 
     const payload = {
       deviceId,
       maintenanceType,
-      description: newSchedule.description.trim() || "",
-      nextMaintenanceDate: newSchedule.nextMaintenanceDate
-        ? // Keep date-only format to avoid timezone offset shifting to previous day.
-          dayjs(newSchedule.nextMaintenanceDate).format("YYYY-MM-DD")
-        : null,
+      description,
+      nextMaintenanceDate: dayjs(newSchedule.nextMaintenanceDate).format(
+        "YYYY-MM-DD",
+      ),
     };
 
     try {
@@ -339,7 +349,8 @@ export default function DeviceMaintenanceSchedulesModal({
 
                 <div>
                   <label className="text-xs font-medium text-gray-600 mb-1 block">
-                    Ngày bảo trì tiếp theo
+                    Ngày bảo trì tiếp theo{" "}
+                    <span className="text-red-500">*</span>
                   </label>
                   <DatePicker
                     className="w-full"
@@ -375,7 +386,7 @@ export default function DeviceMaintenanceSchedulesModal({
 
                 <div className="lg:col-span-3">
                   <label className="text-xs font-medium text-gray-600 mb-1 block">
-                    Mô tả
+                    Mô tả <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     rows={2}

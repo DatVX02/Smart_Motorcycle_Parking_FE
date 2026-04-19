@@ -103,11 +103,14 @@ function ParkingLots() {
         }),
       );
 
-      // Đếm thiết bị theo lotId từ danh sách IoT devices
+      // Đếm thiết bị theo lotId — chỉ tính thiết bị còn gắn vào một cổng (đã assign)
       const deviceCountByLot = {};
       allDevices.forEach((d) => {
         const lid = d.lotId ?? d.parkingLotId;
         if (!lid) return;
+        const gateId =
+          d.gateId ?? d.gate_id ?? d.gate?.gateId ?? d.gate?.id ?? null;
+        if (gateId == null || String(gateId).trim() === "") return;
         deviceCountByLot[lid] = (deviceCountByLot[lid] ?? 0) + 1;
       });
 

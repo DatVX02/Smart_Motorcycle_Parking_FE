@@ -1024,7 +1024,10 @@ function Shifts() {
       );
       setAllStaff(staffOnly);
     } catch (err) {
-      toast.error("Lỗi tải nhân viên");
+      toast.error(
+        err?.response?.data?.message ||
+          "Không thể tải danh sách nhân viên. Vui lòng thử lại.",
+      );
     } finally {
       setStaffLoading(false);
     }
@@ -1040,7 +1043,10 @@ function Shifts() {
       }));
       setParkingLots(normalized);
     } catch (err) {
-      toast.error("Lỗi tải bãi xe");
+      toast.error(
+        err?.response?.data?.message ||
+          "Không thể tải danh sách bãi gửi xe. Vui lòng thử lại.",
+      );
     }
   };
 
@@ -1181,7 +1187,10 @@ function Shifts() {
         );
         setShiftsByLot(results);
       } catch (err) {
-        toast.error(`Lỗi tải ca trực: ${err.message}`);
+        toast.error(
+          err?.response?.data?.message ||
+            "Không thể tải danh sách ca trực. Vui lòng thử lại.",
+        );
       }
     },
     [viewedMonth],
@@ -1345,7 +1354,9 @@ function Shifts() {
       setTimeout(handleRefresh, 300);
     } catch (err) {
       toast.error(
-        err?.response?.data?.message ?? err?.message ?? "Xóa thất bại",
+        err?.response?.data?.message ??
+          err?.message ??
+          "Không thể xóa ca trực. Vui lòng thử lại.",
       );
     } finally {
       setBulkDeleting(false);
@@ -2365,7 +2376,9 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
       onClose();
     } catch (err) {
       toast.error(
-        err?.response?.data?.message ?? err?.message ?? "Xóa thất bại",
+        err?.response?.data?.message ??
+          err?.message ??
+          "Không thể xóa ca trực. Vui lòng thử lại.",
       );
     } finally {
       setDeleting(false);

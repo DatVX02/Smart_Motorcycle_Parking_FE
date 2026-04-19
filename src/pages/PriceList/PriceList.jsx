@@ -132,7 +132,7 @@ function PriceList() {
       toast.error(
         err?.response?.data?.message ??
           err?.message ??
-          "Không tải được danh sách bãi xe",
+          "Không thể tải danh sách bãi xe. Vui lòng thử lại.",
       );
       return [];
     } finally {
@@ -180,6 +180,24 @@ function PriceList() {
       return;
     }
 
+    /* Giá mới không được trùng giá hiện tại */
+    const currentRate = Number(editingLot.hourlyRate);
+    if (Number.isFinite(currentRate) && parsedRate === currentRate) {
+      toast.error(
+        "Giá theo giờ mới phải khác với giá hiện tại. Vui lòng nhập giá khác.",
+      );
+      return;
+    }
+
+    /* Giá mới không được trùng giá đã lên lịch */
+    const scheduledRate = Number(editingLot.scheduledHourlyRate);
+    if (Number.isFinite(scheduledRate) && parsedRate === scheduledRate) {
+      toast.error(
+        "Giá theo giờ mới trùng với lịch đã đặt trước đó. Vui lòng nhập giá khác.",
+      );
+      return;
+    }
+
     if (!editScheduledAt) {
       toast.error("Vui lòng chọn thời điểm áp dụng");
       return;
@@ -206,10 +224,14 @@ function PriceList() {
       const latestLots = await loadLots();
       syncEditingLotFromLatest(latestLots, editingLot.id);
     } catch (err) {
+      const apiMessage =
+        err?.response?.data?.message ?? err?.response?.data?.title ?? "";
+      const isGenericError =
+        !apiMessage || /error\s*id/i.test(apiMessage);
       toast.error(
-        err?.response?.data?.message ??
-          err?.message ??
-          "Lên lịch cập nhật giá thất bại",
+        isGenericError
+          ? "Không thể lên lịch cập nhật giá. Giá mới có thể đang trùng hoặc hệ thống gặp sự cố. Vui lòng thử lại."
+          : apiMessage,
       );
     } finally {
       setScheduling(false);
@@ -230,7 +252,9 @@ function PriceList() {
       syncEditingLotFromLatest(latestLots, editingLot.id);
     } catch (err) {
       toast.error(
-        err?.response?.data?.message ?? err?.message ?? "Hủy lịch thất bại",
+        err?.response?.data?.message ??
+          err?.message ??
+          "Không thể hủy lịch cập nhật giá. Vui lòng thử lại.",
       );
     } finally {
       setCancellingSchedule(false);
@@ -418,7 +442,7 @@ function PriceList() {
         title={
           editingLot ? `Chỉnh sửa giá - ${editingLot.name}` : "Chỉnh sửa giá"
         }
-        destroyOnClose
+        destroyOnHidden
       >
         {editingLot && (
           <div className="space-y-4">

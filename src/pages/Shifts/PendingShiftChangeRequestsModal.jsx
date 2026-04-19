@@ -548,7 +548,7 @@ function ApproveModal({ request, parkingLots, onClose, onSuccess }) {
         err?.response?.data?.message ??
           err?.response?.data?.title ??
           err?.message ??
-          "Có lỗi xảy ra",
+          "Không thể duyệt yêu cầu đổi ca. Vui lòng thử lại.",
       );
     } finally {
       setLoading(false);
@@ -890,7 +890,7 @@ function RequestCard({ req, idx, parkingLots, cardState, onProcessed }) {
         err?.response?.data?.message ??
           err?.response?.data?.title ??
           err?.message ??
-          "Có lỗi xảy ra",
+          "Không thể từ chối yêu cầu đổi ca. Vui lòng thử lại.",
       );
     } finally {
       setLoading(false);

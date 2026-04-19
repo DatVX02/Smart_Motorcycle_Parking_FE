@@ -607,7 +607,7 @@ function CheckSection({ check, params }) {
           setError(
             err?.response?.data?.message ??
               err?.message ??
-              "Lỗi không xác định",
+              "Không thể tải dữ liệu bất thường ca trực. Vui lòng thử lại.",
           );
           setState("error");
         }
