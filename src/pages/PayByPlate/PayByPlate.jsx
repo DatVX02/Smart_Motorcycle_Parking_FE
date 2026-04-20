@@ -188,12 +188,45 @@ export default function PayByPlate() {
     }
     setResult(null);
     setIsResultModalOpen(false);
+    setPreview(null);
+    setPreviewForPlate("");
+    setIsDetailModalOpen(false);
   };
 
   const handleExpectedCheckoutTimeChange = (value) => {
     setExpectedCheckoutTime(value);
     setResult(null);
     setIsResultModalOpen(false);
+    setPreview(null);
+    setPreviewForPlate("");
+    setIsDetailModalOpen(false);
+  };
+
+  /** Cùng payload với xác nhận thanh toán — lấy đúng DTO từ POST /pay-by-plate */
+  const buildPayByPlatePayload = () => {
+    const returnUrl = `${window.location.origin}/pay-by-plate`;
+    const payload = {
+      licensePlate: normalizedPlate,
+      paymentMethod: "payos",
+      platform: "web",
+      returnUrl,
+      cancelUrl: returnUrl,
+      successUrl: returnUrl,
+      failureUrl: returnUrl,
+    };
+
+    if (!isImmediate) {
+      if (!expectedCheckoutTime) {
+        return { error: "Vui lòng chọn thời gian ra" };
+      }
+      const parsedCheckoutTime = new Date(expectedCheckoutTime);
+      if (Number.isNaN(parsedCheckoutTime.getTime())) {
+        return { error: "Thời gian ra không hợp lệ" };
+      }
+      payload.expectedCheckoutTime = parsedCheckoutTime.toISOString();
+    }
+
+    return { payload };
   };
 
   const handleLookup = async (event) => {
@@ -203,28 +236,18 @@ export default function PayByPlate() {
       return;
     }
 
+    const built = buildPayByPlatePayload();
+    if (built.error) {
+      toast.error(built.error);
+      return;
+    }
+
     setPreviewLoading(true);
     try {
       setResult(null);
       setIsResultModalOpen(false);
-      const statusResponse =
-        await parkingSessionService.getStatusByPlate(normalizedPlate);
-      let normalizedPreview = normalizePreviewResponse(statusResponse);
-
-      if (normalizedPreview.sessionId) {
-        try {
-          const detailResponse = await parkingSessionService.getById(
-            normalizedPreview.sessionId,
-          );
-          const detailPreview = normalizePreviewResponse(detailResponse);
-          normalizedPreview = mergePreviewData(
-            normalizedPreview,
-            detailPreview,
-          );
-        } catch {
-          // Keep status-by-plate data if detail API is unavailable
-        }
-      }
+      const response = await parkingSessionService.payByPlate(built.payload);
+      const normalizedPreview = normalizePreviewResponse(response);
 
       setPreview(normalizedPreview);
       setPreviewForPlate(normalizedPlate);
@@ -254,46 +277,25 @@ export default function PayByPlate() {
       return;
     }
 
-    const returnUrl = `${window.location.origin}/pay-by-plate`;
-    const payload = {
-      licensePlate: normalizedPlate,
-      paymentMethod: "payos",
-      platform: "web",
-      /* Gửi đủ các biến thể tên field để BE ghi nhận returnUrl/cancelUrl */
-      returnUrl,
-      cancelUrl: returnUrl,
-      successUrl: returnUrl,
-      failureUrl: returnUrl,
-    };
-
-    if (!isImmediate) {
-      if (!expectedCheckoutTime) {
-        toast.error("Vui lòng chọn thời gian ra");
-        return;
-      }
-
-      const parsedCheckoutTime = new Date(expectedCheckoutTime);
-      if (Number.isNaN(parsedCheckoutTime.getTime())) {
-        toast.error("Thời gian ra không hợp lệ");
-        return;
-      }
-
-      payload.expectedCheckoutTime = parsedCheckoutTime.toISOString();
+    const built = buildPayByPlatePayload();
+    if (built.error) {
+      toast.error(built.error);
+      return;
     }
+
+    const samePlate = previewForPlate === normalizedPlate;
+    const existingUrl = String(preview?.paymentUrl ?? "").trim();
+    const reusePayByPlateResult =
+      samePlate && Boolean(existingUrl && preview?.raw);
 
     setPaymentLoading(true);
     try {
-      const response = await parkingSessionService.payByPlate(payload);
+      const response = reusePayByPlateResult
+        ? { data: preview.raw, success: true }
+        : await parkingSessionService.payByPlate(built.payload);
+
       const normalized = normalizeResponse(response);
 
-      const paymentPreview = normalizePreviewResponse(response);
-      setPreview((prev) =>
-        mergePreviewData(
-          prev ?? { licensePlate: normalizedPlate },
-          paymentPreview,
-        ),
-      );
-      setPreviewForPlate(normalizedPlate);
       setIsDetailModalOpen(false);
 
       if (normalized.totalAmount > 0 && normalized.paymentUrl) {
@@ -308,14 +310,18 @@ export default function PayByPlate() {
           }),
         );
         window.location.href = normalized.paymentUrl;
-        toast.success("Đã tạo liên kết PayOS");
+        toast.success("Đang chuyển đến cổng thanh toán PayOS...");
       } else if (normalized.totalAmount === 0) {
         localStorage.removeItem(PAY_BY_PLATE_PENDING_KEY);
+        setPreview(null);
+        setPreviewForPlate("");
         setResult(normalized);
         setIsResultModalOpen(true);
         toast.success("Không cần thanh toán thêm");
       } else {
         localStorage.removeItem(PAY_BY_PLATE_PENDING_KEY);
+        setPreview(null);
+        setPreviewForPlate("");
         setResult(normalized);
         setIsResultModalOpen(true);
         toast.success("Đã xử lý thanh toán");

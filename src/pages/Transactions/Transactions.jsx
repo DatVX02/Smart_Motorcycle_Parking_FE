@@ -119,15 +119,15 @@ const PAYMENT_STATUS_MAP = {
     cls: "bg-red-100 text-red-700 border border-red-200",
   },
   InProgress: {
-    label: "Đang đỗ",
+    label: "Đang gửi",
     cls: "bg-blue-100 text-blue-700 border border-blue-200",
   },
   "in-progress": {
-    label: "Đang đỗ",
+    label: "Đang gửi",
     cls: "bg-blue-100 text-blue-700 border border-blue-200",
   },
   IN_PROGRESS: {
-    label: "Đang đỗ",
+    label: "Đang gửi",
     cls: "bg-blue-100 text-blue-700 border border-blue-200",
   },
   Cancelled: {
@@ -900,7 +900,8 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
                               </td>
                               <td className="px-3 py-2 text-gray-700">
                                 {formatComponentDescription(
-                                  component.description, "",
+                                  component.description,
+                                  "",
                                 )}
                               </td>
                               <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
@@ -928,7 +929,7 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
                   >
                     <option value="Pending">Chờ thanh toán</option>
                     <option value="Completed">Hoàn thành</option>
-                    <option value="InProgress">Đang đỗ</option>
+                    <option value="InProgress">Đang gửi</option>
                     <option value="Failed">Thất bại</option>
                     <option value="Cancelled">Đã hủy</option>
                   </select>

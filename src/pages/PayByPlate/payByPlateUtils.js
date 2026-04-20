@@ -26,6 +26,43 @@ function parseNumberOrNull(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+/** Gộp object gốc với `session` / `parkingSession` nếu BE trả lồng nhau */
+function flattenSessionPayload(merged) {
+  const nested =
+    merged.session ??
+    merged.parkingSession ??
+    merged.Session ??
+    merged.ParkingSession;
+  if (nested && typeof nested === "object") {
+    return { ...merged, ...nested };
+  }
+  return merged;
+}
+
+/** Suy tổng giờ khi API không gửi totalHours (ví dụ chỉ có mốc thời gian) */
+function inferTotalHoursFromTimes(src) {
+  const start =
+    src.checkInTime ??
+    src.entryTime ??
+    src.startTime ??
+    src.CheckInTime ??
+    src.EntryTime;
+  if (!start) return null;
+  const t0 = new Date(start).getTime();
+  if (Number.isNaN(t0)) return null;
+  const end =
+    src.checkOutTime ??
+    src.exitTime ??
+    src.CheckOutTime ??
+    src.ExitTime ??
+    src.expectedCheckoutTime ??
+    src.ExpectedCheckoutTime ??
+    src.plannedCheckoutTime;
+  const t1 = end != null && end !== "" ? new Date(end).getTime() : Date.now();
+  if (Number.isNaN(t1) || t1 < t0) return null;
+  return (t1 - t0) / 3600000;
+}
+
 export function formatVnd(value) {
   if (value === null || value === undefined || value === "") return "";
   const amount = Number(value);
@@ -66,7 +103,16 @@ export function formatHours(value) {
   if (value === null || value === undefined || value === "") return "";
   const amount = Number(value);
   if (Number.isNaN(amount)) return "";
-  if (amount <= 0) return "0 giờ";
+  if (amount === 0) return "0 giờ";
+  if (amount < 0) return "0 giờ";
+  /* Giá trị rất nhỏ (< 1 phút) vẫn hiển thị, tránh nhầm với “trống” */
+  if (amount > 0 && amount < 1 / 60) {
+    return "< 1 phút";
+  }
+  if (amount < 1) {
+    const mins = Math.round(amount * 60);
+    return `${mins} phút`;
+  }
   return `${amount.toFixed(2)} giờ`;
 }
 
@@ -176,50 +222,126 @@ export function normalizeResponse(raw) {
 export function normalizePreviewResponse(raw) {
   const root = raw?.data ?? raw ?? {};
   const data = root?.data ?? {};
-  const merged = {
+  const merged = flattenSessionPayload({
     ...root,
     ...data,
-  };
+  });
 
   const lotName =
-    merged.lotName ?? merged.parkingLotName ?? merged.lot?.name ?? "";
+    merged.lotName ??
+    merged.parkingLotName ??
+    merged.LotName ??
+    merged.lot?.name ??
+    "";
   const sessionStatus =
-    merged.sessionStatus ?? merged.status ?? merged.session_state ?? "";
+    merged.sessionStatus ??
+    merged.status ??
+    merged.session_state ??
+    merged.SessionStatus ??
+    "";
   const paymentStatus =
     merged.paymentStatus ??
     merged.payment?.status ??
     merged.statusPayment ??
+    merged.PaymentStatus ??
     "";
 
+  let totalHours = parseNumberOrNull(
+    merged.totalHours ??
+      merged.TotalHours ??
+      merged.durationHours ??
+      merged.DurationHours ??
+      merged.duration_hours,
+  );
+  if (totalHours === null || totalHours === undefined) {
+    const inferred = inferTotalHoursFromTimes(merged);
+    if (inferred != null) totalHours = inferred;
+  }
+
+  const hourlyRate = parseNumberOrNull(
+    merged.hourlyRate ??
+      merged.HourlyRate ??
+      merged.ratePerHour ??
+      merged.RatePerHour,
+  );
+
+  const totalAmount = parseNumberOrNull(
+    merged.totalAmount ??
+      merged.TotalAmount ??
+      merged.remainingAmount ??
+      merged.RemainingAmount ??
+      merged.estimatedFee ??
+      merged.EstimatedFee ??
+      merged.estimatedAmount ??
+      merged.EstimatedAmount,
+  );
+
+  let remainingAmount = parseNumberOrNull(
+    merged.remainingAmount ?? merged.RemainingAmount,
+  );
+  if (remainingAmount === null || remainingAmount === undefined) {
+    remainingAmount = parseNumberOrNull(
+      merged.totalAmount ??
+        merged.TotalAmount ??
+        merged.amountDue ??
+        merged.AmountDue ??
+        merged.pendingAmount ??
+        merged.PendingAmount ??
+        merged.estimatedFee ??
+        merged.EstimatedFee,
+    );
+  }
+
   return {
-    sessionId: merged.sessionId ?? merged.parkingSessionId ?? merged.id ?? "",
-    lotId: merged.lotId ?? merged.parkingLotId ?? "",
-    licensePlate: String(merged.licensePlate ?? "").trim(),
+    sessionId:
+      merged.sessionId ??
+      merged.parkingSessionId ??
+      merged.SessionId ??
+      merged.id ??
+      "",
+    lotId: merged.lotId ?? merged.parkingLotId ?? merged.LotId ?? "",
+    licensePlate: String(
+      merged.licensePlate ?? merged.LicensePlate ?? "",
+    ).trim(),
     lotName: String(lotName ?? "").trim(),
     checkInTime:
       merged.checkInTime ??
       merged.entryTime ??
       merged.startTime ??
       merged.createdAt ??
+      merged.CheckInTime ??
+      merged.EntryTime ??
       null,
-    checkOutTime: merged.checkOutTime ?? merged.exitTime ?? null,
+    checkOutTime:
+      merged.checkOutTime ??
+      merged.exitTime ??
+      merged.CheckOutTime ??
+      merged.ExitTime ??
+      null,
     expectedCheckoutTime:
-      merged.expectedCheckoutTime ?? merged.plannedCheckoutTime ?? null,
+      merged.expectedCheckoutTime ??
+      merged.plannedCheckoutTime ??
+      merged.ExpectedCheckoutTime ??
+      null,
     sessionStatus: String(sessionStatus ?? "").trim(),
     paymentStatus: String(paymentStatus ?? "").trim(),
-    paymentMethod: String(merged.paymentMethod ?? "").trim(),
-    totalHours: parseNumberOrNull(merged.totalHours ?? merged.durationHours),
-    hourlyRate: parseNumberOrNull(merged.hourlyRate ?? merged.ratePerHour),
-    overtimeHours: parseNumberOrNull(merged.overtimeHours),
-    overtimeAmount: parseNumberOrNull(merged.overtimeAmount),
-    isOvertime: parseBool(merged.isOvertime),
-    totalAmount: parseNumberOrNull(
-      merged.totalAmount ?? merged.remainingAmount ?? merged.estimatedFee,
+    paymentMethod: String(
+      merged.paymentMethod ?? merged.PaymentMethod ?? "",
+    ).trim(),
+    totalHours,
+    hourlyRate,
+    overtimeHours: parseNumberOrNull(
+      merged.overtimeHours ?? merged.OvertimeHours,
     ),
-    remainingAmount: parseNumberOrNull(
-      merged.remainingAmount ?? merged.totalAmount,
+    overtimeAmount: parseNumberOrNull(
+      merged.overtimeAmount ?? merged.OvertimeAmount,
     ),
-    orderCode: String(merged.orderCode ?? "").trim(),
+    isOvertime: parseBool(merged.isOvertime ?? merged.IsOvertime),
+    totalAmount,
+    remainingAmount,
+    orderCode: String(merged.orderCode ?? merged.OrderCode ?? "").trim(),
+    paymentUrl: String(merged.paymentUrl ?? merged.PaymentUrl ?? "").trim(),
+    paymentType: String(merged.paymentType ?? merged.PaymentType ?? "").trim(),
     message: String(merged.message ?? root?.message ?? "").trim(),
     raw: merged,
   };

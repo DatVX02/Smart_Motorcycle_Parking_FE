@@ -14,7 +14,6 @@ import {
   Power,
   AlertCircle,
   Construction,
-  Trash2,
   ChevronLeft,
   ChevronRight,
   Flag,
@@ -349,14 +348,6 @@ function IoTDevices() {
     });
   };
 
-  const handleDelete = (device) => {
-    setConfirmDialog({
-      open: true,
-      type: "delete",
-      device,
-    });
-  };
-
   const handleUnassign = (device) => {
     setConfirmDialog({
       open: true,
@@ -394,11 +385,6 @@ function IoTDevices() {
     const { type, device } = confirmDialog;
 
     try {
-      if (type === "delete") {
-        await iotDeviceService.delete(device.id ?? device.deviceId);
-        toast.success("Đã xóa thiết bị", { duration: 1000 });
-      }
-
       if (type === "unassign") {
         await iotDeviceService.unassign(device.id ?? device.deviceId);
         toast.success("Đã ngắt gán thiết bị", { duration: 1000 });
@@ -447,7 +433,6 @@ function IoTDevices() {
       await fetchDevices();
     } catch (err) {
       const actionLabelMap = {
-        delete: "xóa thiết bị",
         unassign: "ngắt gán thiết bị",
         deactivate: "ngừng hoạt động thiết bị",
         activate: "bật lại thiết bị",
@@ -781,7 +766,6 @@ function IoTDevices() {
                     setSelected(device);
                     setShowModal(true);
                   }}
-                  onDelete={handleDelete}
                 />
               </div>
             ))}
@@ -867,7 +851,6 @@ function IoTDevices() {
                     setSelected(device);
                     setShowModal(true);
                   }}
-                  onDelete={handleDelete}
                 />
               </div>
             ))}
@@ -990,7 +973,6 @@ function DeviceCard({
   onDeactivate,
   onExitMaintenance,
   onEdit,
-  onDelete,
 }) {
   const conn = getConnStatus(device.connectionStatus);
   const dtype = getDeviceType(device.deviceType);
@@ -1134,15 +1116,6 @@ function DeviceCard({
                 className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-700"
               >
                 <Edit3 className="w-4 h-4" /> Chỉnh sửa
-              </button>
-              <div className="my-1 border-t border-gray-100" />
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => runAndClose(() => onDelete?.(device))}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left text-red-600 hover:bg-red-50"
-              >
-                <Trash2 className="w-4 h-4" /> Xóa thiết bị
               </button>
             </div>
           )}

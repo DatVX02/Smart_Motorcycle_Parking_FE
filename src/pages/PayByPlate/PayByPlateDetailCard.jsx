@@ -82,13 +82,13 @@ export default function PayByPlateDetailCard({
           <div className="flex items-center justify-between gap-3">
             <span className="text-slate-600">Thời gian ra dự kiến</span>
             <span className="font-medium text-slate-900">
-              {formatDateTime(detailView.expectedCheckoutTime, true)}
+              {formatDateTime(detailView.expectedCheckoutTime, false)}
             </span>
           </div>
           <div className="flex items-center justify-between gap-3">
             <span className="text-slate-600">Thời gian ra thực tế</span>
             <span className="font-medium text-slate-900">
-              {formatDateTime(detailView.checkOutTime, true)}
+              {formatDateTime(detailView.checkOutTime, false)}
             </span>
           </div>
           <div className="flex items-center justify-between gap-3">

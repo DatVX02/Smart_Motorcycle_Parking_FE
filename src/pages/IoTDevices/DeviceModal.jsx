@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import gateService from "../../services/gateService";
-import parkingLotService from "../../services/parkingLotService";
 
 const DEVICE_TYPE_OPTIONS = [
   { value: "CAMERA", label: "Camera" },
@@ -25,8 +23,6 @@ const getDefault = (device) => ({
 
 function DeviceModal({ device, onClose, onSave }) {
   const [formData, setFormData] = useState(() => getDefault(device));
-  const [gates, setGates] = useState([]);
-  const [gatesLoading, setGatesLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -34,63 +30,6 @@ function DeviceModal({ device, onClose, onSave }) {
     setFormData(getDefault(device));
     setErrors({});
   }, [device]);
-
-  useEffect(() => {
-    const loadGates = async () => {
-      setGatesLoading(true);
-      try {
-        const all = await gateService.getAll().catch(async () => {
-          const lots = await parkingLotService
-            .getAllParkingLots()
-            .catch(() => []);
-          const results = await Promise.all(
-            (lots || []).map((lot) =>
-              gateService.getByLot(lot.id ?? lot.lotId).catch(() => []),
-            ),
-          );
-          const seen = new Set();
-          return results.flat().filter((g) => {
-            const id = g.gateId ?? g.id;
-            if (id && seen.has(id)) return false;
-            if (id) seen.add(id);
-            return true;
-          });
-        });
-        setGates(Array.isArray(all) ? all : []);
-      } finally {
-        setGatesLoading(false);
-      }
-    };
-    loadGates();
-  }, []);
-
-  useEffect(() => {
-    const gateId = device?.gateId ?? device?.gate_id;
-    if (!gateId) return;
-    gateService
-      .getById(gateId)
-      .then((gate) => {
-        const name = gate?.gateName ?? gate?.name;
-        if (gate && name) {
-          setFormData((prev) => ({ ...prev, gateId, gateName: name }));
-          setGates((prev) => {
-            const exists = prev.some((g) => (g.gateId ?? g.id) === gateId);
-            return exists
-              ? prev
-              : [
-                  {
-                    ...gate,
-                    gateId: gate.gateId ?? gate.id,
-                    gateName: name,
-                    name,
-                  },
-                  ...prev,
-                ];
-          });
-        }
-      })
-      .catch(() => {});
-  }, [device?.gateId, device?.gate_id]);
 
   const set = (field, value) => {
     setFormData((p) => ({ ...p, [field]: value }));
@@ -104,18 +43,10 @@ function DeviceModal({ device, onClose, onSave }) {
 
   const validate = () => {
     const e = {};
-    const ipRx = /^(\d{1,3}\.){3}\d{1,3}$/;
     const macRx = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
     if (!formData.deviceName.trim())
       e.deviceName = "Vui lòng nhập tên thiết bị";
-
-    if (!formData.model.trim()) e.model = "Vui lòng nhập model";
-
-    const ip = formData.ipAddress.trim();
-    if (!ip) e.ipAddress = "Vui lòng nhập IP Address";
-    else if (!ipRx.test(ip))
-      e.ipAddress = "IP không hợp lệ (VD: 192.168.1.100)";
 
     const mac = formData.macAddress.trim();
     if (mac && !macRx.test(mac))
@@ -137,8 +68,8 @@ function DeviceModal({ device, onClose, onSave }) {
         deviceType: formData.deviceType,
         gateId: formData.gateId || undefined,
         gateName: formData.gateName.trim() || undefined,
-        model: formData.model.trim(),
-        ipAddress: formData.ipAddress.trim(),
+        model: formData.model.trim() || undefined,
+        ipAddress: formData.ipAddress.trim() || undefined,
         macAddress: formData.macAddress.trim().toUpperCase() || undefined,
         firmwareVersion: formData.firmwareVersion.trim() || undefined,
         connectionStatus: "ONLINE",
@@ -228,68 +159,31 @@ function DeviceModal({ device, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Gate dropdown */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tên cổng gán
-              
-            </label>
-            <select
-              value={formData.gateId || ""}
-              onChange={(e) => {
-                const id = e.target.value;
-                const gate = gates.find((g) => (g.gateId ?? g.id) === id);
-                setFormData((p) => ({
-                  ...p,
-                  gateId: id || "",
-                  gateName: gate?.gateName ?? gate?.name ?? "",
-                }));
-              }}
-              className="input"
-              disabled={gatesLoading}
-            >
-              <option value="">
-                {gatesLoading ? "Đang tải cổng..." : "Chọn cổng"}
-              </option>
-              {gates.map((g) => {
-                const id = g.gateId ?? g.id;
-                const name = g.gateName ?? g.name ?? `Cổng ${id}`;
-                return (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
           {/* Model + IP */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Model <span className="text-red-500">*</span>
+                Model
               </label>
               <input
                 type="text"
                 value={formData.model}
                 onChange={(e) => set("model", e.target.value)}
-                className={`input ${errClass("model")}`}
+                className="input"
                 placeholder="VD: Hikvision DS-2CD4A26"
               />
-              <ErrMsg k="model" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                IP Address <span className="text-red-500">*</span>
+                IP Address
               </label>
               <input
                 type="text"
                 value={formData.ipAddress}
                 onChange={(e) => set("ipAddress", e.target.value)}
-                className={`input ${errClass("ipAddress")}`}
+                className="input"
                 placeholder="VD: 192.168.1.110"
               />
-              <ErrMsg k="ipAddress" />
             </div>
           </div>
 

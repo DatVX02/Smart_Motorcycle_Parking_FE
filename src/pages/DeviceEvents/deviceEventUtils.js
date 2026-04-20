@@ -84,20 +84,20 @@ function inferDeviceNameFromCode(deviceCode) {
     .toLowerCase();
   if (!c) return "";
 
-  if (c.startsWith("face_camera_in_")) return "Face Camera In";
-  if (c.startsWith("plate_camera_in_")) return "Plate Camera In";
-  if (c.startsWith("face_camera_out_")) return "Face Camera Out";
-  if (c.startsWith("plate_camera_out_")) return "Plate Camera Out";
+  if (c.startsWith("face_camera_in_")) return "Camera khuôn mặt vào";
+  if (c.startsWith("plate_camera_in_")) return "Camera biển số vào";
+  if (c.startsWith("face_camera_out_")) return "Camera khuôn mặt ra";
+  if (c.startsWith("plate_camera_out_")) return "Camera biển số ra";
 
-  if (c.startsWith("sensor_in_1_")) return "Sensor In 1";
-  if (c.startsWith("sensor_in_2_")) return "Sensor In 2";
-  if (c.startsWith("barrier_in_")) return "Barrier In";
-  if (c.startsWith("lcd_in_")) return "LCD In";
+  if (c.startsWith("sensor_in_1_")) return "Cảm biến đầu vào 1";
+  if (c.startsWith("sensor_in_2_")) return "Cảm biến đầu vào 2";
+  if (c.startsWith("barrier_in_")) return "Barie vào";
+  if (c.startsWith("lcd_in_")) return "LCD vào";
 
-  if (c.startsWith("sensor_out_1_")) return "Sensor Out 1";
-  if (c.startsWith("sensor_out_2_")) return "Sensor Out 2";
-  if (c.startsWith("barrier_out_")) return "Barrier Out";
-  if (c.startsWith("lcd_out_")) return "LCD Out";
+  if (c.startsWith("sensor_out_1_")) return "Cảm biến đầu ra 1";
+  if (c.startsWith("sensor_out_2_")) return "Cảm biến đầu ra 2";
+  if (c.startsWith("barrier_out_")) return "Barie ra";
+  if (c.startsWith("lcd_out_")) return "LCD ra";
 
   return "";
 }

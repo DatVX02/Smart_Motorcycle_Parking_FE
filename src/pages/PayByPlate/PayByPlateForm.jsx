@@ -40,7 +40,7 @@ export default function PayByPlateForm({
         </div>
 
         <div className="space-y-2">
-          <Label>Thời gian ra</Label>
+          <Label>Chọn thời gian ra</Label>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"

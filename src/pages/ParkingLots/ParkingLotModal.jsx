@@ -5,6 +5,7 @@ import {
   X,
   Plus,
   Trash2,
+  Unlink,
   ChevronDown,
   ChevronUp,
   Calendar,
@@ -947,7 +948,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   const handleAutoFill = () => {
     const sample = getDefaultDemoSample();
     setFormData((prev) => ({
-      ...getDefaultFormData(),
+      ...prev,
       lotName: sample.lotName ?? "",
       fullAddress: sample.fullAddress ?? "",
       totalCapacity: sample.totalCapacity ?? "",
@@ -956,12 +957,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       openingTime: sample.openingTime ?? "",
       closingTime: sample.closingTime ?? "",
       is24h: !!sample.is24h,
-      gates: prev.gates,
-      licensePlateThreshold: sample.licensePlateThreshold ?? "80",
-      faceRecognitionThreshold: sample.faceRecognitionThreshold ?? "80",
-      scheduledActivationDate: "",
     }));
-    setCollapsed({});
     setErrors({});
     toast.success(`Đã điền thông tin bãi: ${sample.lotName}`);
   };
@@ -2227,7 +2223,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                                                     : "Gỡ thiết bị khỏi bãi"
                                                 }
                                               >
-                                                <Trash2 className="w-3.5 h-3.5" />
+                                                <Unlink className="w-3.5 h-3.5" />
                                               </button>
                                             </div>
                                           </div>

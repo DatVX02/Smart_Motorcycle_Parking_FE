@@ -267,11 +267,17 @@ function getLocalYmd(d = new Date()) {
  */
 function getLocalShiftDate(shift) {
   const raw =
-    shift?.shiftDate ?? shift?.workDate ?? shift?.date ?? shift?.ShiftDate ?? "";
+    shift?.shiftDate ??
+    shift?.workDate ??
+    shift?.date ??
+    shift?.ShiftDate ??
+    "";
   let date = raw ? raw.split("T")[0] : "";
   if (!date) return date;
 
-  const rawSt = String(shift?.startTime ?? shift?.StartTime ?? shift?.start ?? "").trim();
+  const rawSt = String(
+    shift?.startTime ?? shift?.StartTime ?? shift?.start ?? "",
+  ).trim();
   const tp = rawSt.includes("T") ? rawSt.split("T")[1].replace("Z", "") : rawSt;
   const hm = tp.match(/^(\d{1,2}):/);
   const utcH = hm ? Number(hm[1]) : -1;
@@ -322,8 +328,8 @@ function toCalendarEvent(shift, todayYmd) {
   const startStr =
     startTime && date ? `${date}T${startTime.slice(0, 5)}` : date || undefined;
   const endStr = endTime && date ? `${date}T${endTime.slice(0, 5)}` : undefined;
-  /** Hôm nay và các ngày trước: chỉ xem, không bấm / không xóa hàng loạt (chia ca chỉ từ ngày mai). */
-  const isReadOnlyShift = Boolean(date && todayYmd && date <= todayYmd);
+  /** Chỉ các ngày *đã qua* (trước hôm nay): chỉ xem + làm mờ ô ca. Hôm nay hiển thị rõ như ngày tương lai. */
+  const isReadOnlyShift = Boolean(date && todayYmd && date < todayYmd);
 
   return {
     id: String(shift.shiftId ?? shift.ShiftId ?? shift.id ?? Math.random()),
@@ -1622,30 +1628,36 @@ function Shifts() {
       onDragEnd={handleDragEnd}
     >
       <style>{`
+        /* Hôm nay: cùng độ tương phản với ngày trong tháng (không nền xanh / số xanh) */
         .fc .fc-day-today {
-          background: rgba(59, 130, 246, 0.07) !important;
+          background: transparent !important;
         }
         .fc .fc-day-today .fc-daygrid-day-frame {
-          border-left: 2px solid rgba(59, 130, 246, 0.5);
+          border-left: none !important;
         }
         .fc .fc-col-header-cell.fc-day-today {
-          background: rgba(59, 130, 246, 0.1) !important;
+          background: transparent !important;
         }
         .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
-          color: #2563EB;
-          font-weight: 700;
+          color: #374151;
+          font-weight: 600;
+          box-shadow: inset 0 -2px 0 0 #3b82f6;
+          padding-bottom: 4px;
+          border-radius: 0;
         }
+        /* Dấu hiệu hôm nay: viền xanh quanh số — không tô nền ô */
         .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
-          color: #2563EB;
-          font-weight: 800;
-          background: rgba(59, 130, 246, 0.15);
-          border-radius: 50%;
-          width: 26px;
-          height: 26px;
-          display: flex;
+          color: #111827 !important;
+          font-weight: 700;
+          background: transparent !important;
+          border-radius: 9999px;
+          min-width: 1.75rem;
+          min-height: 1.75rem;
+          display: inline-flex !important;
           align-items: center;
           justify-content: center;
           margin: 2px;
+          box-shadow: 0 0 0 2px #3b82f6;
         }
         .fc-past-disabled {
           background: rgba(0,0,0,0.02) !important;
@@ -2117,7 +2129,8 @@ function Shifts() {
                           interactionPlugin,
                         ]}
                         initialView="dayGridMonth"
-                        timeZone="UTC"
+                        /* UTC khiến "hôm nay" theo giờ UTC: tới 7h sáng VN vẫn là ngày hôm trước UTC */
+                        timeZone="local"
                         locale={viLocale}
                         headerToolbar={false}
                         events={calendarEvents}
@@ -2196,10 +2209,12 @@ function Shifts() {
                           return selectInfo.start >= tomorrow;
                         }}
                         dayCellClassNames={(arg) => {
-                          const tomorrow = new Date();
-                          tomorrow.setDate(tomorrow.getDate() + 1);
-                          tomorrow.setHours(0, 0, 0, 0);
-                          return arg.date < tomorrow
+                          const todayStart = new Date();
+                          todayStart.setHours(0, 0, 0, 0);
+                          const cellDate = new Date(arg.date);
+                          cellDate.setHours(0, 0, 0, 0);
+                          /* Chỉ làm mờ ngày *trước* hôm nay */
+                          return cellDate < todayStart
                             ? ["fc-past-disabled"]
                             : [];
                         }}
@@ -2569,4 +2584,3 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
 }
 
 export default Shifts;
-
