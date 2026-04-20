@@ -6,10 +6,11 @@ import {
   UserCheck,
   UserX,
   Plus,
-  Check,
   X,
   User,
   Loader2,
+  Mail,
+  Phone,
 } from "lucide-react";
 import staffService from "@/services/staffService";
 import authService from "@/services/authService";
@@ -57,6 +58,30 @@ function AccountStaff() {
   const [preview, setPreview] = useState(null);
   const [avatarVersion, setAvatarVersion] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  /** Dùng khi xem chi tiết: Form không mount nên không dùng Form.useWatch được */
+  const [staffViewSnapshot, setStaffViewSnapshot] = useState(null);
+
+  const formatDetailText = (value) => {
+    if (value == null) return "/";
+    const s = String(value).trim();
+    return s.length ? s : "/";
+  };
+
+  const staffFieldLabel = (text, { required = false } = {}) => (
+    <span className="inline-flex items-baseline gap-1">
+      <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+        {text}
+      </span>
+      {required ? (
+        <span className="text-red-500 text-xs font-semibold leading-none translate-y-px">
+          *
+        </span>
+      ) : null}
+    </span>
+  );
+
+  const inputClass =
+    "!rounded-xl !h-10 !px-3 !border-gray-200 hover:!border-gray-300";
 
   const currentUser = authService.getCurrentUser();
   const currentUserEmail = String(currentUser?.email ?? "")
@@ -171,6 +196,7 @@ function AccountStaff() {
     setSelectedStaffId(null);
     setFile(null);
     setPreview(null);
+    setStaffViewSnapshot(null);
     form.resetFields();
   };
 
@@ -191,11 +217,16 @@ function AccountStaff() {
         phoneContact: staff.phoneContact,
       });
 
+      setStaffViewSnapshot({
+        fullName: staff.fullName,
+        email: staff.email,
+        phoneContact: staff.phoneContact,
+      });
+
       setPreview(staff.faceImageUrl);
     } catch (error) {
       toast.error(
-        error?.response?.data?.message ||
-          "Không lấy được thông tin nhân viên.",
+        error?.response?.data?.message || "Không lấy được thông tin nhân viên.",
       );
     }
   };
@@ -252,11 +283,16 @@ function AccountStaff() {
         phoneContact: staff.phoneContact,
       });
 
+      setStaffViewSnapshot({
+        fullName: staff.fullName,
+        email: staff.email,
+        phoneContact: staff.phoneContact,
+      });
+
       setPreview(staff.faceImageUrl);
     } catch (error) {
       toast.error(
-        error?.response?.data?.message ||
-          "Không lấy được thông tin nhân viên.",
+        error?.response?.data?.message || "Không lấy được thông tin nhân viên.",
       );
     }
   };
@@ -305,6 +341,7 @@ function AccountStaff() {
       setSelectedStaffId(id);
       setIsEditMode(true);
       setIsViewMode(false);
+      setStaffViewSnapshot(null);
       setIsModalOpen(true);
 
       form.setFieldsValue({
@@ -316,8 +353,7 @@ function AccountStaff() {
       setPreview(staff.faceImageUrl);
     } catch (error) {
       toast.error(
-        error?.response?.data?.message ||
-          "Không lấy được thông tin nhân viên.",
+        error?.response?.data?.message || "Không lấy được thông tin nhân viên.",
       );
     }
   };
@@ -429,6 +465,7 @@ function AccountStaff() {
               onClick={() => {
                 setIsViewMode(false);
                 setIsEditMode(false);
+                setStaffViewSnapshot(null);
                 setIsModalOpen(true);
                 form.resetFields();
               }}
@@ -575,7 +612,11 @@ function AccountStaff() {
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               onClick={closeModal}
             />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div
+              className={`relative bg-white rounded-2xl shadow-2xl w-full max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150 ${
+                isViewMode ? "max-w-2xl" : "max-w-2xl"
+              }`}
+            >
               {/* Header */}
               <div className="flex items-center justify-between p-5 border-b border-gray-100">
                 <div className="flex items-center gap-3">
@@ -601,103 +642,201 @@ function AccountStaff() {
 
               {/* Body */}
               <div className="p-6">
-                <Form form={form} layout="vertical" disabled={submitting}>
-                  <Form.Item
-                    label={
-                      <span className="text-sm font-medium text-gray-700">
-                        Họ tên <span className="text-red-500">*</span>
-                      </span>
-                    }
-                    name="fullName"
-                    rules={[{ required: true, message: "Vui lòng nhập họ tên" }]}
-                  >
-                    <Input
-                      disabled={isViewMode}
-                      placeholder="Nhập họ tên nhân viên"
-                    />
-                  </Form.Item>
+                {isViewMode ? (
+                  <div className="flex flex-col md:flex-row gap-8 items-start">
+                    {/* Cột trái: Thông tin văn bản */}
+                    <div className="flex-1 space-y-6 w-full">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                            Họ và tên
+                          </p>
+                          <div className="flex items-center gap-2 text-gray-900">
+                            <User className="w-4 h-4 text-blue-500" />
+                            <span className="font-semibold text-base">
+                              {formatDetailText(staffViewSnapshot?.fullName)}
+                            </span>
+                          </div>
+                        </div>
 
-                  <Form.Item
-                    label={
-                      <span className="text-sm font-medium text-gray-700">
-                        Email <span className="text-red-500">*</span>
-                      </span>
-                    }
-                    name="email"
-                    rules={[
-                      { required: true, message: "Vui lòng nhập email" },
-                      { type: "email", message: "Email không hợp lệ" },
-                    ]}
-                  >
-                    <Input disabled={isViewMode} placeholder="Nhập email" />
-                  </Form.Item>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                            Chức vụ
+                          </p>
+                          <div>
+                            {/* Giả sử bạn có role trong snapshot, nếu không có thể mặc định hoặc truyền từ account */}
+                            <Tag
+                              color="blue"
+                              className="rounded-lg px-3 py-0.5 font-medium"
+                            >
+                              Nhân viên
+                            </Tag>
+                          </div>
+                        </div>
 
-                  <Form.Item
-                    label={
-                      <span className="text-sm font-medium text-gray-700">
-                        Số điện thoại
-                      </span>
-                    }
-                    name="phoneContact"
-                  >
-                    <Input
-                      disabled={isViewMode}
-                      placeholder="Nhập số điện thoại"
-                    />
-                  </Form.Item>
+                        <div className="sm:col-span-2 space-y-1">
+                          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                            Địa chỉ Email
+                          </p>
+                          <div className="flex items-center gap-2 text-gray-700 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                            <Mail className="w-4 h-4 text-gray-400" />{" "}
+                            {/* Nên đổi thành Mail icon */}
+                            <span className="text-sm italic">
+                              {formatDetailText(staffViewSnapshot?.email)}
+                            </span>
+                          </div>
+                        </div>
 
-                  {!isEditMode && !isViewMode && (
-                    <Form.Item
-                      label={
-                        <span className="text-sm font-medium text-gray-700">
-                          Mật khẩu <span className="text-red-500">*</span>
-                        </span>
-                      }
-                      name="password"
-                      rules={[
-                        { required: true, message: "Vui lòng nhập mật khẩu" },
-                        {
-                          min: 6,
-                          message: "Mật khẩu phải có ít nhất 6 ký tự",
-                        },
-                      ]}
-                    >
-                      <Input.Password placeholder="Nhập mật khẩu" />
-                    </Form.Item>
-                  )}
-
-                  <Form.Item
-                    label={
-                      <span className="text-sm font-medium text-gray-700">
-                        Ảnh khuôn mặt
-                      </span>
-                    }
-                    className="mb-0"
-                  >
-                    {!isViewMode && (
-                      <Upload
-                        beforeUpload={handleBeforeUpload}
-                        maxCount={1}
-                        showUploadList={false}
-                      >
-                        <Button icon={<UploadOutlined />}>
-                          Tải lên ảnh khuôn mặt
-                        </Button>
-                      </Upload>
-                    )}
-
-                    {preview && (
-                      <div className="mt-3">
-                        <Image
-                          src={preview}
-                          alt="preview"
-                          className="rounded-lg border shadow-sm"
-                          style={{ maxWidth: 160 }}
-                        />
+                        <div className="sm:col-span-2 space-y-1">
+                          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                            Số điện thoại liên hệ
+                          </p>
+                          <div className="flex items-center gap-2 text-gray-700 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                            <Phone className="w-4 h-4 text-gray-400" />{" "}
+                            <span className="text-sm font-medium">
+                              {formatDetailText(
+                                staffViewSnapshot?.phoneContact,
+                              )}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </Form.Item>
-                </Form>
+                    </div>
+
+                    {/* Cột phải: Ảnh chân dung */}
+                    <div className="flex flex-col items-center gap-3">
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider self-start md:self-center">
+                        Ảnh khuôn mặt
+                      </p>
+                      <div className="w-40 h-52 rounded-2xl border-4 border-white shadow-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                        {preview ? (
+                          <Image
+                            src={preview}
+                            alt="Staff face"
+                            className="w-full h-full object-cover"
+                            preview={true} // Cho phép nhấn vào để xem ảnh to
+                          />
+                        ) : (
+                          <User className="w-12 h-12 text-gray-300" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <Form
+                    form={form}
+                    layout="vertical"
+                    disabled={submitting}
+                    requiredMark={false}
+                    className="mt-4"
+                  >
+                    <div className="flex flex-col md:flex-row gap-8">
+                      {/* Cột trái: Form thông tin */}
+                      <div className="flex-1 space-y-4">
+                        <div className="grid grid-cols-1 gap-4">
+                          <Form.Item
+                            label={staffFieldLabel("Họ tên", {
+                              required: true,
+                            })}
+                            name="fullName"
+                            rules={[
+                              {
+                                required: true,
+                                message: "Vui lòng nhập họ tên",
+                              },
+                            ]}
+                          >
+                            <Input
+                              className={inputClass}
+                              placeholder="Nguyễn Văn A"
+                            />
+                          </Form.Item>
+
+                          <Form.Item
+                            label={staffFieldLabel("Email", { required: true })}
+                            name="email"
+                            rules={[
+                              {
+                                required: true,
+                                message: "Vui lòng nhập email",
+                              },
+                              { type: "email", message: "Email không hợp lệ" },
+                            ]}
+                          >
+                            <Input
+                              className={inputClass}
+                              placeholder="example@gmail.com"
+                            />
+                          </Form.Item>
+
+                          <Form.Item
+                            label={staffFieldLabel("Số điện thoại")}
+                            name="phoneContact"
+                          >
+                            <Input
+                              className={inputClass}
+                              placeholder="098..."
+                            />
+                          </Form.Item>
+
+                          {/* Nếu là mode thêm mới thì hiện password ở đây */}
+                          {!isEditMode && (
+                            <Form.Item
+                              label={staffFieldLabel("Mật khẩu", {
+                                required: true,
+                              })}
+                              name="password"
+                              // ... rules
+                            >
+                              <Input.Password className={inputClass} />
+                            </Form.Item>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Cột phải: Ảnh đại diện */}
+                      <div className="flex flex-col items-center space-y-4">
+                        <div className="relative group">
+                          <div className="w-40 h-52 rounded-2xl border-2 border-dashed border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center transition-all group-hover:border-blue-400">
+                            {preview ? (
+                              <img
+                                src={preview}
+                                alt="Avatar"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="text-center p-4">
+                                <User className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                                <p className="text-xs text-gray-400">
+                                  Chưa có ảnh
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Overlay khi hover để upload */}
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                              <Upload
+                                beforeUpload={handleBeforeUpload}
+                                showUploadList={false}
+                                maxCount={1}
+                              >
+                                <div className="text-white text-center">
+                                  <UploadOutlined className="text-xl" />
+                                  <p className="text-xs font-medium">
+                                    Thay đổi ảnh
+                                  </p>
+                                </div>
+                              </Upload>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-gray-500 italic text-center">
+                          Định dạng hỗ trợ: JPG, PNG <br /> Tối đa 2MB
+                        </p>
+                      </div>
+                    </div>
+                  </Form>
+                )}
               </div>
 
               {/* Footer */}
@@ -728,9 +867,7 @@ function AccountStaff() {
                     disabled={submitting}
                     className="btn btn-primary flex items-center gap-2"
                   >
-                    {submitting && (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    )}
+                    {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                     {isEditMode ? "Cập nhật" : "Thêm nhân viên"}
                   </button>
                 </div>

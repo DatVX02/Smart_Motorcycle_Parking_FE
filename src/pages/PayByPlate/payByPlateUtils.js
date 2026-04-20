@@ -129,7 +129,7 @@ export function sessionStatusBadgeClass(value) {
   return "";
 }
 
-export function paymentStatusLabel(value) {
+export function paymentStatusLabel(value, sessionStatus) {
   const key = normalizeKey(value);
   if (key === "pending") return "Chờ thanh toán";
   if (key === "completed" || key === "paid") return "Đã thanh toán";
@@ -141,6 +141,13 @@ export function paymentStatusLabel(value) {
     return "Đã hủy";
   }
   if (key === "prepaid") return "Thanh toán trước";
+
+  /* Phiên đang trong bãi mà chưa có trạng thái thanh toán → "Chưa thanh toán" */
+  const sessionKey = normalizeKey(sessionStatus);
+  if (!key && (sessionKey === "active" || sessionKey === "inprogress")) {
+    return "Chưa thanh toán";
+  }
+
   return value || "Không xác định";
 }
 
