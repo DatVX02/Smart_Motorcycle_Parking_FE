@@ -30,16 +30,36 @@ function simplifyIncidentTypeLabel(label = "") {
     .trim();
 }
 
+const INCIDENT_TYPE_VI = {
+  parking_lot_issue: "Lỗi tại bãi xe",
+  parkinglotissue: "Lỗi tại bãi xe",
+  app_error: "Lỗi ứng dụng",
+  apperror: "Lỗi ứng dụng",
+  device_error: "Lỗi thiết bị",
+  deviceerror: "Lỗi thiết bị",
+  staff_service: "Nhân viên / dịch vụ",
+  staffservice: "Nhân viên / dịch vụ",
+  payment_issue: "Vấn đề thanh toán",
+  paymentissue: "Vấn đề thanh toán",
+  vehicle_issue: "Vấn đề phương tiện",
+  vehicleissue: "Vấn đề phương tiện",
+  security_issue: "Vấn đề an ninh",
+  securityissue: "Vấn đề an ninh",
+  facility_issue: "Vấn đề cơ sở vật chất",
+  facilityissue: "Vấn đề cơ sở vật chất",
+  system_error: "Lỗi hệ thống",
+  systemerror: "Lỗi hệ thống",
+  other: "Khác",
+};
+
 function formatIncidentType(typeRaw, typeLabelMap = {}) {
   const s = String(typeRaw ?? "")
     .trim()
     .toLowerCase();
   if (!s) return "";
-  if (s === "parking_lot_issue") return "Lỗi tại bãi xe";
 
+  if (INCIDENT_TYPE_VI[s]) return INCIDENT_TYPE_VI[s];
   if (typeLabelMap[s]) return simplifyIncidentTypeLabel(typeLabelMap[s]);
-  if (s === "app_error") return "Lỗi ứng dụng";
-  if (s === "device_error") return "Lỗi thiết bị";
 
   const fallback = s
     .split("_")
@@ -123,7 +143,14 @@ function toStatusKey(statusRaw) {
   }
   if (s === "inprogress" || s === "processing") return "PROCESSING";
   if (s === "resolved" || s === "done") return "RESOLVED";
-  if (s === "rejected" || s === "cancelled") return "REJECTED";
+  if (
+    s === "rejected" ||
+    s === "cancelled" ||
+    s === "closed" ||
+    s === "close"
+  ) {
+    return "REJECTED";
+  }
   return "OTHER";
 }
 
@@ -233,11 +260,16 @@ function toApiStatusValue(statusRaw) {
   if (key === "PENDING") return "pending";
   if (key === "PROCESSING") return "in_progress";
   if (key === "RESOLVED") return "resolved";
-  if (key === "REJECTED") return "rejected";
+  if (key === "REJECTED") return "closed";
   return "pending";
 }
 
-function UpdateIncidentModal({ report, onClose, onUpdated }) {
+function UpdateIncidentModal({
+  report,
+  onClose,
+  onUpdated,
+  typeLabelMap = {},
+}) {
   const reportId = getReportId(report);
   const [detail, setDetail] = useState(report ?? null);
   const [loading, setLoading] = useState(false);
@@ -246,6 +278,11 @@ function UpdateIncidentModal({ report, onClose, onUpdated }) {
   const [resolutionNote, setResolutionNote] = useState(
     report?.resolution_notes ?? report?.resolutionNotes ?? "",
   );
+
+  /* Sự cố đã đóng (Đã xử lý / Từ chối) → chỉ xem, không cho chỉnh sửa */
+  const originalStatusKey = toStatusKey((detail ?? report)?.status);
+  const isLocked =
+    originalStatusKey === "RESOLVED" || originalStatusKey === "REJECTED";
 
   useEffect(() => {
     let cancelled = false;
@@ -338,7 +375,7 @@ function UpdateIncidentModal({ report, onClose, onUpdated }) {
               <Edit className="w-4 h-4 text-blue-600" />
             </div>
             <h2 className="text-lg font-bold text-gray-900">
-              Cập nhật xử lý sự cố
+              {isLocked ? "Chi tiết xử lý sự cố" : "Cập nhật xử lý sự cố"}
             </h2>
           </div>
           <button
@@ -363,7 +400,10 @@ function UpdateIncidentModal({ report, onClose, onUpdated }) {
                 Loại sự cố
               </p>
               <p className="text-sm font-medium text-gray-900">
-                {formatIncidentType(getReportIncidentType(detail ?? report))}
+                {formatIncidentType(
+                  getReportIncidentType(detail ?? report),
+                  typeLabelMap,
+                )}
               </p>
             </div>
             <div>
@@ -383,12 +423,13 @@ function UpdateIncidentModal({ report, onClose, onUpdated }) {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="input text-sm w-full"
+              disabled={isLocked}
+              className="input text-sm w-full disabled:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-500"
             >
               <option value="pending">Chờ xử lý</option>
               <option value="in_progress">Đang xử lý</option>
               <option value="resolved">Đã xử lý</option>
-              <option value="rejected">Từ chối</option>
+              <option value="closed">Từ chối</option>
             </select>
           </div>
 
@@ -400,8 +441,11 @@ function UpdateIncidentModal({ report, onClose, onUpdated }) {
               rows={4}
               value={resolutionNote}
               onChange={(e) => setResolutionNote(e.target.value)}
-              placeholder="Nhập ghi chú xử lý sự cố..."
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              disabled={isLocked}
+              placeholder={
+                isLocked ? "Không có ghi chú" : "Nhập ghi chú xử lý sự cố..."
+              }
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-500"
             />
           </div>
         </div>
@@ -411,19 +455,21 @@ function UpdateIncidentModal({ report, onClose, onUpdated }) {
             onClick={onClose}
             className="flex-1 py-2.5 border border-gray-200 bg-white rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
           >
-            Hủy
+            {isLocked ? "Đóng" : "Hủy"}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
-          >
-            {saving ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              "Lưu cập nhật"
-            )}
-          </button>
+          {!isLocked && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+            >
+              {saving ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                "Lưu cập nhật"
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>,
@@ -479,7 +525,8 @@ function DetailModal({ report, onClose, lotNameById, typeLabelMap }) {
     source.lotName ??
     source.parkingLotName ??
     (lotId ? lotNameById[String(lotId)] : null) ??
-    lotId ?? "";
+    lotId ??
+    "";
 
   const details = [
     ["Tiêu đề", getReportTitle(source, typeLabelMap) || ""],
@@ -907,7 +954,8 @@ export default function IncidentReports() {
                     r.lotName ??
                     r.parkingLotName ??
                     (lotIdRaw ? lotNameById[String(lotIdRaw)] : null) ??
-                    lotIdRaw ?? "";
+                    lotIdRaw ??
+                    "";
                   return (
                     <tr
                       key={id ?? idx}
@@ -1027,6 +1075,7 @@ export default function IncidentReports() {
           report={updateReport}
           onClose={() => setUpdateReport(null)}
           onUpdated={loadReports}
+          typeLabelMap={incidentTypeMap}
         />
       )}
     </div>

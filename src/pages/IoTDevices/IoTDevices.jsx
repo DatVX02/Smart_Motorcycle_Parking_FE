@@ -251,7 +251,8 @@ function IoTDevices() {
   const [loading, setLoading] = useState(true);
 
   const [selected, setSelected] = useState(null);
-  const [testingDeviceId, setTestingDeviceId] = useState(null);
+  const [testingOperationalConnection, setTestingOperationalConnection] =
+    useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -380,47 +381,6 @@ function IoTDevices() {
     });
   };
 
-  const handleTestConnection = async (device) => {
-    const deviceId = device.deviceId ?? device.id;
-    if (!deviceId) {
-      toast.error("Không xác định được mã thiết bị để test.");
-      return;
-    }
-
-    const deviceLabel =
-      device.deviceName || device.deviceCode || device.name || `#${deviceId}`;
-
-    setTestingDeviceId(String(deviceId));
-    const toastId = toast.loading(
-      `Đang gửi tín hiệu test đến "${deviceLabel}"...`,
-    );
-    try {
-      await mqttTestService.sendTest({
-        lotId: device.lotId ?? device.parkingLotId ?? null,
-        gateId: device.gateId ?? device.gate_id ?? null,
-        gateName: device.gateName ?? "",
-        deviceId,
-        deviceCode: device.deviceCode ?? "",
-        deviceName: device.deviceName ?? device.name ?? "",
-        deviceType: device.deviceType ?? "",
-        ipAddress: device.ipAddress ?? "",
-        macAddress: (device.macAddress ?? "").toUpperCase(),
-      });
-      toast.success(`Đã gửi tín hiệu test đến "${deviceLabel}".`, {
-        id: toastId,
-      });
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.title ||
-        err?.message ||
-        "Không thể gửi tín hiệu test. Vui lòng thử lại.";
-      toast.error(msg, { id: toastId, duration: 5000 });
-    } finally {
-      setTestingDeviceId(null);
-    }
-  };
-
   /** Thoát trạng thái bảo trì → Sẵn sàng (sau khi xong bảo trì tại chỗ hoặc không dùng trang lịch) */
   const handleExitMaintenance = (device) => {
     setConfirmDialog({
@@ -543,6 +503,77 @@ function IoTDevices() {
     (pageNeedsAction - 1) * PAGE_SIZE,
     pageNeedsAction * PAGE_SIZE,
   );
+
+  const handleOperationalTestConnection = async () => {
+    if (operationalDevices.length === 0) {
+      toast.error("Không có thiết bị đang vận hành để kiểm tra kết nối.");
+      return;
+    }
+
+    setTestingOperationalConnection(true);
+    const total = operationalDevices.length;
+    const toastId = toast.loading(
+      `Đang gửi tín hiệu kiểm tra kết nối tới ${total} thiết bị...`,
+    );
+
+    let successCount = 0;
+    const failures = [];
+
+    for (const device of operationalDevices) {
+      const deviceId = device.deviceId ?? device.id;
+      const deviceLabel =
+        device.deviceName ||
+        device.deviceCode ||
+        device.name ||
+        (deviceId != null ? `#${deviceId}` : "Thiết bị");
+
+      if (!deviceId) {
+        failures.push(`${deviceLabel}: chưa có mã thiết bị`);
+        continue;
+      }
+
+      try {
+        await mqttTestService.sendTest({
+          lotId: device.lotId ?? device.parkingLotId ?? null,
+          gateId: device.gateId ?? device.gate_id ?? null,
+          gateName: device.gateName ?? "",
+          deviceId,
+          deviceCode: device.deviceCode ?? "",
+          deviceName: device.deviceName ?? device.name ?? "",
+          deviceType: device.deviceType ?? "",
+          ipAddress: device.ipAddress ?? "",
+          macAddress: (device.macAddress ?? "").toUpperCase(),
+        });
+        successCount += 1;
+      } catch (err) {
+        const msg =
+          err?.response?.data?.message ||
+          err?.response?.data?.title ||
+          err?.message ||
+          "Lỗi không xác định";
+        failures.push(`${deviceLabel}: ${msg}`);
+      }
+    }
+
+    if (failures.length === 0) {
+      toast.success(
+        `Đã gửi tín hiệu kiểm tra kết nối tới ${successCount}/${total} thiết bị.`,
+        { id: toastId },
+      );
+    } else if (successCount === 0) {
+      toast.error(
+        `Không gửi được tín hiệu tới thiết bị nào. ${failures[0] ?? ""}`,
+        { id: toastId, duration: 6000 },
+      );
+    } else {
+      toast.success(
+        `Đã gửi ${successCount}/${total} thiết bị. ${failures[0] ?? ""}`,
+        { id: toastId, duration: 6000 },
+      );
+    }
+
+    setTestingOperationalConnection(false);
+  };
 
   useEffect(() => {
     if (pageOperational > totalPagesOp) setPageOperational(totalPagesOp);
@@ -691,18 +722,36 @@ function IoTDevices() {
       <div className="flex flex-col lg:flex-row gap-0 lg:items-start">
         {/* Left: Cột Vận hành (60%) */}
         <div className="flex-1 lg:w-[60%] min-w-0 pr-0 lg:pr-6 lg:border-r border-gray-200 pt-4 lg:pt-0">
-          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200 min-h-[52px]">
-            <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-              <Wifi className="w-4 h-4 text-green-600" />
+          <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-200 min-h-[52px]">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                <Wifi className="w-4 h-4 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide leading-tight">
+                  Đang vận hành
+                </h3>
+                <span className="text-xs text-gray-500 font-medium">
+                  {operationalDevices.length} thiết bị
+                </span>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide leading-tight">
-                Đang vận hành
-              </h3>
-              <span className="text-xs text-gray-500 font-medium">
-                {operationalDevices.length} thiết bị
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={handleOperationalTestConnection}
+              disabled={
+                testingOperationalConnection || operationalDevices.length === 0
+              }
+              className="btn btn-secondary flex items-center gap-2 text-sm flex-shrink-0"
+              title="Kiểm tra kết nối cho mọi thiết bị đang vận hành (theo bộ lọc hiện tại)"
+            >
+              {testingOperationalConnection ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Radio className="w-4 h-4" />
+              )}
+              Kiểm tra kết nối
+            </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
             {paginatedOperational.map((device) => (
@@ -728,11 +777,6 @@ function IoTDevices() {
                   onActivate={handleActivate}
                   onDeactivate={handleDeactivate}
                   onExitMaintenance={handleExitMaintenance}
-                  onTestConnection={handleTestConnection}
-                  testing={
-                    testingDeviceId ===
-                    String(device.deviceId ?? device.id ?? "")
-                  }
                   onEdit={() => {
                     setSelected(device);
                     setShowModal(true);
@@ -819,11 +863,6 @@ function IoTDevices() {
                   onActivate={handleActivate}
                   onDeactivate={handleDeactivate}
                   onExitMaintenance={handleExitMaintenance}
-                  onTestConnection={handleTestConnection}
-                  testing={
-                    testingDeviceId ===
-                    String(device.deviceId ?? device.id ?? "")
-                  }
                   onEdit={() => {
                     setSelected(device);
                     setShowModal(true);
@@ -950,8 +989,6 @@ function DeviceCard({
   onActivate,
   onDeactivate,
   onExitMaintenance,
-  onTestConnection,
-  testing = false,
   onEdit,
   onDelete,
 }) {
@@ -1026,22 +1063,6 @@ function DeviceCard({
         <button onClick={onDetail} className="flex-1 btn btn-secondary text-sm">
           <EyeTwoTone /> Chi tiết
         </button>
-        {onTestConnection && (
-          <button
-            type="button"
-            onClick={() => onTestConnection(device)}
-            disabled={testing}
-            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            title={testing ? "Đang test kết nối..." : "Test kết nối"}
-            aria-label="Test kết nối"
-          >
-            {testing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Radio className="w-4 h-4" />
-            )}
-          </button>
-        )}
         {/* Kebab menu: gom các action ít dùng */}
         <div className="relative" ref={menuRef}>
           <button

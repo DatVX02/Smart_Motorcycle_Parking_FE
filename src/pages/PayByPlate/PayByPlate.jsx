@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import PayByPlateDetailModal from "./PayByPlateDetailModal";
+import PayByPlateDetailCard from "./PayByPlateDetailCard";
 import PayByPlateForm from "./PayByPlateForm";
 import PayByPlateResultCard from "./PayByPlateResultCard";
 import {
@@ -254,11 +254,16 @@ export default function PayByPlate() {
       return;
     }
 
+    const returnUrl = `${window.location.origin}/pay-by-plate`;
     const payload = {
       licensePlate: normalizedPlate,
       paymentMethod: "payos",
-      returnUrl: window.location.origin + "/pay-by-plate",
-      cancelUrl: window.location.origin + "/pay-by-plate",
+      platform: "web",
+      /* Gửi đủ các biến thể tên field để BE ghi nhận returnUrl/cancelUrl */
+      returnUrl,
+      cancelUrl: returnUrl,
+      successUrl: returnUrl,
+      failureUrl: returnUrl,
     };
 
     if (!isImmediate) {
@@ -333,55 +338,66 @@ export default function PayByPlate() {
       <div className="absolute inset-0 bg-[url('/parking-lot.jpg')] bg-cover bg-center" />
       <div className="absolute inset-0 bg-slate-900/55" />
 
-      <div className="relative z-10 w-full max-w-2xl">
-        {/* Card Thanh toán: Đồng bộ nền trắng, viền mỏng, đổ bóng giống form đăng nhập */}
-        <Card className="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50">
-          <CardHeader className="text-center space-y-2 pt-8 pb-4">
-            <div className="mx-auto mb-2">
-              <img
-                src="/logo_motorguard.png"
-                alt="MotoGuard"
-                className="w-60 h-40 object-contain mx-auto"
+      <div
+        className={`relative z-10 w-full transition-all duration-300 ${
+          isDetailModalOpen ? "max-w-6xl" : "max-w-2xl"
+        }`}
+      >
+        <div
+          className={`grid gap-6 items-stretch ${
+            isDetailModalOpen ? "lg:grid-cols-2" : "grid-cols-1"
+          }`}
+        >
+          {/* Card Thanh toán */}
+          <Card className="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 h-full flex flex-col">
+            <CardHeader className="text-center space-y-2 pt-8 pb-4">
+              <div className="mx-auto mb-2">
+                <img
+                  src="/logo_motorguard.png"
+                  alt="MotoGuard"
+                  className="w-60 h-40 object-contain mx-auto"
+                />
+              </div>
+              <CardTitle className="text-2xl font-bold tracking-tight text-slate-900 mt-2">
+                Thanh toán gửi xe theo biển số
+              </CardTitle>
+              <CardDescription className="text-slate-500 text-sm font-medium">
+                Dành cho khách vãng lai. Nhập biển số xe để tra cứu phiên gửi
+                và thực hiện thanh toán.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="px-6 pb-8 sm:px-10">
+              <PayByPlateForm
+                licensePlate={licensePlate}
+                onLicensePlateChange={handlePlateChange}
+                isImmediate={isImmediate}
+                onToggleImmediate={handleToggleImmediate}
+                expectedCheckoutTime={expectedCheckoutTime}
+                onExpectedCheckoutTimeChange={handleExpectedCheckoutTimeChange}
+                disabledPastDate={disabledPastDate}
+                disabledPastTime={disabledPastTime}
+                previewLoading={previewLoading}
+                paymentLoading={paymentLoading}
+                canPay={canPay}
+                onLookup={handleLookup}
               />
-            </div>
-            <CardTitle className="text-2xl font-bold tracking-tight text-slate-900 mt-2">
-              Thanh toán gửi xe theo biển số
-            </CardTitle>
-            <CardDescription className="text-slate-500 text-sm font-medium">
-              Dành cho khách vãng lai. Nhập biển số xe để tra cứu phiên gửi và
-              thực hiện thanh toán.
-            </CardDescription>
-          </CardHeader>
+            </CardContent>
+          </Card>
 
-          <CardContent className="px-6 pb-8 sm:px-10">
-            <PayByPlateForm
-              licensePlate={licensePlate}
-              onLicensePlateChange={handlePlateChange}
-              isImmediate={isImmediate}
-              onToggleImmediate={handleToggleImmediate}
-              expectedCheckoutTime={expectedCheckoutTime}
-              onExpectedCheckoutTimeChange={handleExpectedCheckoutTimeChange}
-              disabledPastDate={disabledPastDate}
-              disabledPastTime={disabledPastTime}
-              previewLoading={previewLoading}
+          {/* Card chi tiết - hiện bên cạnh khi có dữ liệu */}
+          {isDetailModalOpen && detailView && (
+            <PayByPlateDetailCard
+              detailView={detailView}
+              normalizedPlate={normalizedPlate}
+              onPay={handlePayment}
+              onClose={() => setIsDetailModalOpen(false)}
               paymentLoading={paymentLoading}
+              previewLoading={previewLoading}
               canPay={canPay}
-              onLookup={handleLookup}
             />
-          </CardContent>
-        </Card>
-
-        {/* Các Modal và Footer giữ nguyên */}
-        <PayByPlateDetailModal
-          open={isDetailModalOpen}
-          onOpenChange={setIsDetailModalOpen}
-          detailView={detailView}
-          normalizedPlate={normalizedPlate}
-          onPay={handlePayment}
-          paymentLoading={paymentLoading}
-          previewLoading={previewLoading}
-          canPay={canPay}
-        />
+          )}
+        </div>
 
         <PayByPlateResultCard
           result={result}

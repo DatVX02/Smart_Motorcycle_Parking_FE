@@ -19,9 +19,28 @@ import parkingLotService from "../../services/parkingLotService";
 import CreateMonthlyPassModal from "./CreateMonthlyPassModal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
+/* Kiểm tra vé tháng người dùng có đang hoạt động hay không */
+const isPassActive = (pass) => {
+  const endDate = pass?.endDate ?? pass?.validTo;
+  if (endDate) {
+    const end = new Date(endDate);
+    if (!Number.isNaN(end.getTime())) {
+      return Date.now() <= end.getTime();
+    }
+  }
+  const raw = String(pass?.status ?? pass?.passStatus ?? "")
+    .trim()
+    .toLowerCase();
+  if (["expired", "inactive", "ended", "done", "cancelled"].includes(raw)) {
+    return false;
+  }
+  return true;
+};
+
 function MonthlyPassPackages() {
   const [packages, setPackages] = useState([]);
   const [parkingLots, setParkingLots] = useState([]);
+  const [activeCountByPkg, setActiveCountByPkg] = useState({});
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPkg, setEditingPkg] = useState(null);
@@ -31,6 +50,11 @@ function MonthlyPassPackages() {
     pkg: null,
   });
   const [togglingId, setTogglingId] = useState(null);
+
+  const getPkgActiveUsers = (pkg) => {
+    const pkgId = pkg?.id ?? pkg?.packageId;
+    return activeCountByPkg[String(pkgId)] ?? 0;
+  };
 
   const fetchData = async () => {
     try {
@@ -57,6 +81,22 @@ function MonthlyPassPackages() {
         pkgs = byLot.flat();
       }
       setPackages(pkgs);
+
+      /* Đếm số vé đang hoạt động theo packageId */
+      try {
+        const allPasses = await monthlyPassService.getAllPasses({});
+        const list = Array.isArray(allPasses) ? allPasses : [];
+        const countMap = {};
+        list.forEach((pass) => {
+          if (!isPassActive(pass)) return;
+          const pid = String(pass?.packageId ?? "");
+          if (!pid) return;
+          countMap[pid] = (countMap[pid] ?? 0) + 1;
+        });
+        setActiveCountByPkg(countMap);
+      } catch {
+        setActiveCountByPkg({});
+      }
     } catch (err) {
       toast.error(
         err?.response?.data?.message ?? "Không thể tải danh sách gói vé tháng",
@@ -72,17 +112,41 @@ function MonthlyPassPackages() {
     fetchData();
   }, []);
 
-  const handleDelete = (pkg) => setConfirmDelete({ open: true, pkg });
+  const handleDelete = (pkg) => {
+    const activeUsers = getPkgActiveUsers(pkg);
+    if (activeUsers > 0) {
+      toast.error(
+        `Không thể xóa gói vì còn ${activeUsers} người đang sử dụng. Vui lòng đợi hết hạn hoặc hủy vé trước.`,
+        { duration: 4000 },
+      );
+      return;
+    }
+    setConfirmDelete({ open: true, pkg });
+  };
 
   const handleToggleActive = async (pkg) => {
     const pkgId = pkg?.id ?? pkg?.packageId;
     if (!pkgId) return;
-    const newActive = !(pkg.isActive !== false);
+    const currentActive = pkg.isActive !== false;
+    const newActive = !currentActive;
+
+    /* Chặn DỪNG gói khi còn người đang sử dụng (cho phép kích hoạt lại bình thường) */
+    if (currentActive && !newActive) {
+      const activeUsers = getPkgActiveUsers(pkg);
+      if (activeUsers > 0) {
+        toast.error(
+          `Không thể tạm dừng gói vì còn ${activeUsers} người đang sử dụng. Vui lòng đợi hết hạn hoặc hủy vé trước.`,
+          { duration: 4000 },
+        );
+        return;
+      }
+    }
+
     setTogglingId(pkgId);
     try {
       await monthlyPassService.update(pkgId, { isActive: newActive });
       toast.success(
-        newActive ? "Đã kích hoạt gói vé tháng" : "Đã vô hiệu hóa gói vé tháng",
+        newActive ? "Đã kích hoạt gói vé tháng" : "Đã tạm dừng gói vé tháng",
       );
       fetchData();
     } catch (err) {
@@ -273,7 +337,14 @@ function MonthlyPassPackages() {
                           </p>
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                            {lotPackages.map((pkg, index) => (
+                            {lotPackages.map((pkg, index) => {
+                              const activeUsers = getPkgActiveUsers(pkg);
+                              const hasActiveUsers = activeUsers > 0;
+                              const isCurrentlyActive = pkg.isActive !== false;
+                              const disableDeactivate =
+                                isCurrentlyActive && hasActiveUsers;
+                              const disableDelete = hasActiveUsers;
+                              return (
                               <div
                                 key={
                                   pkg.id ??
@@ -283,39 +354,52 @@ function MonthlyPassPackages() {
                                 className="group bg-white rounded-xl border border-gray-200 p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-blue-200"
                               >
                                 <div className="flex items-start justify-between mb-4">
-                                  <span
-                                    className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-semibold ${
-                                      pkg.isActive !== false
-                                        ? "bg-green-100 text-green-800"
-                                        : "bg-gray-200 text-gray-600"
-                                    }`}
-                                  >
-                                    {pkg.isActive !== false
-                                      ? "Đang bán"
-                                      : "Tạm dừng"}
-                                  </span>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                      className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-semibold ${
+                                        isCurrentlyActive
+                                          ? "bg-green-100 text-green-800"
+                                          : "bg-gray-200 text-gray-600"
+                                      }`}
+                                    >
+                                      {isCurrentlyActive
+                                        ? "Đang bán"
+                                        : "Tạm dừng"}
+                                    </span>
+                                    {hasActiveUsers && (
+                                      <span
+                                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-100 text-blue-700"
+                                        title={`Có ${activeUsers} người đang dùng gói này`}
+                                      >
+                                        {activeUsers} đang dùng
+                                      </span>
+                                    )}
+                                  </div>
                                   <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
                                       onClick={() => handleToggleActive(pkg)}
                                       disabled={
                                         togglingId ===
-                                        (pkg?.id ?? pkg?.packageId)
+                                          (pkg?.id ?? pkg?.packageId) ||
+                                        disableDeactivate
                                       }
-                                      className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
-                                        pkg.isActive !== false
+                                      className={`p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                                        isCurrentlyActive
                                           ? "text-amber-600 hover:bg-amber-50"
                                           : "text-green-600 hover:bg-green-50"
                                       }`}
                                       title={
-                                        pkg.isActive !== false
-                                          ? "Vô hiệu hóa gói"
-                                          : "Kích hoạt gói"
+                                        disableDeactivate
+                                          ? `Không thể tạm dừng — còn ${activeUsers} người đang dùng`
+                                          : isCurrentlyActive
+                                            ? "Tạm dừng gói"
+                                            : "Kích hoạt gói"
                                       }
                                     >
                                       {togglingId ===
                                       (pkg?.id ?? pkg?.packageId) ? (
                                         <RefreshCw className="w-5 h-5 animate-spin" />
-                                      ) : pkg.isActive !== false ? (
+                                      ) : isCurrentlyActive ? (
                                         <PowerOff className="w-5 h-5" />
                                       ) : (
                                         <Power className="w-5 h-5" />
@@ -323,15 +407,25 @@ function MonthlyPassPackages() {
                                     </button>
                                     <button
                                       onClick={() => setEditingPkg(pkg)}
-                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                      title="Sửa"
+                                      disabled={hasActiveUsers}
+                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={
+                                        hasActiveUsers
+                                          ? `Không thể sửa — còn ${activeUsers} người đang dùng`
+                                          : "Sửa"
+                                      }
                                     >
                                       <Edit className="w-5 h-5" />
                                     </button>
                                     <button
                                       onClick={() => handleDelete(pkg)}
-                                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                      title="Xóa"
+                                      disabled={disableDelete}
+                                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={
+                                        disableDelete
+                                          ? `Không thể xóa — còn ${activeUsers} người đang dùng`
+                                          : "Xóa"
+                                      }
                                     >
                                       <Trash2 className="w-5 h-5" />
                                     </button>
@@ -364,7 +458,8 @@ function MonthlyPassPackages() {
                                   </div>
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
