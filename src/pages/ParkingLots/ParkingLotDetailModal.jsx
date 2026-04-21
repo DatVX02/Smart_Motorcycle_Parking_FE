@@ -7,7 +7,7 @@ import {
   DoorOpen,
   TrendingUp,
   Clock,
-  CircleDollarSign,
+  Banknote,
   Activity,
   Monitor,
   Cpu,
@@ -40,6 +40,13 @@ import parkingLotService from "../../services/parkingLotService";
 import gateService from "../../services/gateService";
 import iotDeviceService from "../../services/iotDeviceService";
 import parkingSessionService from "../../services/parkingSessionService";
+import transactionService from "../../services/transactionService";
+import {
+  extractPaymentBreakdownItems,
+  filterItemsCreatedBetweenMs,
+  sumPaymentBreakdownNetRevenue,
+  toApiDateTimeRangeForLocalDay,
+} from "../../utils/paymentBreakdownRevenue";
 import DeviceModal from "../IoTDevices/DeviceModal";
 import {
   Dialog,
@@ -236,10 +243,13 @@ function ParkingLotDetailModal({ lot, onClose }) {
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
   const [addDeviceGate, setAddDeviceGate] = useState(null);
+  /** Doanh thu hôm nay (VNĐ): ưu tiên cộng từ payment breakdown giống trang Giao dịch; không dùng totalRevenue làm “hôm nay”. */
+  const [todayRevenueVnd, setTodayRevenueVnd] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      setTodayRevenueVnd(null);
       const [det, gts, stats, devs] = await Promise.all([
         parkingLotService.getParkingLotDetail(lot.id),
         gateService.getByLot(lot.id).catch(() => []),
@@ -250,6 +260,32 @@ function ParkingLotDetailModal({ lot, onClose }) {
       setGates(Array.isArray(gts) ? gts : []);
       setStatistics(stats);
       setDevicesByLot(Array.isArray(devs) ? devs : []);
+
+      let resolvedTodayRevenue = null;
+      try {
+        const { fromDate, toDate } = toApiDateTimeRangeForLocalDay();
+        const breakdown = await transactionService.getPaymentBreakdowns({
+          pageSize: 9999,
+          lotId: lot.id,
+          fromDate,
+          toDate,
+        });
+        let items = extractPaymentBreakdownItems(breakdown);
+        items = items.filter((tx) => {
+          const id = tx.lotId ?? tx.parkingLotId ?? "";
+          return String(id) === String(lot.id);
+        });
+        const dayStart = startOfDay(new Date()).getTime();
+        const dayEnd = endOfDay(new Date()).getTime();
+        items = filterItemsCreatedBetweenMs(items, dayStart, dayEnd);
+        resolvedTodayRevenue = sumPaymentBreakdownNetRevenue(items);
+      } catch {
+        /* fallback dưới */
+      }
+      if (resolvedTodayRevenue === null && stats?.todayRevenue != null) {
+        resolvedTodayRevenue = Number(stats.todayRevenue);
+      }
+      setTodayRevenueVnd(resolvedTodayRevenue);
     } catch {
       toast.error("Không thể tải thông tin chi tiết");
     } finally {
@@ -292,11 +328,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
     return devs
       .map((dev) => {
         const gateId =
-          dev.gateId ??
-          dev.gate_id ??
-          dev.gate?.gateId ??
-          dev.gate?.id ??
-          null;
+          dev.gateId ?? dev.gate_id ?? dev.gate?.gateId ?? dev.gate?.id ?? null;
         return {
           ...dev,
           gateId,
@@ -307,8 +339,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
         };
       })
       .filter(
-        (dev) =>
-          dev.gateId != null && validGateIds.has(String(dev.gateId)),
+        (dev) => dev.gateId != null && validGateIds.has(String(dev.gateId)),
       );
   }, [detail, gates, devicesByLot]);
 
@@ -598,7 +629,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
                     </div>
                     <div className="w-full flex items-center gap-3 bg-green-50 rounded-xl px-3 py-2.5">
                       <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                        <CircleDollarSign className="w-4 h-4 text-green-600" />
+                        <Banknote className="w-4 h-4 text-green-600" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] text-gray-400 uppercase tracking-wide">
@@ -637,56 +668,47 @@ function ParkingLotDetailModal({ lot, onClose }) {
                           </div>
                         ))}
                     </div>
+                    {todayRevenueVnd !== null && (
+                      <div className="w-full flex items-center justify-between bg-green-50 border border-green-100 rounded-xl px-3 py-2.5 mt-2">
+                        <div>
+                          <p className="text-[10px] text-green-500 uppercase tracking-wide">
+                            Doanh thu hôm nay
+                          </p>
+                          <p className="text-base font-bold text-green-700">
+                            {fmtVND(todayRevenueVnd)}
+                          </p>
+                        </div>
+                        <Banknote className="w-5 h-5 text-green-400" />
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Spacer — đẩy thống kê xuống đáy */}
                 <div className="flex-1" />
 
-                {/* Card: Statistics */}
-                {statistics && Object.keys(statistics).length > 0 && (
+                {/* Card: Statistics — chỉ lượt xe (doanh thu nằm trong Thông tin chung) */}
+                {(statistics?.todayVehicles ??
+                  statistics?.totalVehicles ??
+                  statistics?.vehicleCount) != null && (
                   <div className="w-full border border-gray-100 rounded-2xl p-4 bg-white">
                     <SectionTitle icon={TrendingUp}>
                       Thống kê hôm nay
                     </SectionTitle>
                     <div className="space-y-2">
-                      {(statistics.todayVehicles ??
-                        statistics.totalVehicles ??
-                        statistics.vehicleCount) != null && (
-                        <div className="w-full flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2.5">
-                          <div>
-                            <p className="text-[10px] text-indigo-400 uppercase tracking-wide">
-                              Lượt xe
-                            </p>
-                            <p className="text-2xl font-bold text-indigo-700">
-                              {statistics.todayVehicles ??
-                                statistics.totalVehicles ??
-                                statistics.vehicleCount}
-                            </p>
-                          </div>
-                          <TrendingUp className="w-5 h-5 text-indigo-400" />
+                      <div className="w-full flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2.5">
+                        <div>
+                          <p className="text-[10px] text-indigo-400 uppercase tracking-wide">
+                            Lượt xe
+                          </p>
+                          <p className="text-2xl font-bold text-indigo-700">
+                            {statistics.todayVehicles ??
+                              statistics.totalVehicles ??
+                              statistics.vehicleCount}
+                          </p>
                         </div>
-                      )}
-                      {(statistics.todayRevenue ??
-                        statistics.revenue ??
-                        statistics.totalRevenue) != null && (
-                        <div className="w-full flex items-center justify-between bg-green-50 border border-green-100 rounded-xl px-3 py-2.5">
-                          <div>
-                            <p className="text-[10px] text-green-500 uppercase tracking-wide">
-                              Doanh thu
-                            </p>
-                            <p className="text-base font-bold text-green-700">
-                              {fmtVND(
-                                statistics.todayRevenue ??
-                                  statistics.revenue ??
-                                  statistics.totalRevenue ??
-                                  0,
-                              )}
-                            </p>
-                          </div>
-                          <CircleDollarSign className="w-5 h-5 text-green-400" />
-                        </div>
-                      )}
+                        <TrendingUp className="w-5 h-5 text-indigo-400" />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1036,13 +1058,13 @@ function ParkingLotDetailModal({ lot, onClose }) {
                                 >
                                   {isActive ? "Hoạt động" : "Tắt"}
                                 </Badge>
-                                <button
+                                {/* <button
                                   type="button"
                                   onClick={() => setAddDeviceGate(gate)}
                                   className="flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 px-2.5 py-1.5 rounded-lg transition-colors"
                                 >
                                   <Plus className="w-3.5 h-3.5" /> Thêm thiết bị
-                                </button>
+                                </button> */}
                               </div>
                             </div>
 

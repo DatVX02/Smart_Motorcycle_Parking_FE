@@ -42,6 +42,7 @@ export const DEVICE_EVENT_STATUS_OPTIONS = [
   ["Processing", "Đang xử lý"],
   ["Pending", "Đang chờ"],
   ["Acknowledged", "Đã xác nhận"],
+  ["Triggered", "Đã kích hoạt"],
 ];
 
 /** Map key chữ thường (theo labelFromMap). */
@@ -75,6 +76,7 @@ Object.assign(EVENT_STATUS_LABELS, {
   completed: "Hoàn thành",
   inactive: "Không hoạt động",
   cancelled: "Đã hủy",
+  triggered: "Đã kích hoạt",
 });
 
 /** Khớp backend: EventSource (PascalCase). */
@@ -93,6 +95,7 @@ export const EVENT_SOURCE_LABELS = {
 /** Màu badge trạng thái xử lý (EventStatus). */
 export const EVENT_STATUS_BADGE_CLASSES = {
   active: "text-green-800 bg-green-50 border-green-200",
+  triggered: "text-gray-700 bg-slate-50 border-slate-200",
   resolved: "text-slate-700 bg-slate-50 border-slate-200",
   ignored: "text-gray-600 bg-gray-50 border-gray-200",
   success: "text-green-800 bg-green-50 border-green-200",

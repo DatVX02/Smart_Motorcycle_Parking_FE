@@ -394,7 +394,7 @@ function ParkingLots() {
 
     if (newStatus === "inactive" && occupiedSpotsCount > 0) {
       toast.error(
-        "Không thể ngừng hoạt động khi còn xe đang đỗ. Vui lòng đợi tất cả xe ra hết.",
+        "Không thể ngừng hoạt động khi còn xe đang gửi. Vui lòng đợi tất cả xe ra hết.",
         { duration: 5000 },
       );
       return;
@@ -462,7 +462,7 @@ function ParkingLots() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           {
-            label: "Tổng bãi gửi",
+            label: "Tổng bãi gửi xe",
             value: totalLots,
             unit: "Bãi",
             Icon: ParkingCircle,
@@ -470,7 +470,7 @@ function ParkingLots() {
             bgTint: "bg-white",
           },
           {
-            label: "Tổng chỗ đỗ",
+            label: "Tổng chỗ gửi xe",
             value: totalSpots,
             unit: "Chỗ",
             Icon: MapPin,
@@ -478,7 +478,7 @@ function ParkingLots() {
             bgTint: "bg-white",
           },
           {
-            label: "Đang sử dụng",
+            label: "Đang gửi xe",
             value: totalOccupied,
             unit: "Xe",
             Icon: DoorOpen,
@@ -795,7 +795,7 @@ function ParkingLots() {
                       (lot.status ?? "active").toLowerCase() === "inactive"
                         ? "Bật hoạt động"
                         : occupiedSpots > 0
-                          ? "Không thể ngừng khi còn xe đang đỗ"
+                          ? "Không thể ngừng khi còn xe đang gửi"
                           : "Ngừng hoạt động"
                     }
                     className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -824,7 +824,7 @@ function ParkingLots() {
                   >
                     <EditTwoTone twoToneColor="#2563eb" />
                   </Button>
-                  <Button
+                  {/* <Button
                     variant="ghost"
                     size="icon"
                     className="text-red-500 hover:text-red-700 hover:bg-red-50"
@@ -832,7 +832,7 @@ function ParkingLots() {
                     onClick={() => handleDelete(lot)}
                   >
                     <DeleteTwoTone twoToneColor="#ef4444" />
-                  </Button>
+                  </Button> */}
                 </CardFooter>
               </Card>
             );
@@ -858,14 +858,14 @@ function ParkingLots() {
       )}
 
       {/* Confirm Delete */}
-      <ConfirmDialog
+      {/* <ConfirmDialog
         open={confirm.open}
         onClose={() => setConfirm({ open: false, lot: null })}
         onConfirm={handleConfirmDelete}
         title="Xóa bãi gửi xe"
         description={`Bạn có chắc muốn xóa bãi gửi "${confirm.lot?.name}"? Hành động này không thể hoàn tác.`}
         confirmLabel="Xóa"
-      />
+      /> */}
     </div>
   );
 }
