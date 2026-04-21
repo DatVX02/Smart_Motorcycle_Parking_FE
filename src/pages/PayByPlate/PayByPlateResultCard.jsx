@@ -1,10 +1,4 @@
-import {
-  ArrowUpRight,
-  CheckCircle2,
-  CircleAlert,
-  Clock3,
-  Wallet,
-} from "lucide-react";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,10 +29,6 @@ export default function PayByPlateResultCard({
             <CardTitle className="text-xl text-slate-900">
               Kết quả thanh toán
             </CardTitle>
-            <CardDescription>
-              Hệ thống hiển thị đúng luồng phát sinh quá giờ hoặc thanh toán
-              trước.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {result.hasAdditionalFee && (
@@ -50,7 +40,6 @@ export default function PayByPlateResultCard({
                 </AlertDescription>
               </Alert>
             )}
-
             {!result.hasAdditionalFee && result.totalAmount === 0 && (
               <Alert variant="success" className="border-green-200">
                 <CheckCircle2 className="mb-2 h-4 w-4" />
@@ -60,7 +49,6 @@ export default function PayByPlateResultCard({
                 </AlertDescription>
               </Alert>
             )}
-
             <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm md:grid-cols-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-slate-600">Loại thanh toán</span>
@@ -88,38 +76,17 @@ export default function PayByPlateResultCard({
                 <span className="text-slate-600">Phương thức thanh toán</span>
                 <span className="font-medium text-slate-800">PayOS</span>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2 text-slate-600">
-                  <Wallet className="h-4 w-4" /> Đã trả bằng ví
-                </span>
-                <span className="font-medium text-slate-800">
-                  {formatVnd(result.paidWithWallet)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2 text-slate-600">
-                  <Clock3 className="h-4 w-4" /> Đã trả bằng điểm
-                </span>
-                <span className="font-medium text-slate-800">
-                  {result.paidWithPoints.toLocaleString("vi-VN")}
-                </span>
-              </div>
-            </div>
+            </div>{" "}
 
-            {result.totalAmount > 0 && result.paymentUrl && (
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="button"
-                  className="bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-700 hover:to-cyan-700"
-                  onClick={() =>
-                    window.location.href = result.paymentUrl
-                  }
-                >
-                  <ArrowUpRight className="mr-2 h-4 w-4" />
-                  Mở liên kết PayOS
-                </Button>
-              </div>
-            )}
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange?.(false)}
+              >
+                Đóng
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </DialogContent>
