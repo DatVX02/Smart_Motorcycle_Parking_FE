@@ -92,7 +92,7 @@ export default function PayByPlateDetailCard({
               {formatDateTime(detailView.checkOutTime, false)}
             </span>
           </div>
-          <div className="flex items-center justify-between gap-3">
+          {/* <div className="flex items-center justify-between gap-3">
             <span className="text-slate-600">Trạng thái thanh toán</span>
             <span className="font-medium text-slate-900">
               {paymentStatusLabel(
@@ -100,7 +100,7 @@ export default function PayByPlateDetailCard({
                 detailView.sessionStatus,
               )}
             </span>
-          </div>
+          </div> */}
           <div className="flex items-center justify-between gap-3">
             <span className="text-slate-600">Tổng thời gian</span>
             <span className="font-medium text-slate-900">
