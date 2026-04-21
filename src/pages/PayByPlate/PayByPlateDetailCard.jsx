@@ -12,6 +12,7 @@ import {
   formatDateTime,
   formatHours,
   formatVnd,
+  isSessionCompleted,
   paymentStatusLabel,
   sessionStatusBadgeClass,
   sessionStatusBadgeVariant,
@@ -136,21 +137,23 @@ export default function PayByPlateDetailCard({
               Đóng
             </Button>
           )}
-          <Button
-            type="button"
-            onClick={onPay}
-            className="bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-700 hover:to-cyan-700"
-            disabled={paymentLoading || previewLoading || !canPay}
-          >
-            {paymentLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Đang tạo thanh toán...
-              </>
-            ) : (
-              "Xác nhận thanh toán"
-            )}
-          </Button>
+          {!isSessionCompleted(detailView.sessionStatus) && (
+            <Button
+              type="button"
+              onClick={onPay}
+              className="bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-700 hover:to-cyan-700"
+              disabled={paymentLoading || previewLoading || !canPay}
+            >
+              {paymentLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Đang tạo thanh toán...
+                </>
+              ) : (
+                "Xác nhận thanh toán"
+              )}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

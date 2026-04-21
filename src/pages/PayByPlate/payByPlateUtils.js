@@ -116,6 +116,12 @@ export function formatHours(value) {
   return `${amount.toFixed(2)} giờ`;
 }
 
+/** Trạng thái phiên tương ứng nhãn "Hoàn thành" — không còn thanh toán thêm */
+export function isSessionCompleted(value) {
+  const key = normalizeKey(value);
+  return key === "completed" || key === "paid";
+}
+
 export function sessionStatusLabel(value) {
   const key = normalizeKey(value);
   if (key === "active" || key === "inprogress") return "Đang trong bãi";
