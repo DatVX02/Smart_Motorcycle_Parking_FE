@@ -58,6 +58,20 @@ const parkingLotService = {
   },
 
   /**
+   * GET /api/v1/parking-lots/{id}/cameras - Lấy danh sách camera theo bãi
+   */
+  getParkingLotCameras: async (id) => {
+    const response = await apiClient.get(
+      `${PARKING_LOT_BASE_PATH}/${id}/cameras`,
+    );
+    const raw = unwrap(response.data);
+    if (raw?.items && Array.isArray(raw.items)) return raw.items;
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === "object") return raw;
+    return [];
+  },
+
+  /**
    * GET /api/v1/parking-lots/{id}/deletion-info — Kiểm tra có được xóa bãi không (cổng, FK…).
    * @returns {Promise<object|null>} Dữ liệu từ API, hoặc null nếu không có endpoint / lỗi.
    */

@@ -759,13 +759,6 @@ function IoTDevices() {
                   }}
                   onUnassign={handleUnassign}
                   onMaintenance={handleMaintenance}
-                  onActivate={handleActivate}
-                  onDeactivate={handleDeactivate}
-                  onExitMaintenance={handleExitMaintenance}
-                  onEdit={() => {
-                    setSelected(device);
-                    setShowModal(true);
-                  }}
                 />
               </div>
             ))}
@@ -844,13 +837,6 @@ function IoTDevices() {
                   }}
                   onUnassign={handleUnassign}
                   onMaintenance={handleMaintenance}
-                  onActivate={handleActivate}
-                  onDeactivate={handleDeactivate}
-                  onExitMaintenance={handleExitMaintenance}
-                  onEdit={() => {
-                    setSelected(device);
-                    setShowModal(true);
-                  }}
                 />
               </div>
             ))}
@@ -969,18 +955,11 @@ function DeviceCard({
   onDetail,
   onUnassign,
   onMaintenance,
-  onActivate,
-  onDeactivate,
-  onExitMaintenance,
-  onEdit,
 }) {
   const conn = getConnStatus(device.connectionStatus);
   const dtype = getDeviceType(device.deviceType);
   const DevIcon = dtype.icon;
   const ConnIcon = conn.icon;
-  const connUpper = String(device.connectionStatus ?? "").toUpperCase();
-  const isInactive = connUpper === "INACTIVE";
-  const isMaintenance = connUpper === "MAINTENANCE";
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -1042,64 +1021,41 @@ function DeviceCard({
         {device.macAddress && <Row label="MAC" value={device.macAddress} />}
       </div>
       <div className="flex gap-2 pt-3 border-t mt-auto">
-        <button onClick={onDetail} className="flex-1 btn btn-secondary text-sm">
-          <EyeTwoTone /> Chi tiết
+        <button
+          type="button"
+          onClick={onDetail}
+          className="flex-1 btn btn-secondary text-sm bg-white border border-white-200 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+        >
+          <EyeTwoTone twoToneColor="#2563eb" /> Xem chi tiết
         </button>
-        {/* Kebab menu: gom các action ít dùng */}
-        <div className="relative" ref={menuRef}>
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            title="Thao tác khác"
-            aria-label="Thao tác khác"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute left-full bottom-0 ml-2 z-20 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm"
+        <button
+          type="button"
+          onClick={() => onMaintenance?.(device)}
+          title="Bảo trì"
+          aria-label="Bảo trì"
+          className="p-2 rounded-lg transition-colors bg-white-100 text-amber-600 hover:bg-amber-100 active:bg-amber-200"
+        >
+          <Wrench className="w-4 h-4" />
+        </button>
+        {/* Kebab menu: chỉ giữ các action phụ */}
+        {device.gateName && (
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Thao tác khác"
+              aria-label="Thao tác khác"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
             >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => runAndClose(() => onMaintenance?.(device))}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-amber-50 hover:text-amber-700"
+              <MoreVertical className="w-4 h-4" />
+            </button>
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute left-full bottom-0 ml-2 z-20 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm"
               >
-                <Wrench className="w-4 h-4" /> Bảo trì
-              </button>
-              {isMaintenance ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => runAndClose(() => onExitMaintenance?.(device))}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-green-50 hover:text-green-700"
-                >
-                  <Power className="w-4 h-4" /> Hoạt động lại sau bảo trì
-                </button>
-              ) : isInactive ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => runAndClose(() => onActivate?.(device))}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-green-50 hover:text-green-700"
-                >
-                  <Power className="w-4 h-4" /> Bật lại
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => runAndClose(() => onDeactivate?.(device))}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-gray-100"
-                >
-                  <PowerOff className="w-4 h-4" /> Ngừng hoạt động
-                </button>
-              )}
-              {device.gateName && (
                 <button
                   type="button"
                   role="menuitem"
@@ -1108,18 +1064,10 @@ function DeviceCard({
                 >
                   <Unlink className="w-4 h-4" /> Gỡ khỏi bãi
                 </button>
-              )}
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => runAndClose(() => onEdit?.(device))}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-700"
-              >
-                <Edit3 className="w-4 h-4" /> Chỉnh sửa
-              </button>
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
