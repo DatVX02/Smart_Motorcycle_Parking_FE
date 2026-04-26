@@ -70,6 +70,7 @@ const STATUS_COLORS = {
   PENDING_CHANGE: "#F59E0B",
   IN_PROGRESS: "#3B82F6",
   COMPLETED: "#10B981",
+  MISSED_CHECK_OUT: "#EC4899",
   CANCELLED: "#EF4444",
 };
 const STATUS_LABELS = {
@@ -77,6 +78,7 @@ const STATUS_LABELS = {
   PENDING_CHANGE: "Chờ đổi lịch",
   IN_PROGRESS: "Đang làm",
   COMPLETED: "Hoàn thành",
+  MISSED_CHECK_OUT: "Quên check-out",
   CANCELLED: "Đã hủy",
 };
 const SHIFT_TYPE_LABELS = {
@@ -95,7 +97,9 @@ const SHIFT_TYPE_LABELS = {
   Fullday: "Cả ngày",
 };
 
-const HIDDEN_CALENDAR_STATUSES = new Set(["CANCELLED", "REJECTED"]);
+// Chỉ ẩn các ca ở trạng thái không nên hiển thị trên lịch.
+// CANCELLED cần hiển thị để admin dễ theo dõi ca bị hủy.
+const HIDDEN_CALENDAR_STATUSES = new Set(["REJECTED"]);
 
 function normalizeStatusKey(value) {
   const normalized = String(value ?? "")
@@ -114,7 +118,12 @@ function normalizeStatusKey(value) {
 
 function shiftStatusKey(shift) {
   return normalizeStatusKey(
-    shift?.shiftStatus ?? shift?.ShiftStatus ?? shift?.status ?? "",
+    shift?.shiftStatus ??
+      shift?.ShiftStatus ??
+      shift?.shift_status ??
+      shift?.shiftStatusText ??
+      shift?.status ??
+      "",
   );
 }
 
@@ -396,6 +405,7 @@ const STATUS_DOT = {
   COMPLETED: { color: "#10B981", label: "Hoàn thành", icon: "✓" },
   IN_PROGRESS: { color: "#3B82F6", label: "Đang làm" },
   PENDING_CHANGE: { color: "#F59E0B", label: "Chờ đổi lịch" },
+  MISSED_CHECK_OUT: { color: "#EC4899", label: "Quên check-out", icon: "!" },
   CANCELLED: { color: "#EF4444", label: "Đã hủy" },
 };
 
