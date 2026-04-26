@@ -61,7 +61,7 @@ export default function PayByPlateResultCard({
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 md:col-span-2">
-                <span className="text-slate-600">Thông báo</span>
+                <span className="text-slate-600">Trạng thái</span>
                 <span className="text-right font-medium text-slate-800">
                   {result.message || "Không có thông báo"}
                 </span>

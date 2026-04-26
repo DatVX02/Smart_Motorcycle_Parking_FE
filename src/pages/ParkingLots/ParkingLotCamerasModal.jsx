@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 function asText(v) {
@@ -20,7 +19,8 @@ function asText(v) {
 function pick(obj, keys) {
   for (const k of keys) {
     const val = obj?.[k];
-    if (val !== null && val !== undefined && String(val).trim() !== "") return val;
+    if (val !== null && val !== undefined && String(val).trim() !== "")
+      return val;
   }
   return "";
 }
@@ -33,25 +33,37 @@ function normalizeConn(value) {
     return { label: s, variant: "success" };
   if (["OFFLINE", "DISCONNECTED", "INACTIVE"].includes(u))
     return { label: s, variant: "destructive" };
-  if (["WARNING", "MAINTENANCE"].includes(u)) return { label: s, variant: "warning" };
+  if (["WARNING", "MAINTENANCE"].includes(u))
+    return { label: s, variant: "warning" };
   return { label: s, variant: "outline" };
 }
 
 function cameraKindFrom(c) {
   const hay = `${asText(c?.id)} ${asText(c?.name)}`.toLowerCase();
-  if (hay.includes("plate") || hay.includes("biển số") || hay.includes("bien so"))
+  if (
+    hay.includes("plate") ||
+    hay.includes("biển số") ||
+    hay.includes("bien so")
+  )
     return "plate";
-  if (hay.includes("face") || hay.includes("khuôn mặt") || hay.includes("khuon mat"))
+  if (
+    hay.includes("face") ||
+    hay.includes("khuôn mặt") ||
+    hay.includes("khuon mat")
+  )
     return "face";
   return "unknown";
 }
 
 function cameraLaneFrom(c) {
   const hay = `${asText(c?.id)} ${asText(c?.name)}`.toLowerCase();
-  if (/(^|[\s_])in($|[\s_])/.test(hay) || hay.includes("vào") || hay.includes("vao"))
+  if (
+    /(^|[\s_])in($|[\s_])/.test(hay) ||
+    hay.includes("vào") ||
+    hay.includes("vao")
+  )
     return "in";
-  if (/(^|[\s_])out($|[\s_])/.test(hay) || hay.includes("ra"))
-    return "out";
+  if (/(^|[\s_])out($|[\s_])/.test(hay) || hay.includes("ra")) return "out";
   return "unknown";
 }
 
@@ -94,7 +106,9 @@ function normalizeIp(value) {
 }
 
 function connVariantFromStatus(status) {
-  const u = String(status ?? "").trim().toUpperCase();
+  const u = String(status ?? "")
+    .trim()
+    .toUpperCase();
   if (!u) return "unknown";
   if (["ONLINE", "READY", "ACTIVE", "CONNECTED", "WARNING"].includes(u))
     return "online";
@@ -105,12 +119,26 @@ function connVariantFromStatus(status) {
   return "unknown";
 }
 
+function stripUserInfoFromUrl(url) {
+  const raw = String(url ?? "").trim();
+  if (!raw) return "";
+  try {
+    const u = new URL(raw);
+    // Trình duyệt hiện đại chặn user:pass@ trong src của <img>/<iframe>
+    u.username = "";
+    u.password = "";
+    return u.toString();
+  } catch {
+    // Fallback: loại bỏ "user:pass@" nếu có
+    return raw.replace(/^(\w+:\/\/)([^@\/]+@)/i, "$1");
+  }
+}
+
 export default function ParkingLotCamerasModal({ lot, onClose }) {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
-  const [selectedFace, setSelectedFace] = useState(null); // { lane, url }
-  const [selectedPlate, setSelectedPlate] = useState(null); // { lane, url }
   const [connByIp, setConnByIp] = useState({});
+  const [activeTab, setActiveTab] = useState("all"); // all | in | out
 
   useEffect(() => {
     if (!lot?.id) return;
@@ -118,8 +146,6 @@ export default function ParkingLotCamerasModal({ lot, onClose }) {
     (async () => {
       try {
         setLoading(true);
-        setSelectedFace(null);
-        setSelectedPlate(null);
         const [data, devices] = await Promise.all([
           parkingLotService.getParkingLotCameras(lot.id),
           iotDeviceService.getByLot(lot.id).catch(() => []),
@@ -136,8 +162,6 @@ export default function ParkingLotCamerasModal({ lot, onClose }) {
       } catch (err) {
         if (cancelled) return;
         setItems([]);
-        setSelectedFace(null);
-        setSelectedPlate(null);
         setConnByIp({});
         toast.error(
           err?.response?.data?.message ||
@@ -171,7 +195,11 @@ export default function ParkingLotCamerasModal({ lot, onClose }) {
         const ip = pick(c, ["ipAddress", "ip", "ip_address"]);
         const gateName = pick(c, ["gateName", "gate_name"]);
         const model = pick(c, ["model"]);
-        const conn = pick(c, ["connectionStatus", "status", "connection_status"]);
+        const conn = pick(c, [
+          "connectionStatus",
+          "status",
+          "connection_status",
+        ]);
         const streamUrl = pick(c, [
           "streamUrl",
           "videoUrl",
@@ -249,21 +277,96 @@ export default function ParkingLotCamerasModal({ lot, onClose }) {
     return map;
   }, [cameras, connByIp]);
 
-  const handlePick = (camera) => {
-    const url = asText(camera?.streamUrl).trim();
-    if (!url) return;
-    if (camera.kind === "face") setSelectedFace({ lane: camera.lane, url });
-    else setSelectedPlate({ lane: camera.lane, url });
+  const tabItems = [
+    { key: "all", label: "Tất cả" },
+    { key: "in", label: "Lối vào" },
+    { key: "out", label: "Lối ra" },
+  ];
+
+  const laneTitle = (lane) => (lane === "out" ? "Lối ra" : "Lối vào");
+
+  // Sub-component render từng ô camera
+  const RenderCameraBox = ({ cam, defaultLabel }) => {
+    const rawUrl = asText(cam?.streamUrl).trim();
+    const safeUrl = stripUserInfoFromUrl(rawUrl);
+    // Status vẫn map theo url gốc (để không bị lệch với connVariantByUrl)
+    const status = rawUrl ? (connVariantByUrl[rawUrl] ?? "unknown") : "unknown";
+
+    return (
+      <div className="flex flex-col border border-gray-200 rounded-xl bg-white overflow-hidden shadow-sm">
+        <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/70">
+          <div className="flex items-center gap-2">
+            <span
+              className={statusDotClass(status)}
+              title={
+                status === "online"
+                  ? "Hoạt động"
+                  : status === "offline"
+                    ? "Ngoại tuyến"
+                    : "Không rõ"
+              }
+            />
+            <span className="text-sm font-semibold text-gray-800">
+              {cam?.name || defaultLabel}
+            </span>
+          </div>
+          {safeUrl && (
+            <button
+              onClick={() => window.open(safeUrl, "_blank", "noreferrer")}
+              className="text-gray-400 hover:text-blue-600 transition-colors"
+              title="Mở tab mới"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <div className="bg-black aspect-video w-full flex items-center justify-center relative overflow-hidden">
+          {safeUrl ? (
+            <img
+              title={cam?.name || defaultLabel}
+              src={safeUrl}
+              alt={`Luồng video từ ${cam?.name || defaultLabel}`}
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                // Hiển thị thông báo nếu ảnh không tải được (bị block)
+                e.currentTarget.style.display = "none";
+                const next = e.currentTarget.nextElementSibling;
+                if (next) next.style.display = "block";
+              }}
+            />
+          ) : null}
+          <span
+            className="text-gray-500 text-sm absolute"
+            style={{ display: safeUrl ? "none" : "block" }}
+          >
+            {safeUrl ? "Không thể tải video" : "Không có luồng video"}
+          </span>
+        </div>
+      </div>
+    );
   };
 
-  const leftGroups = [
-    { title: "LỐI VÀO", lane: "in" },
-    { title: "LỐI RA", lane: "out" },
-  ];
+  const LaneSection = ({ lane }) => (
+    <div className="space-y-3">
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+        {lane === "out" ? "Lối ra" : "Lối vào"}
+      </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <RenderCameraBox
+          cam={grouped?.[lane]?.face}
+          defaultLabel={`${laneTitle(lane)} - Khuôn mặt`}
+        />
+        <RenderCameraBox
+          cam={grouped?.[lane]?.plate}
+          defaultLabel={`${laneTitle(lane)} - Biển số`}
+        />
+      </div>
+    </div>
+  );
 
   return (
     <Dialog open onOpenChange={() => onClose?.()}>
-      <DialogContent className="w-[92vw] max-w-4xl rounded-2xl px-0 py-0 overflow-hidden">
+      <DialogContent className="w-[96vw] max-w-6xl h-[88vh] rounded-2xl px-0 py-0 overflow-hidden flex flex-col">
         <DialogHeader className="px-5 py-4 border-b border-gray-100 bg-gray-50/70">
           <div className="flex items-center gap-3 pr-10">
             <div className="h-9 w-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
@@ -289,7 +392,31 @@ export default function ParkingLotCamerasModal({ lot, onClose }) {
           </button>
         </DialogHeader>
 
-        <div className="px-5 py-4">
+        {/* Tabs */}
+        <div className="px-5 py-3 border-b border-gray-100 bg-white flex items-center gap-2">
+          <div className="flex bg-gray-100 rounded-xl p-1">
+            {tabItems.map((t) => {
+              const active = activeTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setActiveTab(t.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    active
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex-1" />
+        </div>
+
+        <div className="px-5 py-4 flex-1 min-h-0 overflow-auto">
           {loading ? (
             <div className="py-16 flex items-center justify-center gap-2 text-sm text-gray-500">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -308,182 +435,13 @@ export default function ParkingLotCamerasModal({ lot, onClose }) {
               </p>
             </div>
           ) : (
-            <div className="flex gap-4">
-              {/* Left list (≈30%) */}
-              <div className="w-full lg:w-[30%]">
-                <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">
-                  Camera
-                </div>
-                <div className="space-y-3">
-                  {leftGroups.map((grp) => {
-                    const faceCam = grouped?.[grp.lane]?.face;
-                    const plateCam = grouped?.[grp.lane]?.plate;
-                    const rows = [
-                      { kind: "face", cam: faceCam },
-                      { kind: "plate", cam: plateCam },
-                    ];
-
-                    return (
-                      <div
-                        key={grp.title}
-                        className="rounded-2xl border border-gray-100 bg-white overflow-hidden"
-                      >
-                        <div className="px-3 py-2.5 bg-gray-50/70 border-b border-gray-100">
-                          <p className="text-[11px] font-bold text-gray-600 tracking-wide">
-                            {grp.title}
-                          </p>
-                        </div>
-                        <div className="divide-y divide-gray-50">
-                          {rows.map(({ kind, cam }) => {
-                            const url = asText(cam?.streamUrl).trim();
-                            const v = connVariantByUrl[url] ?? "unknown";
-                            const isActive =
-                              (kind === "face" &&
-                                selectedFace?.lane === grp.lane &&
-                                selectedFace?.url === url) ||
-                              (kind === "plate" &&
-                                selectedPlate?.lane === grp.lane &&
-                                selectedPlate?.url === url);
-
-                            return (
-                              <div
-                                key={`${grp.lane}-${kind}`}
-                                className={`px-3 py-2.5 flex items-center justify-between gap-2 transition-colors ${
-                                  isActive
-                                    ? "bg-blue-50"
-                                    : "hover:bg-gray-50/70"
-                                }`}
-                              >
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span
-                                      className={statusDotClass(v)}
-                                      title={
-                                        v === "online"
-                                          ? "Hoạt động"
-                                          : v === "offline"
-                                            ? "Ngoại tuyến"
-                                            : "Không rõ"
-                                      }
-                                      aria-label={
-                                        v === "online"
-                                          ? "Hoạt động"
-                                          : v === "offline"
-                                            ? "Ngoại tuyến"
-                                            : "Không rõ"
-                                      }
-                                    />
-                                    <p
-                                      className={`text-sm truncate ${
-                                        isActive
-                                          ? "font-bold text-gray-900"
-                                          : "font-semibold text-gray-800"
-                                      }`}
-                                      title={shortCameraName(kind)}
-                                    >
-                                      {shortCameraName(kind)}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  disabled={!url}
-                                  onClick={() => handlePick({ ...cam, kind, lane: grp.lane })}
-                                  className={`p-2 rounded-lg transition-colors ${
-                                    url
-                                      ? "text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                                      : "text-gray-300 cursor-not-allowed"
-                                  }`}
-                                  title="Xem"
-                                  aria-label="Xem"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Right players (≈70%) */}
-              <div className="w-full lg:flex-1 space-y-4">
-                <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
-                  <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/70 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-gray-700">
-                        {selectedFace?.lane === "out"
-                          ? "Lối Ra - Khuôn mặt"
-                          : "Lối Vào - Khuôn mặt"}
-                      </p>
-                    </div>
-                    {selectedFace?.url ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          window.open(selectedFace.url, "_blank", "noreferrer")
-                        }
-                        className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                        title="Mở tab mới"
-                        aria-label="Mở tab mới"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
-                    ) : null}
-                  </div>
-                  {selectedFace?.url ? (
-                    <iframe
-                      title="camera-preview-face"
-                      src={selectedFace.url}
-                      className="w-full h-[260px] bg-black"
-                    />
-                  ) : (
-                    <div className="h-[260px] flex items-center justify-center text-sm text-gray-400">
-                      Chọn một camera để xem
-                    </div>
-                  )}
-                </div>
-
-                <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
-                  <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/70 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-gray-700">
-                        {selectedPlate?.lane === "out"
-                          ? "Lối Ra - Biển số"
-                          : "Lối Vào - Biển số"}
-                      </p>
-                    </div>
-                    {selectedPlate?.url ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          window.open(selectedPlate.url, "_blank", "noreferrer")
-                        }
-                        className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                        title="Mở tab mới"
-                        aria-label="Mở tab mới"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
-                    ) : null}
-                  </div>
-                  {selectedPlate?.url ? (
-                    <iframe
-                      title="camera-preview-plate"
-                      src={selectedPlate.url}
-                      className="w-full h-[260px] bg-black"
-                    />
-                  ) : (
-                    <div className="h-[260px] flex items-center justify-center text-sm text-gray-400">
-                      Chọn một camera để xem
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div className="space-y-6">
+              {(activeTab === "all" || activeTab === "in") && (
+                <LaneSection lane="in" />
+              )}
+              {(activeTab === "all" || activeTab === "out") && (
+                <LaneSection lane="out" />
+              )}
             </div>
           )}
         </div>
@@ -497,4 +455,3 @@ export default function ParkingLotCamerasModal({ lot, onClose }) {
     </Dialog>
   );
 }
-
