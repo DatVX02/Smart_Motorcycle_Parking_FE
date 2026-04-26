@@ -15,6 +15,7 @@ import { EyeTwoTone, EditTwoTone, DeleteTwoTone } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import ParkingLotModal from "./ParkingLotModal";
 import ParkingLotDetailModal from "./ParkingLotDetailModal";
+import ParkingLotCamerasModal from "./ParkingLotCamerasModal";
 import parkingLotService from "../../services/parkingLotService";
 import DeviceMaintenanceService from "../../services/DeviceMaintenanceService";
 import { useAdminHub } from "../../hooks/useAdminHub";
@@ -69,6 +70,7 @@ const transformParkingLot = (lot) => ({
 function ParkingLots() {
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showCamerasModal, setShowCamerasModal] = useState(false);
   const [selectedLot, setSelectedLot] = useState(null);
   const [parkingLots, setParkingLots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -385,6 +387,11 @@ function ParkingLots() {
   const handleViewDetail = (lot) => {
     setSelectedLot(lot);
     setShowDetailModal(true);
+  };
+
+  const handleViewCameras = (lot) => {
+    setSelectedLot(lot);
+    setShowCamerasModal(true);
   };
 
   const handleToggleStatus = async (lot, occupiedSpotsCount) => {
@@ -785,6 +792,14 @@ function ParkingLots() {
                   </Button>
                   <button
                     type="button"
+                    onClick={() => handleViewCameras(lot)}
+                    title="Xem camera"
+                    className="p-2 rounded-lg transition-colors text-purple-600 hover:bg-purple-50 hover:text-purple-700"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleToggleStatus(lot, occupiedSpots)}
                     disabled={
                       togglingLotId === lot.id ||
@@ -854,6 +869,14 @@ function ParkingLots() {
         <ParkingLotDetailModal
           lot={selectedLot}
           onClose={() => setShowDetailModal(false)}
+        />
+      )}
+
+      {/* Cameras Modal */}
+      {showCamerasModal && selectedLot && (
+        <ParkingLotCamerasModal
+          lot={selectedLot}
+          onClose={() => setShowCamerasModal(false)}
         />
       )}
 
