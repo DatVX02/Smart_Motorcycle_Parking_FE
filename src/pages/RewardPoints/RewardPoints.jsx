@@ -36,6 +36,16 @@ const formatDate = (iso) => {
 const formatNumber = (num) =>
   num != null ? Number(num).toLocaleString("vi-VN") : "";
 
+const isConfigActiveNow = (config, now = new Date()) => {
+  if (!config?.isActive) return false;
+  const start = config?.startDate ? new Date(config.startDate) : null;
+  const end = config?.endDate ? new Date(config.endDate) : null;
+
+  if (start && !Number.isNaN(start.getTime()) && now < start) return false;
+  if (end && !Number.isNaN(end.getTime()) && now > end) return false;
+  return true;
+};
+
 function RewardPoints() {
   const [configs, setConfigs] = useState([]);
   const [lots, setLots] = useState([]);
@@ -82,7 +92,6 @@ function RewardPoints() {
     setLoading(true);
     try {
       const params = {};
-      if (filterIsActive !== "") params.isActive = filterIsActive === "true";
       if (filterLotId) params.lotId = filterLotId;
       const data = await loyaltyConfigService.getAll(params);
       setConfigs(data);
@@ -96,7 +105,7 @@ function RewardPoints() {
     } finally {
       setLoading(false);
     }
-  }, [filterIsActive, filterLotId]);
+  }, [filterLotId]);
 
   useEffect(() => {
     fetchLots();
@@ -165,7 +174,12 @@ function RewardPoints() {
 
   /* Lọc client-side theo search và khoảng thời gian */
   const displayedConfigs = (() => {
+    const now = new Date();
     let list = [...configs];
+    if (filterIsActive !== "") {
+      const shouldBeActive = filterIsActive === "true";
+      list = list.filter((c) => isConfigActiveNow(c, now) === shouldBeActive);
+    }
     if (filterSearch.trim()) {
       const q = filterSearch.trim().toLowerCase();
       list = list.filter((c) => {
@@ -190,7 +204,10 @@ function RewardPoints() {
     return list;
   })();
 
-  const activeCount = displayedConfigs.filter((c) => c.isActive).length;
+  const activeCount = displayedConfigs.filter((c) =>
+    isConfigActiveNow(c),
+  ).length;
+  const inactiveCount = displayedConfigs.length - activeCount;
 
   const handleResetFilters = () => {
     setFilterSearch("");
@@ -214,7 +231,7 @@ function RewardPoints() {
       )}
 
       {/* Statistics — Tiêu đề trên, số + đơn vị dưới, icon & text gần nhau */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         <div className="bg-white rounded-3xl p-6 shadow border">
           <div className="flex items-center gap-4">
             <Settings className="w-8 h-8 flex-shrink-0 text-blue-600" />
@@ -240,6 +257,22 @@ function RewardPoints() {
               </p>
               <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
                 {activeCount}
+                <span className="text-base font-medium text-gray-600">
+                  Cấu hình
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-slate-400/20 rounded-3xl p-6 shadow border">
+          <div className="flex items-center gap-4">
+            <XCircle className="w-8 h-8 flex-shrink-0 text-slate-600" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-600 mb-1">
+                Ngừng hoạt động
+              </p>
+              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                {inactiveCount}
                 <span className="text-base font-medium text-gray-600">
                   Cấu hình
                 </span>
@@ -418,6 +451,7 @@ function RewardPoints() {
               <tbody className="table-body">
                 {displayedConfigs.map((config, idx) => {
                   const id = config.id || config.configId;
+                  const isCurrentlyActive = isConfigActiveNow(config);
                   return (
                     <tr key={id} className="hover:bg-gray-50">
                       <td className="p-3 text-center text-gray-500 font-semibold w-12">
@@ -442,7 +476,7 @@ function RewardPoints() {
                         {formatDate(config.endDate)}
                       </td>
                       <td className="p-3 text-center">
-                        {config.isActive ? (
+                        {isCurrentlyActive ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
                             <CheckCircle className="w-3 h-3" />
                             Hoạt động
@@ -456,13 +490,15 @@ function RewardPoints() {
                       </td>
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => handleEdit(config)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Chỉnh sửa"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          {isCurrentlyActive && (
+                            <button
+                              onClick={() => handleEdit(config)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Chỉnh sửa"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteClick(config)}
                             className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"

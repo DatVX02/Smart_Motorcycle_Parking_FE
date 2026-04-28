@@ -858,7 +858,6 @@ function CreateShiftModal({
                 value={editDate}
                 min={(() => {
                   const t = new Date();
-                  t.setDate(t.getDate() + 1);
                   const yy = t.getFullYear();
                   const mm = String(t.getMonth() + 1).padStart(2, "0");
                   const dd = String(t.getDate()).padStart(2, "0");

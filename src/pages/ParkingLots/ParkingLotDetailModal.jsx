@@ -1178,7 +1178,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
               </div>
 
               {/* Nhật ký phiên gửi xe */}
-              <div className="w-[260px] shrink-0 px-4 py-4 flex flex-col">
+              <div className="w-[260px] shrink-0 px-4 py-4 flex flex-col h-full">
                 {/* Full-height card */}
                 <div className="flex-1 w-full border border-gray-100 rounded-2xl bg-white flex flex-col p-4 overflow-hidden">
                   <SectionTitle icon={Activity}>Nhật ký ra/vào</SectionTitle>

@@ -103,6 +103,20 @@ function getReportTitle(report, typeLabelMap = {}) {
   );
 }
 
+function formatIncidentDescription(report, typeLabelMap = {}) {
+  const rawDescription =
+    report?.description ?? report?.content ?? report?.note ?? "";
+  const normalizedDescription = String(rawDescription).trim();
+  if (!normalizedDescription) return "";
+
+  const normalizedKey = normalizedDescription.toLowerCase();
+  if (INCIDENT_TYPE_VI[normalizedKey] || typeLabelMap[normalizedKey]) {
+    return formatIncidentType(normalizedDescription, typeLabelMap);
+  }
+
+  return normalizedDescription;
+}
+
 function getReportCreatedAt(report) {
   return (
     report?.created_at ??
@@ -591,7 +605,7 @@ function DetailModal({ report, onClose, lotNameById, typeLabelMap }) {
               Mô tả
             </p>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
-              {source.description ?? source.content ?? source.note ?? ""}
+              {formatIncidentDescription(source, typeLabelMap)}
             </p>
           </div>
 
@@ -949,6 +963,9 @@ export default function IncidentReports() {
               ) : (
                 reports.map((r, idx) => {
                   const id = getReportId(r);
+                  const statusKey = toStatusKey(r.status);
+                  const canEdit =
+                    statusKey !== "RESOLVED" && statusKey !== "REJECTED";
                   const lotIdRaw = getReportLotId(r);
                   const lotName =
                     r.lotName ??
@@ -997,14 +1014,16 @@ export default function IncidentReports() {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setUpdateReport(r)}
-                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
-                            title="Cập nhật xử lý"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => setUpdateReport(r)}
+                              className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
+                              title="Cập nhật xử lý"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

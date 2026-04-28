@@ -115,7 +115,7 @@ function RecognitionLogDetailModal({ log, onClose }) {
                     <img
                       src={log.inputImageUrl}
                       alt="Ảnh đầu vào"
-                      className="h-full w-full rounded-lg border border-gray-100 object-contain bg-gray-50"
+                      className="w-full max-h-[420px] rounded-lg border border-gray-100 object-contain bg-gray-50"
                     />
                   </a>
                 ) : (

@@ -1,24 +1,74 @@
 import {
   Receipt,
   Activity,
-  PowerOff,
-  AlertTriangle,
+  CheckCircle2,
   XCircle,
+  Slash,
+  BadgeCheck,
 } from "lucide-react";
 import DeviceEventStatCard from "./DeviceEventStatCard";
+import { DEVICE_EVENT_STATUS_OPTIONS } from "./deviceEventsConstants";
 
 export default function DeviceEventsStats({
   loading,
   statTotalEvents,
-  activeOperationalCount,
-  inactiveOperationalCount,
-  warningCount,
-  errorCount,
+  statusCounts = {},
 }) {
+  const VISIBLE_STATUSES = new Set(["success", "triggered", "failed"]);
+
+  const iconForStatus = (statusKey) => {
+    switch (statusKey) {
+      case "active":
+      case "processing":
+      case "pending":
+      case "triggered":
+        return Activity;
+      case "success":
+      case "completed":
+      case "resolved":
+        return CheckCircle2;
+      case "failed":
+        return XCircle;
+      case "ignored":
+        return Slash;
+      case "acknowledged":
+        return BadgeCheck;
+      default:
+        return Receipt;
+    }
+  };
+
+  const styleForStatus = (statusKey) => {
+    switch (statusKey) {
+      case "active":
+        return { iconColor: "text-green-600", bgTint: "bg-green-500/10" };
+      case "processing":
+        return { iconColor: "text-blue-600", bgTint: "bg-blue-500/10" };
+      case "pending":
+        return { iconColor: "text-amber-700", bgTint: "bg-amber-500/15" };
+      case "triggered":
+        return { iconColor: "text-slate-700", bgTint: "bg-slate-500/10" };
+      case "success":
+        return { iconColor: "text-green-700", bgTint: "bg-green-500/30" };
+      case "completed":
+        return { iconColor: "text-green-700", bgTint: "bg-green-500/30" };
+      case "resolved":
+        return { iconColor: "text-slate-700", bgTint: "bg-slate-500/10" };
+      case "ignored":
+        return { iconColor: "text-gray-600", bgTint: "bg-gray-500/10" };
+      case "failed":
+        return { iconColor: "text-red-700", bgTint: "bg-red-500/30" };
+      case "acknowledged":
+        return { iconColor: "text-violet-700", bgTint: "bg-violet-500/10" };
+      default:
+        return { iconColor: "text-blue-600", bgTint: "bg-white" };
+    }
+  };
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
       {loading ? (
-        Array.from({ length: 5 }).map((_, i) => (
+        Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
             className="bg-white rounded-3xl border p-6 shadow flex items-center gap-3 animate-pulse"
@@ -39,37 +89,25 @@ export default function DeviceEventsStats({
             value={statTotalEvents}
             valueSuffix="Sự kiện"
           />
-          <DeviceEventStatCard
-            icon={Activity}
-            iconColor="text-green-600"
-            label="Hoạt động"
-            value={activeOperationalCount}
-            valueSuffix="Sự kiện"
-          />
-          <DeviceEventStatCard
-            icon={PowerOff}
-            iconColor="text-slate-600"
-            label="Ngừng hoạt động"
-            value={inactiveOperationalCount}
-            valueSuffix="Sự kiện"
-            bgTint="bg-slate-400/20"
-          />
-          <DeviceEventStatCard
-            icon={AlertTriangle}
-            iconColor="text-orange-600"
-            label="Cảnh báo"
-            value={warningCount}
-            valueSuffix="Sự kiện"
-            bgTint="bg-amber-500/30"
-          />
-          <DeviceEventStatCard
-            icon={XCircle}
-            iconColor="text-red-600"
-            label="Lỗi"
-            value={errorCount}
-            valueSuffix="Sự kiện"
-            bgTint="bg-red-500/30"
-          />
+
+          {DEVICE_EVENT_STATUS_OPTIONS.filter(([value]) =>
+            VISIBLE_STATUSES.has(String(value).toLowerCase()),
+          ).map(([value, label]) => {
+            const key = String(value).toLowerCase();
+            const Icon = iconForStatus(key);
+            const { iconColor, bgTint } = styleForStatus(key);
+            return (
+              <DeviceEventStatCard
+                key={value}
+                icon={Icon}
+                iconColor={iconColor}
+                label={label}
+                value={statusCounts[key] ?? 0}
+                valueSuffix="Sự kiện"
+                bgTint={bgTint}
+              />
+            );
+          })}
         </>
       )}
     </div>

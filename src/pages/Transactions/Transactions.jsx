@@ -221,6 +221,9 @@ function formatCompletedDateTime(value) {
 function formatTargetTypeLabel(type, empty = "") {
   if (!type) return empty;
   const normalized = String(type).trim().toLowerCase();
+  if (["workshift", "work-shift", "work_shift"].includes(normalized)) {
+    return "Hoàn tiền";
+  }
   if (["parking-session", "parkingsession"].includes(normalized)) {
     return "Phí gửi xe";
   }
