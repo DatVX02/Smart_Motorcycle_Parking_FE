@@ -16,22 +16,20 @@ export function normStatus(status) {
 export function isActiveOperationalStatus(status) {
   const s = normStatus(status);
   if (!s || s === "") return false;
-  return [
-    "active",
-    "processing",
-    "pending",
-    "online",
-    "running",
-    "enabled",
-    "ok",
-  ].includes(s);
+  // Khớp dropdown Trạng thái (DEVICE_EVENT_STATUS_OPTIONS)
+  // Nhóm "đang diễn ra": Active / Processing / Pending / Triggered
+  return ["active", "processing", "pending", "triggered"].includes(s);
 }
 
 /** EventStatus API: đã kết thúc / đóng (thống kê «Ngừng hoạt động»). */
 export function isInactiveOperationalStatus(status) {
   const s = normStatus(status);
   if (!s || s === "") return false;
+  // Khớp dropdown Trạng thái (DEVICE_EVENT_STATUS_OPTIONS)
+  // Nhóm "đã kết thúc": Completed / Resolved / Ignored / Success / Failed / Acknowledged
+  // Giữ tương thích dữ liệu cũ: Inactive / Cancelled / Expired...
   return [
+    "completed",
     "resolved",
     "ignored",
     "success",

@@ -100,6 +100,7 @@ function PriceList() {
   const [editScheduledAt, setEditScheduledAt] = useState(null);
   const [scheduling, setScheduling] = useState(false);
   const [cancellingSchedule, setCancellingSchedule] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const loadLots = useCallback(async () => {
     try {
       setLoadingLots(true);
@@ -143,6 +144,14 @@ function PriceList() {
   useEffect(() => {
     loadLots();
   }, [loadLots]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   const openEditModal = (lot) => {
     setEditingLot(lot);
@@ -296,16 +305,36 @@ function PriceList() {
     return { disabledHours, disabledMinutes };
   };
 
-  const hasUpcomingSchedule = useMemo(
-    () => Boolean(editingLot?.scheduledPriceUpdateDate),
-    [editingLot],
-  );
+  const effectiveParkingLots = useMemo(() => {
+    return parkingLots.map((lot) => {
+      const scheduledAt = parseApiScheduledDate(lot.scheduledPriceUpdateDate);
+      const shouldApplyScheduledPrice =
+        scheduledAt &&
+        Number.isFinite(lot.scheduledHourlyRate) &&
+        scheduledAt.valueOf() <= nowTick;
 
-  const totalLots = parkingLots.length;
-  const configuredLots = parkingLots.filter(
+      if (!shouldApplyScheduledPrice) return lot;
+
+      return {
+        ...lot,
+        hourlyRate: lot.scheduledHourlyRate,
+        scheduledHourlyRate: null,
+        scheduledPriceUpdateDate: null,
+      };
+    });
+  }, [nowTick, parkingLots]);
+
+  const hasUpcomingSchedule = useMemo(() => {
+    if (!editingLot?.scheduledPriceUpdateDate) return false;
+    const scheduledAt = parseApiScheduledDate(editingLot.scheduledPriceUpdateDate);
+    return Boolean(scheduledAt && scheduledAt.valueOf() > nowTick);
+  }, [editingLot, nowTick]);
+
+  const totalLots = effectiveParkingLots.length;
+  const configuredLots = effectiveParkingLots.filter(
     (lot) => lot.hourlyRate != null,
   ).length;
-  const scheduledLots = parkingLots.filter(
+  const scheduledLots = effectiveParkingLots.filter(
     (lot) => !!lot.scheduledPriceUpdateDate,
   ).length;
 
@@ -380,13 +409,13 @@ function PriceList() {
           <div className="rounded-lg border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500">
             Đang tải dữ liệu giá gửi xe...
           </div>
-        ) : parkingLots.length === 0 ? (
+        ) : effectiveParkingLots.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">
             Chưa tải được danh sách bãi xe.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {parkingLots.map((lot) => (
+            {effectiveParkingLots.map((lot) => (
               <div
                 key={lot.id}
                 className="border border-gray-200 rounded-lg p-4 bg-white"

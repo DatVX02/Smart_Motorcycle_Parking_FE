@@ -33,7 +33,9 @@ const parseFromDisplay = (str) => {
 /** Parse formatted string (vi-VN: 10.000 hoặc 1,5) về số */
 const parseFormattedNumber = (s) => {
   if (s == null || s === "") return null;
-  const str = String(s).trim();
+  const str = String(s)
+    .replace(/\s*vnđ\s*/gi, "")
+    .trim();
   if (!str) return null;
   const hasComma = str.includes(",");
   let cleaned;
@@ -179,14 +181,27 @@ function LoyaltyConfigModal({
   };
 
   const handleNumberChange = (field, rawValue, withMoneySuffix = false) => {
+    if (rawValue === "" || rawValue == null) {
+      setFormData((prev) => ({ ...prev, [field]: "" }));
+      return;
+    }
+
+    if (withMoneySuffix) {
+      // Giữ hậu tố VNĐ nhưng không re-format số khi đang gõ,
+      // để người dùng vẫn nhập được số 0 ở cuối như 50 / 500 / 5000.
+      const numericPart = String(rawValue)
+        .replace(/\s*vnđ\s*/gi, "")
+        .replace(/[^\d.,]/g, "")
+        .trim();
+      setFormData((prev) => ({
+        ...prev,
+        [field]: numericPart ? `${numericPart} VNĐ` : "",
+      }));
+      return;
+    }
+
     const parsed = parseFormattedNumber(rawValue);
-    const formatter = withMoneySuffix ? formatMoneyInput : formatNumberInput;
-    const display =
-      rawValue === "" || rawValue === null
-        ? ""
-        : parsed != null
-          ? formatter(parsed)
-          : rawValue;
+    const display = parsed != null ? formatNumberInput(parsed) : rawValue;
     setFormData((prev) => ({ ...prev, [field]: display }));
   };
 
@@ -238,8 +253,7 @@ function LoyaltyConfigModal({
       return start <= cEnd && cStart <= end;
     });
     if (overlapped) {
-      const fmt = (d) =>
-        format(new Date(d), "dd/MM/yyyy HH:mm");
+      const fmt = (d) => format(new Date(d), "dd/MM/yyyy HH:mm");
       setError(
         `Khoảng thời gian bị trùng với cấu hình đã có (${fmt(overlapped.startDate)} - ${fmt(overlapped.endDate)}). Vui lòng chọn khoảng thời gian khác.`,
       );

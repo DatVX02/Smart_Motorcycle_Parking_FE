@@ -4,11 +4,7 @@ import deviceEventService from "../../services/deviceEventService";
 import parkingLotService from "../../services/parkingLotService";
 import DeviceEventsPagination from "./DeviceEventsPagination";
 import { PAGE_SIZE } from "./deviceEventsConstants";
-import {
-  normalizeDeviceEvent,
-  isActiveOperationalStatus,
-  isInactiveOperationalStatus,
-} from "./deviceEventUtils";
+import { normalizeDeviceEvent } from "./deviceEventUtils";
 import DeviceEventsStats from "./DeviceEventsStats";
 import DeviceEventsFilters from "./DeviceEventsFilters";
 import DeviceEventsList from "./DeviceEventsList";
@@ -37,10 +33,16 @@ function applyEventClientFilters(items, { lotId, eventType, eventStatus }) {
   });
 }
 
+function normKey(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
 function DeviceEvents() {
-  const [logs, setLogs] = useState([]);
-  const [totalCount, setTotalCount] = useState(null);
-  const [serverTotalPages, setServerTotalPages] = useState(null);
+  /** Cache dữ liệu theo từng trang (backend phân trang). */
+  const [pageCache, setPageCache] = useState(() => ({}));
+  const [pageSizeByPage, setPageSizeByPage] = useState(() => ({}));
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   /** Thống kê 5 ô phía trên: toàn bộ bản ghi khớp bộ lọc (không đổi khi đổi trang). */
@@ -51,6 +53,11 @@ function DeviceEvents() {
   const [filterEventType, setFilterEventType] = useState("");
   const [filterEventStatus, setFilterEventStatus] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const currentPageLogs = useMemo(
+    () => pageCache[page] ?? [],
+    [pageCache, page],
+  );
+  const lastPageSize = pageSizeByPage[page] ?? 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -69,20 +76,17 @@ function DeviceEvents() {
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
-    setStatsLoading(true);
     try {
-      const params = { page, pageSize: PAGE_SIZE };
+      // Backend thực tế có phân trang (pageNumber/pageSize) nhưng không trả totalPages.
+      const params = { pageNumber: page, pageSize: PAGE_SIZE };
       if (lotId) params.lotId = lotId;
       const et = filterEventType.trim();
       const es = filterEventStatus.trim();
       if (et) params.eventType = et;
       if (es) params.eventStatus = es;
 
-      const {
-        items,
-        totalCount: total,
-        totalPages: tp,
-      } = await deviceEventService.getAll(params);
+      const { items } = await deviceEventService.getAll(params);
+      const rawPageSize = Array.isArray(items) ? items.length : 0;
       const normalized = (items ?? []).map((raw, i) =>
         normalizeDeviceEvent(raw, i),
       );
@@ -91,67 +95,48 @@ function DeviceEvents() {
         eventType: et,
         eventStatus: es,
       });
-      setLogs(filtered);
-
-      const serverCount =
-        typeof total === "number" && Number.isFinite(total) ? total : null;
-      const serverPages =
-        typeof tp === "number" && tp >= 1 && Number.isFinite(tp)
-          ? Math.floor(tp)
-          : null;
-
-      // If backend did not apply filter correctly, prefer client-filtered length.
-      if (filtered.length !== normalized.length) {
-        setTotalCount(filtered.length);
-        setServerTotalPages(
-          Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)),
-        );
-      } else {
-        setTotalCount(serverCount);
-        setServerTotalPages(serverPages);
-      }
-
-      // Lightweight stats: use server total + current page breakdown to avoid fetching all pages.
-      const statTotal =
-        typeof serverCount === "number" && Number.isFinite(serverCount)
-          ? serverCount
-          : filtered.length;
-      setSummaryStats({
-        total: statTotal,
-        active: filtered.filter((l) => isActiveOperationalStatus(l.eventStatus))
-          .length,
-        inactive: filtered.filter((l) =>
-          isInactiveOperationalStatus(l.eventStatus),
-        ).length,
-        warning: filtered.filter((l) => l.level === "warning").length,
-        error: filtered.filter((l) => l.level === "error").length,
-      });
+      setPageCache((prev) => ({ ...prev, [page]: filtered }));
+      setPageSizeByPage((prev) => ({ ...prev, [page]: rawPageSize }));
     } catch (e) {
       console.error(e);
       toast.error("Không thể tải nhật ký thiết bị");
-      setLogs([]);
-      setTotalCount(null);
-      setServerTotalPages(null);
-      setSummaryStats({
-        total: 0,
-        active: 0,
-        inactive: 0,
-        warning: 0,
-        error: 0,
-      });
+      setPageCache((prev) => ({ ...prev, [page]: [] }));
+      setPageSizeByPage((prev) => ({ ...prev, [page]: 0 }));
     } finally {
       setLoading(false);
-      setStatsLoading(false);
     }
   }, [page, lotId, filterEventType, filterEventStatus]);
 
   useEffect(() => {
-    loadLogs();
-  }, [loadLogs]);
+    if (!pageCache[page]) loadLogs();
+  }, [pageCache, page, loadLogs]);
+
+  // Thống kê tăng dần theo trang: trang 1 = 10, trang 2 = 20, ...
+  // (danh sách vẫn hiển thị theo trang hiện tại)
+  useEffect(() => {
+    setStatsLoading(true);
+    const pagesToCount = Array.from(
+      { length: Math.max(0, page) },
+      (_, i) => i + 1,
+    );
+    const data = pagesToCount.flatMap((p) => pageCache[p] ?? []);
+    const statusCounts = data.reduce((acc, item) => {
+      const k = normKey(item?.eventStatus);
+      if (!k) return acc;
+      acc[k] = (acc[k] ?? 0) + 1;
+      return acc;
+    }, {});
+    setSummaryStats({
+      total: data.length,
+      statusCounts,
+    });
+    setStatsLoading(false);
+  }, [pageCache, page]);
 
   const filteredLogs = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    return logs.filter((log) => {
+    // Search áp dụng trên trang hiện tại.
+    return currentPageLogs.filter((log) => {
       const matchesSearch =
         !q ||
         log.eventId.toLowerCase().includes(q) ||
@@ -166,23 +151,14 @@ function DeviceEvents() {
         (log.eventDataPretty && log.eventDataPretty.toLowerCase().includes(q));
       return matchesSearch;
     });
-  }, [logs, searchTerm]);
+  }, [currentPageLogs, searchTerm]);
 
   const statTotalEvents = summaryStats?.total ?? 0;
-  const activeOperationalCount = summaryStats?.active ?? 0;
-  const inactiveOperationalCount = summaryStats?.inactive ?? 0;
-  const warningCount = summaryStats?.warning ?? 0;
-  const errorCount = summaryStats?.error ?? 0;
+  const statusCounts = summaryStats?.statusCounts ?? {};
 
-  const totalPages =
-    serverTotalPages != null
-      ? serverTotalPages
-      : totalCount != null
-        ? Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-        : null;
-
-  const canGoNext =
-    totalPages != null ? page < totalPages : logs.length >= PAGE_SIZE;
+  // API không trả tổng trang: cho phép qua trang sau nếu trang hiện tại trả đủ PAGE_SIZE bản ghi.
+  const totalPages = null;
+  const canGoNext = lastPageSize >= PAGE_SIZE;
 
   const handleResetFilters = () => {
     setSearchTerm("");
@@ -190,6 +166,8 @@ function DeviceEvents() {
     setFilterEventStatus("");
     setLotId("");
     setPage(1);
+    setPageCache({});
+    setPageSizeByPage({});
   };
 
   return (
@@ -197,17 +175,17 @@ function DeviceEvents() {
       <DeviceEventsStats
         loading={statsLoading}
         statTotalEvents={statTotalEvents}
-        activeOperationalCount={activeOperationalCount}
-        inactiveOperationalCount={inactiveOperationalCount}
-        warningCount={warningCount}
-        errorCount={errorCount}
+        statusCounts={statusCounts}
       />
 
       <DeviceEventsFilters
         searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
+        onSearchChange={(v) => {
+          setSearchTerm(v);
+          setPage(1);
+        }}
         loading={loading}
-        recordCount={logs.length}
+        recordCount={currentPageLogs.length}
         pageSize={PAGE_SIZE}
         onReload={loadLogs}
         onResetFilters={handleResetFilters}
@@ -216,23 +194,29 @@ function DeviceEvents() {
         onLotChange={(v) => {
           setLotId(v);
           setPage(1);
+          setPageCache({});
+          setPageSizeByPage({});
         }}
         filterEventType={filterEventType}
         onEventTypeChange={(v) => {
           setFilterEventType(v);
           setPage(1);
+          setPageCache({});
+          setPageSizeByPage({});
         }}
         filterEventStatus={filterEventStatus}
         onEventStatusChange={(v) => {
           setFilterEventStatus(v);
           setPage(1);
+          setPageCache({});
+          setPageSizeByPage({});
         }}
       />
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <DeviceEventsList loading={loading} filteredLogs={filteredLogs} />
 
-        {!loading && logs.length > 0 && (
+        {!loading && currentPageLogs.length > 0 && (
           <DeviceEventsPagination
             currentPage={page}
             totalPages={totalPages}

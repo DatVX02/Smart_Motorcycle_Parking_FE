@@ -38,7 +38,6 @@ function SecurityMonitoringWidget({ alerts = [], loading = false }) {
           <h2 className="text-lg font-semibold text-slate-900">
             Cảnh báo an ninh
           </h2>
-          
         </div>
       </div>
 
