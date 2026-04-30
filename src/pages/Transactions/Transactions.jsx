@@ -1483,6 +1483,7 @@ export default function Transactions() {
               <option value="monthly-pass">Vé tháng</option>
               <option value="wallet-deposit">Nạp ví</option>
               <option value="wallet-withdraw">Rút tiền</option>
+              <option value="work-shift">Hoàn tiền</option>
             </select>
           </div>
 

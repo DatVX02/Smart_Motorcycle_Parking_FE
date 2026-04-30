@@ -158,7 +158,7 @@ function Sidebar({ onClose }) {
           collapsible
           collapsed={collapsed}
           trigger={null}
-          width={300}
+          width={280}
           collapsedWidth={80}
           className={`h-full relative z-50 border-r ${isDarkTheme ? "border-slate-700 custom-sidebar" : "border-slate-200 custom-sidebar"}`}
           style={{ boxShadow: "4px 0 24px rgba(0,0,0,0.02)" }}

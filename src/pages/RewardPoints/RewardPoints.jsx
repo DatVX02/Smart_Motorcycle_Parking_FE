@@ -321,7 +321,7 @@ function RewardPoints() {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Tìm theo tên bãi xe..."
+              placeholder="Tìm theo tên bãi gửi xe..."
               value={filterSearch}
               onChange={(e) => setFilterSearch(e.target.value)}
               className="input pl-10 w-full text-sm"

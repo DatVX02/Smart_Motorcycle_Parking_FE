@@ -18,8 +18,10 @@ const dashboardService = {
     apiClient.get(`${BASE}/occupancy`).then((r) => unwrap(r.data)),
 
   /** GET /api/v1/dashboard/peak-hours - Giờ cao điểm */
-  getPeakHours: () =>
-    apiClient.get(`${BASE}/peak-hours`).then((r) => unwrap(r.data)),
+  getPeakHours: (params = {}) =>
+    apiClient
+      .get(`${BASE}/peak-hours`, { params })
+      .then((r) => unwrap(r.data)),
 
   /** GET /api/v1/dashboard/device-health - Trạng thái thiết bị */
   getDeviceHealth: () =>

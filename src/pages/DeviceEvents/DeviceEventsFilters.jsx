@@ -39,19 +39,10 @@ export default function DeviceEventsFilters({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={onReload}
-            disabled={loading}
-            className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-            title="Tải lại"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
-          <button
-            type="button"
             onClick={onResetFilters}
             className="btn btn-secondary text-sm flex items-center gap-1.5 shrink-0"
           >
-            <Filter className="w-3.5 h-3.5" />
+            <RefreshCw className="w-3.5 h-3.5" />
             Xóa bộ lọc
           </button>
         </div>

@@ -430,7 +430,7 @@ export default function ParkingVehicles() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Tìm theo biển số, userId, mã phương tiện, màu xe..."
+            placeholder="Tìm theo biển số, tên người dùng, mã phương tiện, màu xe..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -502,19 +502,6 @@ export default function ParkingVehicles() {
               <RefreshCw className="w-3.5 h-3.5" />
               Xóa bộ lọc
             </button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={handleReload}
-              disabled={loading}
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-1.5 ${loading ? "animate-spin" : ""}`}
-              />
-              Tải lại
-            </Button>
           </div>
         </div>
       </div>
@@ -689,64 +676,67 @@ export default function ParkingVehicles() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="px-5 pb-5 pt-4 space-y-4">
+          <div className="px-5 pb-5 pt-4">
             {!detailVehicle ? (
               <div className="py-10 text-center text-gray-500">
                 Không có dữ liệu
               </div>
             ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-                  {[
-                    ["Biển số", plateOf(detailVehicle)],
-                    [
-                      "Người dùng",
-                      userDisplay(detailVehicle, userFullNameById),
-                    ],
-                    ["Màu xe", formatValue(detailVehicle.color)],
-                    [
-                      "Loại phương tiện",
-                      detailVehicle.isMonthlyPassVehicle
-                        ? "Xe vé tháng"
-                        : "Xe thường",
-                    ],
-                    [
-                      "Trạng thái",
-                      detailVehicle.isActive
-                        ? "Đang hoạt động"
-                        : "Ngừng hoạt động",
-                    ],
-                    ["Tạo lúc", formatDateTime(detailVehicle.createdAt)],
-                    ["Cập nhật", formatDateTime(detailVehicle.updatedAt)],
-                  ].map(([label, value]) => (
-                    <div key={label} className="min-w-0">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                        {label}
-                      </p>
-                      <p className="text-sm font-medium text-gray-900 break-all">
-                        {value}
-                      </p>
-                    </div>
-                  ))}
+              <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
+                {/* Left: Data */}
+                <div className="lg:col-span-7">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+                    {[
+                      ["Biển số", plateOf(detailVehicle)],
+                      ["Người dùng", userDisplay(detailVehicle, userFullNameById)],
+                      ["Màu xe", formatValue(detailVehicle.color)],
+                      [
+                        "Loại phương tiện",
+                        detailVehicle.isMonthlyPassVehicle
+                          ? "Xe vé tháng"
+                          : "Xe thường",
+                      ],
+                      [
+                        "Trạng thái",
+                        detailVehicle.isActive ? "Đang hoạt động" : "Ngừng hoạt động",
+                      ],
+                      ["Tạo lúc", formatDateTime(detailVehicle.createdAt)],
+                      ["Cập nhật", formatDateTime(detailVehicle.updatedAt)],
+                    ].map(([label, value]) => (
+                      <div key={label} className="min-w-0">
+                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                          {label}
+                        </p>
+                        <p className="text-sm font-medium text-gray-900 break-all">
+                          {value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="pt-3 border-t border-gray-100">
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-2">
-                    Ảnh biển số
-                  </p>
-                  {detailVehicle.plateImageUrl ? (
-                    <img
-                      src={resolveImageUrl(detailVehicle.plateImageUrl)}
-                      alt={plateOf(detailVehicle)}
-                      className="max-h-56 w-auto rounded-lg border border-gray-200 object-contain"
-                    />
-                  ) : (
-                    <p className="text-sm text-gray-400">
-                      Không có ảnh biển số
+                {/* Right: Image */}
+                <div className="lg:col-span-3">
+                  <div className="h-full rounded-2xl border border-gray-200 bg-gray-50/40 p-3">
+                    <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-2">
+                      Ảnh biển số
                     </p>
-                  )}
+                    <div className="flex items-center justify-center">
+                      {detailVehicle.plateImageUrl ? (
+                        <img
+                          src={resolveImageUrl(detailVehicle.plateImageUrl)}
+                          alt={plateOf(detailVehicle)}
+                          className="max-h-[420px] w-full rounded-xl border border-gray-100 object-cover object-center bg-white"
+                        />
+                      ) : (
+                        <div className="h-[320px] w-full rounded-xl border border-dashed border-gray-300 bg-white flex items-center justify-center text-sm text-gray-400">
+                          Không có ảnh biển số
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </DialogContent>
