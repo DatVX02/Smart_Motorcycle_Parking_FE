@@ -594,19 +594,6 @@ export default function ParkingSessions() {
               <RefreshCw className="w-3.5 h-3.5" />
               Xóa bộ lọc
             </button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={() => loadSessions()}
-              disabled={loading}
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-1.5 ${loading ? "animate-spin" : ""}`}
-              />
-              Tải lại
-            </Button>
           </div>
         </ConfigProvider>
       </div>
@@ -871,7 +858,8 @@ export default function ParkingSessions() {
                   <p className="text-sm font-medium text-gray-900 break-words">
                     {detailSession.lotName ??
                       detailSession.parkingLotName ??
-                      detailSession.lotId ?? ""}
+                      detailSession.lotId ??
+                      ""}
                   </p>
                 </div>
                 <div>

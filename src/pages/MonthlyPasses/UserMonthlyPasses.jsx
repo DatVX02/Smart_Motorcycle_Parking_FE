@@ -232,6 +232,7 @@ function UserMonthlyPasses() {
   const [statusFilter, setStatusFilter] = useState("");
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize] = useState(10);
+  const [reloadSeq, setReloadSeq] = useState(0);
   const [detailPass, setDetailPass] = useState(null);
   const [vehicleMedia, setVehicleMedia] = useState({
     loading: false,
@@ -296,11 +297,19 @@ function UserMonthlyPasses() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, reloadSeq]);
 
   useEffect(() => {
     setPageNumber(1);
   }, [search, statusFilter, lotFilter]);
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setLotFilter("");
+    setStatusFilter("");
+    setPageNumber(1);
+    setReloadSeq((s) => s + 1);
+  };
 
   const filteredPasses = useMemo(() => {
     let list = [...passes];
@@ -522,6 +531,16 @@ function UserMonthlyPasses() {
               <option value="expired">Đã hết hạn</option>
             </select>
           </div>
+          <div>
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="btn btn-secondary text-sm flex items-center gap-1.5 shrink-0"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Xóa bộ lọc
+            </button>
+          </div>
         </div>
       </div>
 
@@ -715,140 +734,147 @@ function UserMonthlyPasses() {
           </DialogHeader>
 
           {detailPass && (
-            <div className="space-y-4 px-5 pb-5 pt-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Tên người dùng
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-all">
-                    {detailPass.fullName?.trim() ||
-                      userFullNameById[String(detailPass.userId ?? "")] ||
-                      detailPass.userName?.trim() || ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Email
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-all">
-                    {detailPass.userEmail || ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Biển số xe
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {detailPass.vehiclePlate || ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Màu xe
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {vehicleMedia.color || detailPass.vehicleColor || ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Bãi xe
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {detailPass.lotName || ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Gói vé
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {detailPass.packageName || ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Thời gian bắt đầu
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {formatDateTime(detailPass.startDate)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Thời gian kết thúc
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {formatDateTime(detailPass.endDate)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Giá gốc
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {formatMoney(detailPass.originalPrice)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Thanh toán
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {formatMoney(detailPass.paidAmount)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Loại thanh toán
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {formatPaymentMethodLabel(detailPass.paymentMethod)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Trạng thái
-                  </p>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusStyle(detailPass.statusKey).className}`}
-                  >
-                    {statusStyle(detailPass.statusKey).label}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                    Ngày tạo
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 break-words">
-                    {formatDateTime(detailPass.createdAt)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-100" />
-
-              <div className="grid grid-cols-1 gap-4">
-                <div className="rounded-xl border border-gray-200 p-2.5">
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">
-                    Hình ảnh biển số
-                  </p>
-                  {vehicleMedia.loading ? (
-                    <div className="h-60 w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-sm text-gray-400">
-                      Đang tải hình ảnh...
+            <div className="px-5 pb-5 pt-4">
+              <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
+                {/* Left: Data */}
+                <div className="lg:col-span-7">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Tên người dùng
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-all">
+                        {detailPass.fullName?.trim() ||
+                          userFullNameById[String(detailPass.userId ?? "")] ||
+                          detailPass.userName?.trim() ||
+                          ""}
+                      </p>
                     </div>
-                  ) : vehicleMedia.plateUrl ? (
-                    <img
-                      src={vehicleMedia.plateUrl}
-                      alt="Hình ảnh biển số"
-                      className="h-full w-full rounded-lg border border-gray-100 object-cover object-center bg-gray-50"
-                    />
-                  ) : (
-                    <div className="h-60 w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-sm text-gray-400">
-                      Chưa có hình ảnh
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Email
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-all">
+                        {detailPass.userEmail || ""}
+                      </p>
                     </div>
-                  )}
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Biển số xe
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {detailPass.vehiclePlate || ""}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Màu xe
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {vehicleMedia.color || detailPass.vehicleColor || ""}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Bãi xe
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {detailPass.lotName || ""}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Gói vé
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {detailPass.packageName || ""}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Thời gian bắt đầu
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {formatDateTime(detailPass.startDate)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Thời gian kết thúc
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {formatDateTime(detailPass.endDate)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Giá gốc
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {formatMoney(detailPass.originalPrice)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Thanh toán
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {formatMoney(detailPass.paidAmount)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Loại thanh toán
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {formatPaymentMethodLabel(detailPass.paymentMethod)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Trạng thái
+                      </p>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusStyle(detailPass.statusKey).className}`}
+                      >
+                        {statusStyle(detailPass.statusKey).label}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                        Ngày tạo
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-words">
+                        {formatDateTime(detailPass.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Image */}
+                <div className="lg:col-span-3">
+                  <div className="h-full rounded-2xl border border-gray-200 bg-gray-50/40 p-3">
+                    <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-2">
+                      Hình ảnh biển số
+                    </p>
+                    <div className="flex items-center justify-center">
+                      {vehicleMedia.loading ? (
+                        <div className="h-[320px] w-full rounded-xl border border-dashed border-gray-300 bg-white flex items-center justify-center text-sm text-gray-400">
+                          Đang tải hình ảnh...
+                        </div>
+                      ) : vehicleMedia.plateUrl ? (
+                        <img
+                          src={vehicleMedia.plateUrl}
+                          alt="Hình ảnh biển số"
+                          className="max-h-[420px] w-full rounded-xl border border-gray-100 object-cover object-center bg-white"
+                        />
+                      ) : (
+                        <div className="h-[320px] w-full rounded-xl border border-dashed border-gray-300 bg-white flex items-center justify-center text-sm text-gray-400">
+                          Chưa có hình ảnh
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

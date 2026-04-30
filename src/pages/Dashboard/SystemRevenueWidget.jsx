@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -8,7 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CircleDollarSign, CalendarDays, Landmark } from "lucide-react";
+import {
+  CircleDollarSign,
+  CalendarDays,
+  Landmark,
+  Motorbike,
+} from "lucide-react";
 import { ConfigProvider, DatePicker } from "antd";
 import viVN from "antd/es/locale/vi_VN";
 import dayjs from "dayjs";
@@ -247,7 +254,7 @@ function formatTargetTypeLabel(type, empty = "") {
   if (!type) return empty;
   const normalized = String(type).trim().toLowerCase();
   if (["parking-session", "parkingsession"].includes(normalized)) {
-    return "Vé lượt";
+    return "Phí gửi xe";
   }
   if (["monthly-pass", "monthlypass"].includes(normalized)) return "Vé tháng";
   if (["wallet-deposit", "walletdeposit"].includes(normalized)) {
@@ -303,12 +310,30 @@ const chartConfigByLot = {
   },
 };
 
+const chartConfigWalletFlow = {
+  deposit: {
+    label: "Nạp ví",
+    color: "#16a34a",
+  },
+  withdraw: {
+    label: "Rút tiền",
+    color: "#f97316",
+  },
+};
+
 function formatFixedRevenueAxis(value) {
   const n = Number(value ?? 0);
   if (!Number.isFinite(n)) return "0";
   const inK = Math.round(n / 1000);
   if (inK === 0) return "0";
   return `${inK}K`;
+}
+
+function formatHourTick(label) {
+  const text = String(label ?? "");
+  const hour = Number(text.split(":")[0]);
+  if (!Number.isFinite(hour)) return "";
+  return hour % 4 === 0 ? `${String(hour).padStart(2, "0")}:00` : "";
 }
 
 function formatTransactionTime(value) {
@@ -323,6 +348,7 @@ function SystemRevenueWidget({
   lots = [],
   loading = false,
 }) {
+  const [tab, setTab] = useState("parking"); // parking | wallet
   const [mode, setMode] = useState("day");
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [selectedMonth, setSelectedMonth] = useState(dayjs());
@@ -340,10 +366,12 @@ function SystemRevenueWidget({
     return map;
   }, [lots]);
 
-  const revenueStats = useMemo(() => {
+  const parkingStats = useMemo(() => {
     const sourceItems = extractItems(transactions);
     const revenueByLot = new Map();
     const revenueByDay = new Map();
+    const revenueByHour = new Map();
+    const revenueByMonth = new Map();
     let totalRevenue = 0;
     let transactionCount = 0;
     const statusCounts = {
@@ -371,7 +399,7 @@ function SystemRevenueWidget({
       const txLotNameRaw =
         tx.lotName ?? tx.parkingLotName ?? lotNameMap.get(txLotId) ?? "";
 
-      if (selectedLotId !== "all") {
+      if (selectedLotId !== "all" && tab === "parking") {
         const selectedLotName = lotNameMap.get(selectedLotId) ?? "";
         const sameId = txLotId === selectedLotId;
         const sameName =
@@ -380,13 +408,20 @@ function SystemRevenueWidget({
         if (!sameId && !sameName) continue;
       }
 
-      transactionCount += 1;
-
       const latestStatus = getPaymentStatusValue(tx);
+      if (!isSuccessfulPaymentStatus(latestStatus)) continue;
+
       const statusBucket = getStatusBucket(latestStatus);
       statusCounts[statusBucket] += 1;
 
       const txTargetType = getTargetTypeValue(tx);
+      const normalizedTargetType = normalizeTargetTypeParam(txTargetType);
+      if (!["parking-session", "monthly-pass"].includes(normalizedTargetType)) {
+        continue;
+      }
+
+      transactionCount += 1;
+
       const netRevenue = getNetCashAmountWithFailed(tx, txTargetType);
       if (!Number.isFinite(netRevenue) || netRevenue === 0) continue;
 
@@ -441,6 +476,15 @@ function SystemRevenueWidget({
       if (mode === "month") {
         const day = dayjs(txDate).date();
         revenueByDay.set(day, (revenueByDay.get(day) ?? 0) + netRevenue);
+      } else if (mode === "day") {
+        const hour = txDate.getHours();
+        revenueByHour.set(hour, (revenueByHour.get(hour) ?? 0) + netRevenue);
+      } else if (mode === "year") {
+        const month = dayjs(txDate).month() + 1; // 1-12
+        revenueByMonth.set(
+          month,
+          (revenueByMonth.get(month) ?? 0) + netRevenue,
+        );
       }
     }
 
@@ -471,7 +515,22 @@ function SystemRevenueWidget({
               revenue: revenueByDay.get(day) ?? 0,
             };
           })
-        : [];
+        : mode === "day"
+          ? Array.from({ length: 24 }, (_, i) => ({
+              hour: i,
+              label: `${String(i).padStart(2, "0")}:00`,
+              revenue: revenueByHour.get(i) ?? 0,
+            }))
+          : mode === "year"
+            ? Array.from({ length: 12 }, (_, i) => {
+                const month = i + 1;
+                return {
+                  month,
+                  label: `Tháng ${month}`,
+                  revenue: revenueByMonth.get(month) ?? 0,
+                };
+              })
+            : [];
 
     return {
       totalRevenue,
@@ -492,13 +551,148 @@ function SystemRevenueWidget({
     lotNameMap,
   ]);
 
+  const walletStats = useMemo(() => {
+    const sourceItems = extractItems(transactions);
+    const now = new Date();
+    const hourlyBuckets = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      label: `${String(hour).padStart(2, "0")}:00`,
+      deposit: 0,
+      withdraw: 0,
+    }));
+
+    const depositByDay = new Map();
+    const withdrawByDay = new Map();
+    const depositByMonth = new Map();
+    const withdrawByMonth = new Map();
+
+    let depositTotal = 0;
+    let withdrawTotal = 0;
+    let transactionCount = 0;
+    const details = [];
+
+    for (const tx of sourceItems) {
+      const txDate = getTransactionDate(tx);
+      if (
+        !matchesPeriod(txDate, mode, selectedDate, selectedMonth, selectedYear)
+      ) {
+        continue;
+      }
+
+      const latestStatus = getPaymentStatusValue(tx);
+      if (!isSuccessfulPaymentStatus(latestStatus)) continue;
+
+      const txTargetType = getTargetTypeValue(tx);
+      const normalizedTargetType = normalizeTargetTypeParam(txTargetType);
+      if (
+        !["wallet-deposit", "wallet-withdraw"].includes(normalizedTargetType)
+      ) {
+        continue;
+      }
+
+      const netAmount = getNetCashAmountWithFailed(tx, txTargetType);
+      if (!Number.isFinite(netAmount) || netAmount === 0) continue;
+
+      const absAmount = Math.abs(netAmount);
+      const isWithdraw = normalizedTargetType === "wallet-withdraw";
+
+      transactionCount += 1;
+      if (isWithdraw) withdrawTotal += absAmount;
+      else depositTotal += absAmount;
+
+      if (mode === "day") {
+        const hour = txDate ? txDate.getHours() : now.getHours();
+        const bucket = hourlyBuckets[hour];
+        if (bucket) {
+          if (isWithdraw) bucket.withdraw += absAmount;
+          else bucket.deposit += absAmount;
+        }
+      } else if (mode === "month") {
+        const day = dayjs(txDate).date();
+        if (isWithdraw) {
+          withdrawByDay.set(day, (withdrawByDay.get(day) ?? 0) + absAmount);
+        } else {
+          depositByDay.set(day, (depositByDay.get(day) ?? 0) + absAmount);
+        }
+      } else {
+        const month = dayjs(txDate).month() + 1; // 1-12
+        if (isWithdraw) {
+          withdrawByMonth.set(
+            month,
+            (withdrawByMonth.get(month) ?? 0) + absAmount,
+          );
+        } else {
+          depositByMonth.set(
+            month,
+            (depositByMonth.get(month) ?? 0) + absAmount,
+          );
+        }
+      }
+
+      details.push({
+        id: String(
+          pickFirst(
+            tx.transactionId,
+            tx.id,
+            tx.referenceId,
+            tx.targetId,
+            `${normalizedTargetType}-${details.length + 1}`,
+          ),
+        ),
+        targetTypeLabel: formatTargetTypeLabel(normalizedTargetType),
+        statusLabel: formatStatusLabel(latestStatus),
+        amount: absAmount,
+        createdAt: tx.createdAt ?? tx.paymentTime ?? tx.updatedAt,
+      });
+    }
+
+    const daysInMonth = selectedMonth.daysInMonth();
+    const trendRows =
+      mode === "day"
+        ? hourlyBuckets
+        : mode === "month"
+          ? Array.from({ length: daysInMonth }, (_, i) => {
+              const day = i + 1;
+              return {
+                day,
+                label: String(day).padStart(2, "0"),
+                deposit: depositByDay.get(day) ?? 0,
+                withdraw: withdrawByDay.get(day) ?? 0,
+              };
+            })
+          : Array.from({ length: 12 }, (_, i) => {
+              const month = i + 1;
+              return {
+                month,
+                label: `T${month}`,
+                deposit: depositByMonth.get(month) ?? 0,
+                withdraw: withdrawByMonth.get(month) ?? 0,
+              };
+            });
+
+    const detailRows = details
+      .sort(
+        (a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf(),
+      )
+      .slice(0, 12);
+
+    return {
+      depositTotal,
+      withdrawTotal,
+      netFlow: depositTotal - withdrawTotal,
+      transactionCount,
+      trendRows,
+      detailRows,
+    };
+  }, [transactions, mode, selectedDate, selectedMonth, selectedYear]);
+
   useEffect(() => {
     if (!expandedLotKey) return;
-    const exists = revenueStats.rows.some(
+    const exists = parkingStats.rows.some(
       (row) => row.lotKey === expandedLotKey,
     );
     if (!exists) setExpandedLotKey("");
-  }, [revenueStats.rows, expandedLotKey]);
+  }, [parkingStats.rows, expandedLotKey]);
 
   const cycleLabel =
     mode === "day"
@@ -506,6 +700,31 @@ function SystemRevenueWidget({
       : mode === "month"
         ? `Tháng ${selectedMonth.format("MM/YYYY")}`
         : `Năm ${selectedYear.format("YYYY")}`;
+
+  const walletAxis = useMemo(() => {
+    const rows = Array.isArray(walletStats.trendRows)
+      ? walletStats.trendRows
+      : [];
+    let maxValue = 0;
+    for (const row of rows) {
+      const d = Number(row?.deposit ?? 0);
+      const w = Number(row?.withdraw ?? 0);
+      if (Number.isFinite(d)) maxValue = Math.max(maxValue, d);
+      if (Number.isFinite(w)) maxValue = Math.max(maxValue, w);
+    }
+
+    const STEP = 10000;
+    const MIN_MAX = 30000;
+    const axisMax = Math.max(
+      MIN_MAX,
+      Math.ceil(Math.max(0, maxValue) / STEP) * STEP,
+    );
+    const ticks = Array.from(
+      { length: Math.floor(axisMax / STEP) + 1 },
+      (_, i) => i * STEP,
+    );
+    return { axisMax, ticks };
+  }, [walletStats.trendRows]);
 
   //   const selectedLotLabel =
   //     selectedLotId === "all"
@@ -521,11 +740,36 @@ function SystemRevenueWidget({
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
-            Doanh thu hệ thống theo bãi
+            Doanh thu hệ thống
           </h2>
           <p className="text-xs text-slate-500">
-            Xem tổng doanh thu và doanh thu từng bãi theo ngày, tháng hoặc năm
+            Theo dõi doanh thu dịch vụ và biến động dòng tiền ví toàn hệ thống
           </p>
+
+          <div className="mt-3 inline-flex rounded-xl bg-slate-100 p-1 text-sm">
+            <button
+              type="button"
+              onClick={() => setTab("parking")}
+              className={`rounded-lg px-3 py-1.5 font-semibold transition-colors ${
+                tab === "parking"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:text-slate-800"
+              }`}
+            >
+              Doanh thu giữ xe
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("wallet")}
+              className={`rounded-lg px-3 py-1.5 font-semibold transition-colors ${
+                tab === "wallet"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:text-slate-800"
+              }`}
+            >
+              Giao dịch ví
+            </button>
+          </div>
         </div>
 
         <ConfigProvider locale={viVN}>
@@ -583,7 +827,12 @@ function SystemRevenueWidget({
             <select
               value={selectedLotId}
               onChange={(e) => setSelectedLotId(e.target.value)}
-              className="h-9 min-w-[220px] rounded-lg border border-slate-200 px-3 text-sm text-slate-700"
+              disabled={tab !== "parking"}
+              className={`h-9 min-w-[220px] rounded-lg border px-3 text-sm ${
+                tab !== "parking"
+                  ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                  : "border-slate-200 text-slate-700"
+              }`}
             >
               <option value="all">Tất cả bãi xe</option>
               {lots.map((lot) => {
@@ -601,45 +850,53 @@ function SystemRevenueWidget({
       </div>
 
       <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-          <p className="text-xs text-green-700">Tổng doanh thu hệ thống</p>
-          <p className="mt-1 flex items-center gap-2 text-xl font-bold text-green-800">
-            <CircleDollarSign className="h-5 w-5" />
-            {formatCurrency(revenueStats.totalRevenue)}
-          </p>
-        </div>
+        {tab === "parking" ? (
+          <>
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+              <p className="text-xs text-green-700">Tổng doanh thu giữ xe</p>
+              <p className="mt-1 flex items-center gap-2 text-xl font-bold text-green-800">
+                <CircleDollarSign className="h-5 w-5" />
+                {formatCurrency(parkingStats.totalRevenue)}
+              </p>
+            </div>
 
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <p className="text-xs text-blue-700">Số giao dịch trong kỳ</p>
-          <p className="mt-1 flex items-center gap-2 text-xl font-bold text-blue-800">
-            <Landmark className="h-5 w-5" />
-            {revenueStats.transactionCount.toLocaleString("vi-VN")}
-          </p>
-          {/* <p className="mt-1 text-xs text-blue-700">
-            Thành công:{" "}
-            {revenueStats.statusCounts.success.toLocaleString("vi-VN")}
-            {" • "}
-            Chờ thanh toán:{" "}
-            {revenueStats.statusCounts.pending.toLocaleString("vi-VN")}
-            {" • "}
-            Đã hủy:{" "}
-            {revenueStats.statusCounts.cancelled.toLocaleString("vi-VN")}
-            {" • "}
-            <span className="text-amber-700">
-              Thất bại:{" "}
-              {revenueStats.statusCounts.failed.toLocaleString("vi-VN")}
-            </span>
-            {revenueStats.statusCounts.other > 0
-              ? ` • Khác: ${revenueStats.statusCounts.other.toLocaleString("vi-VN")}`
-              : ""}
-          </p> */}
-        </div>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <p className="text-xs text-blue-700">Số lượt xe đã gửi</p>
+              <p className="mt-1 flex items-center gap-2 text-xl font-bold text-blue-800">
+                <Motorbike className="h-5 w-5" />
+                {parkingStats.transactionCount.toLocaleString("vi-VN")} Lượt
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+              <p className="text-xs text-green-700">Tổng tiền nạp</p>
+              <p className="mt-1 flex items-center gap-2 text-xl font-bold text-green-800">
+                <CircleDollarSign className="h-5 w-5" />
+                {formatCurrency(walletStats.depositTotal)}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-amber-200 bg-amber-100 p-4">
+              <p className="text-xs text-amber-700">Tổng tiền rút</p>
+              <p className="mt-1 flex items-center gap-2 text-xl font-bold text-amber-800">
+                <CircleDollarSign className="h-5 w-5" />
+                {formatCurrency(walletStats.withdrawTotal)}
+              </p>
+            </div>
+          </>
+        )}
 
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs text-slate-600">Chu kỳ đang xem</p>
+          <p className="text-xs text-slate-600">
+            {tab === "parking" ? "Chu kỳ đang xem" : "Dòng tiền ròng"}
+          </p>
           <p className="mt-1 flex items-center gap-2 text-xl font-bold text-slate-800">
             <CalendarDays className="h-5 w-5" />
-            {cycleLabel}
+            {tab === "parking"
+              ? cycleLabel
+              : formatCurrency(walletStats.netFlow)}
           </p>
           {/* <p className="mt-1 text-xs text-slate-500">
             Bộ lọc bãi: {selectedLotLabel}
@@ -651,9 +908,233 @@ function SystemRevenueWidget({
         <div className="flex h-[300px] items-center justify-center rounded-xl bg-slate-50/70">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
         </div>
-      ) : revenueStats.rows.length === 0 ? (
+      ) : tab === "parking" ? (
+        parkingStats.rows.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+            Chưa có dữ liệu doanh thu giữ xe cho bộ lọc này.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-3">
+              <p className="mb-1 text-right text-xs font-medium text-slate-500">
+                Đơn vị: VNĐ
+              </p>
+
+              {mode === "month" ? (
+                <div className="h-[286px]">
+                  <ChartContainer
+                    config={chartConfigByDay}
+                    className="h-full w-full"
+                  >
+                    <AreaChart
+                      data={parkingStats.trendRows}
+                      margin={{ top: 12, right: 12, left: -8, bottom: 8 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#e2e8f0"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="label"
+                        stroke="#64748b"
+                        tickLine={false}
+                        axisLine={false}
+                        interval={2}
+                        fontSize={11}
+                      />
+                      <YAxis
+                        stroke="#64748b"
+                        tickLine={false}
+                        axisLine={false}
+                        fontSize={11}
+                        domain={[0, "auto"]}
+                        allowDecimals={false}
+                        tickFormatter={formatFixedRevenueAxis}
+                      />
+                      <ChartTooltip
+                        content={
+                          <ChartTooltipContent
+                            formatter={(value) => [
+                              formatCurrency(value),
+                              "Doanh thu",
+                            ]}
+                            labelFormatter={(label) => `Ngày ${label}`}
+                          />
+                        }
+                      />
+                      <ChartLegend content={<ChartLegendContent />} />
+                      <Area
+                        type="monotone"
+                        dataKey="revenue"
+                        name="Doanh thu theo ngày"
+                        stroke="var(--color-revenue)"
+                        fill="var(--color-revenue)"
+                        fillOpacity={0.15}
+                        strokeWidth={2.5}
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                </div>
+              ) : (
+                <div className="h-[286px]">
+                  <ChartContainer
+                    config={chartConfigByDay}
+                    className="h-full w-full"
+                  >
+                    <BarChart
+                      data={parkingStats.trendRows}
+                      margin={{ top: 12, right: 8, left: -10, bottom: 8 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#e2e8f0"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="label"
+                        stroke="#64748b"
+                        tickLine={false}
+                        axisLine={false}
+                        interval={0}
+                        angle={mode === "year" ? -12 : 0}
+                        textAnchor={mode === "year" ? "end" : "middle"}
+                        height={mode === "year" ? 56 : 30}
+                        fontSize={11}
+                        tickFormatter={(value) =>
+                          mode === "day" ? formatHourTick(value) : value
+                        }
+                      />
+                      <YAxis
+                        stroke="#64748b"
+                        tickLine={false}
+                        axisLine={false}
+                        fontSize={11}
+                        domain={[0, "auto"]}
+                        allowDecimals={false}
+                        tickFormatter={formatFixedRevenueAxis}
+                      />
+                      <ChartTooltip
+                        cursor={false}
+                        content={
+                          <ChartTooltipContent
+                            formatter={(value) => [
+                              formatCurrency(value),
+                              "Doanh thu",
+                            ]}
+                            labelFormatter={(label) =>
+                              mode === "day"
+                                ? `Giờ ${label}`
+                                : mode === "year"
+                                  ? label
+                                  : label
+                            }
+                          />
+                        }
+                      />
+                      <Bar
+                        dataKey="revenue"
+                        fill="var(--color-revenue)"
+                        radius={[6, 6, 0, 0]}
+                      />
+                    </BarChart>
+                  </ChartContainer>
+                </div>
+              )}
+            </div>
+
+            <div className="max-h-[320px] overflow-y-auto rounded-xl border border-slate-200 p-3">
+              <div className="space-y-2">
+                {parkingStats.rows.map((row) => (
+                  <div
+                    key={row.lotKey}
+                    className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedLotKey((prev) =>
+                            prev === row.lotKey ? "" : row.lotKey,
+                          )
+                        }
+                        className="text-left text-sm font-semibold text-slate-800 hover:text-blue-700"
+                      >
+                        {row.lotName}
+                      </button>
+                      <p className="text-sm font-bold text-green-700">
+                        {formatCurrency(row.revenue)}
+                      </p>
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {row.transactions.toLocaleString("vi-VN")} lượt thanh toán
+                    </p>
+
+                    <div className="mt-2">
+                      <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Tỷ trọng đóng góp</span>
+                        <span>{row.contributionPct.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full bg-blue-500"
+                          style={{
+                            width: `${Math.min(100, row.contributionPct)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {expandedLotKey === row.lotKey && (
+                      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2">
+                        <p className="mb-2 text-xs font-semibold text-slate-700">
+                          Chi tiết giao dịch gần đây của {row.lotName}
+                        </p>
+                        <div className="space-y-1.5">
+                          {row.detailRows.map((detail) => (
+                            <div
+                              key={detail.id}
+                              className="grid grid-cols-12 items-center gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs"
+                            >
+                              <span className="col-span-2 font-medium text-slate-700">
+                                {detail.plate}
+                              </span>
+                              <span className="col-span-2 text-slate-500">
+                                {detail.targetTypeLabel}
+                              </span>
+                              <span className="col-span-3 text-slate-500">
+                                {formatTransactionTime(detail.createdAt)}
+                              </span>
+                              <span
+                                className={`col-span-2 rounded-full px-2 py-0.5 text-center ${
+                                  detail.statusLabel === "Thất bại"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : detail.statusLabel === "Chờ thanh toán"
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : "bg-green-100 text-green-700"
+                                }`}
+                              >
+                                {detail.statusLabel}
+                              </span>
+                              <span className="col-span-3 text-right font-semibold text-slate-800">
+                                {formatCurrency(detail.amount)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      ) : walletStats.transactionCount === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-          Chưa có dữ liệu doanh thu cho bộ lọc này.
+          Chưa có dữ liệu nạp/rút ví cho bộ lọc này.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -661,204 +1142,115 @@ function SystemRevenueWidget({
             <p className="mb-1 text-right text-xs font-medium text-slate-500">
               Đơn vị: VNĐ
             </p>
-
-            {mode === "month" ? (
-              <div className="h-[286px]">
-                <ChartContainer
-                  config={chartConfigByDay}
-                  className="h-full w-full"
+            <div className="h-[286px]">
+              <ChartContainer
+                config={chartConfigWalletFlow}
+                className="h-full w-full"
+              >
+                <LineChart
+                  data={walletStats.trendRows}
+                  margin={{ top: 12, right: 12, left: -8, bottom: 8 }}
                 >
-                  <LineChart
-                    data={revenueStats.trendRows}
-                    margin={{ top: 12, right: 12, left: -8, bottom: 8 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#e2e8f0"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="label"
-                      stroke="#64748b"
-                      tickLine={false}
-                      axisLine={false}
-                      interval={2}
-                      fontSize={11}
-                    />
-                    <YAxis
-                      stroke="#64748b"
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={11}
-                      domain={[0, REVENUE_AXIS_MAX]}
-                      ticks={REVENUE_AXIS_TICKS}
-                      allowDecimals={false}
-                      tickFormatter={formatFixedRevenueAxis}
-                    />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value) => [
-                            formatCurrency(value),
-                            "Doanh thu",
-                          ]}
-                          labelFormatter={(label) => `Ngày ${label}`}
-                        />
-                      }
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    <Line
-                      type="monotone"
-                      dataKey="revenue"
-                      name="Doanh thu theo ngày"
-                      stroke="var(--color-revenue)"
-                      strokeWidth={2.5}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ChartContainer>
-              </div>
-            ) : (
-              <div className="h-[286px]">
-                <ChartContainer
-                  config={chartConfigByLot}
-                  className="h-full w-full"
-                >
-                  <BarChart
-                    data={revenueStats.chartRows}
-                    margin={{ top: 12, right: 8, left: -10, bottom: 8 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#e2e8f0"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="lotName"
-                      stroke="#64748b"
-                      tickLine={false}
-                      axisLine={false}
-                      interval={0}
-                      angle={-12}
-                      textAnchor="end"
-                      height={72}
-                      fontSize={11}
-                    />
-                    <YAxis
-                      stroke="#64748b"
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={11}
-                      domain={[0, REVENUE_AXIS_MAX]}
-                      ticks={REVENUE_AXIS_TICKS}
-                      allowDecimals={false}
-                      tickFormatter={formatFixedRevenueAxis}
-                    />
-                    <ChartTooltip
-                      cursor={false}
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value) => [
-                            formatCurrency(value),
-                            "Doanh thu",
-                          ]}
-                          labelFormatter={(label) => `Bãi: ${label}`}
-                        />
-                      }
-                    />
-                    <Bar
-                      dataKey="revenue"
-                      fill="var(--color-revenue)"
-                      radius={[6, 6, 0, 0]}
-                    />
-                  </BarChart>
-                </ChartContainer>
-              </div>
-            )}
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#e2e8f0"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="label"
+                    stroke="#64748b"
+                    tickLine={false}
+                    axisLine={false}
+                    interval={mode === "day" ? 3 : 2}
+                    fontSize={11}
+                  />
+                  <YAxis
+                    stroke="#64748b"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={11}
+                    domain={[0, walletAxis.axisMax]}
+                    ticks={walletAxis.ticks}
+                    allowDecimals={false}
+                    tickFormatter={formatFixedRevenueAxis}
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value, name) => [
+                          formatCurrency(value),
+                          name === "deposit" ? "Nạp ví" : "Rút tiền",
+                        ]}
+                        labelFormatter={(label) =>
+                          mode === "day"
+                            ? `Giờ ${label}`
+                            : mode === "month"
+                              ? `Ngày ${label}`
+                              : `Tháng ${label.replace("T", "")}`
+                        }
+                      />
+                    }
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Line
+                    type="monotone"
+                    dataKey="deposit"
+                    name="Nạp ví"
+                    stroke="var(--color-deposit)"
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="withdraw"
+                    name="Rút tiền"
+                    stroke="var(--color-withdraw)"
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ChartContainer>
+            </div>
           </div>
 
           <div className="max-h-[320px] overflow-y-auto rounded-xl border border-slate-200 p-3">
-            <div className="space-y-2">
-              {revenueStats.rows.map((row) => (
+            <p className="mb-2 text-xs font-semibold text-slate-700">
+              Giao dịch ví gần đây trong kỳ
+            </p>
+            <div className="mb-2 grid grid-cols-12 items-center gap-2 px-2 text-[11px] font-semibold text-slate-400">
+              <span className="col-span-3">Loại giao dịch</span>
+              <span className="col-span-4">Thời gian</span>
+              <span className="col-span-2 text-center">Trạng thái</span>
+              <span className="col-span-3 text-right">Số tiền</span>
+            </div>
+            <div className="space-y-1.5">
+              {walletStats.detailRows.map((detail) => (
                 <div
-                  key={row.lotKey}
-                  className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                  key={detail.id}
+                  className="grid grid-cols-12 items-center gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedLotKey((prev) =>
-                          prev === row.lotKey ? "" : row.lotKey,
-                        )
-                      }
-                      className="text-left text-sm font-semibold text-slate-800 hover:text-blue-700"
-                    >
-                      {row.lotName}
-                    </button>
-                    <p className="text-sm font-bold text-emerald-700">
-                      {formatCurrency(row.revenue)}
-                    </p>
-                  </div>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {row.transactions.toLocaleString("vi-VN")} lượt thanh toán
-                  </p>
-
-                  <div className="mt-2">
-                    <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Tỷ trọng đóng góp</span>
-                      <span>{row.contributionPct.toFixed(1)}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-200">
-                      <div
-                        className="h-full rounded-full bg-blue-500"
-                        style={{
-                          width: `${Math.min(100, row.contributionPct)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {expandedLotKey === row.lotKey && (
-                    <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2">
-                      <p className="mb-2 text-xs font-semibold text-slate-700">
-                        Chi tiết giao dịch gần đây của {row.lotName}
-                      </p>
-                      <div className="space-y-1.5">
-                        {row.detailRows.map((detail) => (
-                          <div
-                            key={detail.id}
-                            className="grid grid-cols-12 items-center gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs"
-                          >
-                            <span className="col-span-2 font-medium text-slate-700">
-                              {detail.plate}
-                            </span>
-                            <span className="col-span-2 text-slate-500">
-                              {detail.targetTypeLabel}
-                            </span>
-                            <span className="col-span-3 text-slate-500">
-                              {formatTransactionTime(detail.createdAt)}
-                            </span>
-                            <span
-                              className={`col-span-2 rounded-full px-2 py-0.5 text-center ${
-                                detail.statusLabel === "Thất bại"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : detail.statusLabel === "Chờ thanh toán"
-                                    ? "bg-yellow-100 text-yellow-700"
-                                    : "bg-emerald-100 text-emerald-700"
-                              }`}
-                            >
-                              {detail.statusLabel}
-                            </span>
-                            <span className="col-span-3 text-right font-semibold text-slate-800">
-                              {formatCurrency(detail.amount)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <span className="col-span-3 font-medium text-slate-700">
+                    {detail.targetTypeLabel}
+                  </span>
+                  <span className="col-span-4 text-slate-500">
+                    {formatTransactionTime(detail.createdAt)}
+                  </span>
+                  <span
+                    className={`col-span-2 rounded-full px-2 py-0.5 text-center ${
+                      detail.statusLabel === "Thất bại"
+                        ? "bg-amber-100 text-amber-700"
+                        : detail.statusLabel === "Chờ thanh toán"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-green-100 text-green-700"
+                    }`}
+                  >
+                    {detail.statusLabel}
+                  </span>
+                  <span className="col-span-3 text-right font-semibold text-slate-800">
+                    {formatCurrency(detail.amount)}
+                  </span>
                 </div>
               ))}
             </div>

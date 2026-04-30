@@ -20,6 +20,7 @@ function StatCard({
   trend,
   bgTint = "white",
   iconColor,
+  infoTooltip,
 }) {
   const tint = bgTintMap[bgTint] ?? "bg-white";
   const resolvedIconColor =
@@ -31,11 +32,22 @@ function StatCard({
         : "text-orange-600");
 
   return (
-    <div className={`rounded-3xl p-6 shadow border ${tint}`}>
+    <div className={`rounded-3xl p-6 shadow border ${tint} relative group`}>
       <div className="flex items-start gap-3">
         <Icon className={`w-8 h-8 flex-shrink-0 ${resolvedIconColor}`} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+          <div className="mb-1 flex items-start justify-between gap-2">
+            <p className="text-sm font-medium text-gray-600">{title}</p>
+            {infoTooltip ? (
+              <button
+                type="button"
+                aria-label="Xem chi tiết"
+                className="relative -mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-500 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400/60"
+              >
+                <span className="text-[13px] leading-none">ⓘ</span>
+              </button>
+            ) : null}
+          </div>
           <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
             {value}
             {unit ? (
@@ -47,13 +59,13 @@ function StatCard({
           {change != null && (
             <div className="mt-2 flex items-center gap-1.5">
               {trend === "up" ? (
-                <span className="text-emerald-500">↑</span>
+                <span className="text-green-500">↑</span>
               ) : (
                 <span className="text-rose-500">↓</span>
               )}
               <span
                 className={`text-sm font-semibold ${
-                  trend === "up" ? "text-emerald-600" : "text-rose-600"
+                  trend === "up" ? "text-green-600" : "text-rose-600"
                 }`}
               >
                 {change}
@@ -63,6 +75,26 @@ function StatCard({
           )}
         </div>
       </div>
+
+      {infoTooltip ? (
+        <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-3 -translate-x-1/2 translate-y-1 opacity-0 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100">
+          <div className="relative w-max min-w-[240px] max-w-[320px] rounded-2xl bg-white px-3 py-2.5 text-[13px] leading-relaxed text-slate-900 shadow-xl ring-1 ring-slate-200/90">
+            <div className="absolute -top-2 left-1/2 h-0 w-0 -translate-x-1/2 border-x-8 border-b-8 border-x-transparent border-b-white drop-shadow-sm" />
+            <div className="space-y-1">
+              {String(infoTooltip)
+                .split("\n")
+                .map((line, idx) => (
+                  <div
+                    key={idx}
+                    className="whitespace-nowrap text-[13px] text-slate-900"
+                  >
+                    {line || "\u00A0"}
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

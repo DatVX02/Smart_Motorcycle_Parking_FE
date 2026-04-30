@@ -17,7 +17,7 @@ function RecognitionLogsFilters({
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         <input
           type="text"
-          placeholder="Tìm theo biển số, mã log, mã phiên..."
+          placeholder="Tìm theo biển số, tên bãi xe, loại nhận diện..."
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
           className="input pl-10 w-full text-sm"

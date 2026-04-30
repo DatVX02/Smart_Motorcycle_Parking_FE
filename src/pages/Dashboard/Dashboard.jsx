@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
   CircleDollarSign,
   Motorbike,
   ShieldAlert,
@@ -8,6 +7,7 @@ import {
   WifiOff,
   Server,
   Cpu,
+  Wallet,
 } from "lucide-react";
 import { useAdminHub } from "../../hooks/useAdminHub";
 import StatCard from "./StatCard";
@@ -16,6 +16,7 @@ import iotDeviceService from "../../services/iotDeviceService";
 import dashboardService from "../../services/dashboardService";
 import recognitionLogService from "../../services/recognitionLogService";
 import transactionService from "../../services/transactionService";
+import parkingSessionService from "../../services/parkingSessionService";
 import { API_BASE_URL } from "../../config/api";
 import TrafficTrendChart from "./TrafficTrendChart";
 import RecentRecognitionActivity from "./RecentRecognitionActivity";
@@ -679,7 +680,9 @@ export default function Dashboard() {
   const [initialDeviceEvents, setInitialDeviceEvents] = useState([]);
   const [devices, setDevices] = useState([]);
   const [sessionsFromApi, setSessionsFromApi] = useState([]);
+  const [parkingSessionsFromApi, setParkingSessionsFromApi] = useState([]);
   const [revenueTransactions, setRevenueTransactions] = useState([]);
+  const [peakHours, setPeakHours] = useState(null);
   const [recognitionLogs, setRecognitionLogs] = useState([]);
   const [revenueData, setRevenueData] = useState(null);
   const [loadingSnapshots, setLoadingSnapshots] = useState(true);
@@ -746,6 +749,33 @@ export default function Dashboard() {
     Promise.allSettled([
       dashboardService.getSessions(),
       dashboardService.getRevenue(),
+      (() => {
+        const now = new Date();
+        // Mặc định lấy từ đầu tháng đến hết hôm nay để bắt được "giờ cao điểm"
+        const start = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          1,
+          0,
+          0,
+          0,
+          0,
+        );
+        const end = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          23,
+          59,
+          59,
+          999,
+        );
+        return dashboardService.getPeakHours({
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+        });
+      })(),
+      parkingSessionService.getAll({ pageSize: 9999 }),
       recognitionLogService.getAll({ page: 1, pageSize: 20 }),
       transactionService.getPaymentBreakdowns({ pageSize: 9999 }),
     ])
@@ -754,8 +784,10 @@ export default function Dashboard() {
 
         const sessionsResult = results[0];
         const revenueResult = results[1];
-        const recognitionResult = results[2];
-        const revenueTransactionsResult = results[3];
+        const peakHoursResult = results[2];
+        const parkingSessionsResult = results[3];
+        const recognitionResult = results[4];
+        const revenueTransactionsResult = results[5];
 
         if (sessionsResult.status === "fulfilled") {
           setSessionsFromApi(toArray(sessionsResult.value));
@@ -767,6 +799,18 @@ export default function Dashboard() {
           setRevenueData(revenueResult.value);
         } else {
           setRevenueData(null);
+        }
+
+        if (peakHoursResult.status === "fulfilled") {
+          setPeakHours(peakHoursResult.value ?? null);
+        } else {
+          setPeakHours(null);
+        }
+
+        if (parkingSessionsResult.status === "fulfilled") {
+          setParkingSessionsFromApi(toArray(parkingSessionsResult.value));
+        } else {
+          setParkingSessionsFromApi([]);
         }
 
         if (recognitionResult.status === "fulfilled") {
@@ -912,18 +956,143 @@ export default function Dashboard() {
     [mergedDeviceEvents, deviceNameMap, lotNameMap],
   );
 
-  const faultyCount = deviceAlerts.length;
-
   const todayRevenue = useMemo(
     () =>
       extractTodayRevenue(revenueData, sessionsFromApi, revenueTransactions),
     [revenueData, sessionsFromApi, revenueTransactions],
   );
 
+  const todayCashSummary = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const d = now.getDate();
+
+    let transactionAmount = 0;
+    let withdrawAmount = 0;
+
+    for (const tx of Array.isArray(revenueTransactions)
+      ? revenueTransactions
+      : []) {
+      const txDate = getTransactionDate(tx);
+      if (!txDate) continue;
+      if (
+        txDate.getFullYear() !== y ||
+        txDate.getMonth() !== m ||
+        txDate.getDate() !== d
+      ) {
+        continue;
+      }
+
+      const status = getPaymentStatusValue(tx);
+      if (!isSuccessfulPaymentStatus(status)) continue;
+
+      const targetType = getTargetTypeValue(tx);
+      const signedAmount = getNetCashAmountWithFailed(tx);
+      const absAmount = Math.abs(Number(signedAmount || 0));
+
+      if (targetType === "wallet-withdraw") {
+        withdrawAmount += absAmount;
+      } else {
+        transactionAmount += absAmount;
+      }
+    }
+
+    return { transactionAmount, withdrawAmount };
+  }, [revenueTransactions]);
+
+  const systemCashSummary = useMemo(() => {
+    let transactionAmount = 0;
+    let withdrawAmount = 0;
+
+    for (const tx of Array.isArray(revenueTransactions)
+      ? revenueTransactions
+      : []) {
+      const status = getPaymentStatusValue(tx);
+      if (!isSuccessfulPaymentStatus(status)) continue;
+
+      const targetType = getTargetTypeValue(tx);
+      const signedAmount = getNetCashAmountWithFailed(tx);
+      const absAmount = Math.abs(Number(signedAmount || 0));
+
+      if (targetType === "wallet-withdraw") {
+        withdrawAmount += absAmount;
+      } else {
+        transactionAmount += absAmount;
+      }
+    }
+
+    return {
+      transactionAmount,
+      withdrawAmount,
+      netAmount: transactionAmount - withdrawAmount,
+    };
+  }, [revenueTransactions]);
+
   const trafficData = useMemo(
     () => getHourlyTrafficData(sessionsFromApi, sessionEvents),
     [sessionsFromApi, sessionEvents],
   );
+
+  const parkingSessionTrafficData = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999,
+    );
+
+    const buckets = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      label: `${String(hour).padStart(2, "0")}:00`,
+      inCount: 0,
+      outCount: 0,
+    }));
+
+    const countInRange = (rawTime, key) => {
+      const ms = parseBackendDateToMs(rawTime);
+      if (!Number.isFinite(ms)) return;
+      if (ms < start.getTime() || ms > end.getTime()) return;
+      const hour = new Date(ms).getHours();
+      if (hour < 0 || hour > 23) return;
+      buckets[hour][key] += 1;
+    };
+
+    for (const session of Array.isArray(parkingSessionsFromApi)
+      ? parkingSessionsFromApi
+      : []) {
+      const inTime =
+        session.checkInTime ?? session.entryTime ?? session.createdAt ?? null;
+      const outTime = session.checkOutTime ?? session.exitTime ?? null;
+      countInRange(inTime, "inCount");
+      countInRange(outTime, "outCount");
+    }
+
+    return buckets;
+  }, [parkingSessionsFromApi]);
+
+  const peakTrafficData = useMemo(() => {
+    const rows = Array.isArray(peakHours?.hourlyData)
+      ? peakHours.hourlyData
+      : [];
+    if (rows.length === 0) return [];
+    return rows
+      .slice()
+      .sort((a, b) => Number(a.hour ?? 0) - Number(b.hour ?? 0))
+      .map((item) => {
+        const hour = Number(item.hour ?? 0);
+        return {
+          hour,
+          label: `${String(hour).padStart(2, "0")}:00`,
+          sessionCount: Number(item.sessionCount ?? 0),
+        };
+      });
+  }, [peakHours]);
 
   const recentRecognition = useMemo(
     () =>
@@ -967,20 +1136,31 @@ export default function Dashboard() {
       iconColor: "text-amber-600",
     },
     {
-      title: "Doanh thu tạm tính hôm nay",
+      title: "Doanh thu hôm nay",
       value: formatCurrency(todayRevenue),
       unit: "VNĐ",
       icon: CircleDollarSign,
-      color: "bg-emerald-500",
+      color: "bg-green-500",
       bgTint: "green",
-      iconColor: "text-emerald-600",
+      iconColor: "text-green-600",
+      infoTooltip: `Số tiền giao dịch: ${formatCurrency(todayCashSummary.transactionAmount)} VNĐ\n\nSố tiền rút: -${formatCurrency(todayCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu hôm nay: ${formatCurrency(todayRevenue)} VNĐ`,
+    },
+    {
+      title: "Doanh thu ròng",
+      value: formatCurrency(systemCashSummary.netAmount),
+      unit: "VNĐ",
+      icon: Wallet,
+      color: "bg-indigo-500",
+      bgTint: "indigo",
+      iconColor: "text-indigo-600",
+      infoTooltip: `Tổng tiền giao dịch: ${formatCurrency(systemCashSummary.transactionAmount)} VNĐ\n\nTổng tiền rút: -${formatCurrency(systemCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu ròng: ${formatCurrency(systemCashSummary.netAmount)} VNĐ`,
     },
   ];
 
   return (
     <div className="space-y-10">
       {/* Thẻ thống kê — style giống Quản lý bãi xe */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         {stats.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
@@ -994,7 +1174,18 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2">
-          <TrafficTrendChart data={trafficData} loading={loadingSnapshots} />
+          <TrafficTrendChart
+            peakData={peakTrafficData}
+            inOutData={
+              parkingSessionTrafficData.some(
+                (x) => x.inCount > 0 || x.outCount > 0,
+              )
+                ? parkingSessionTrafficData
+                : trafficData
+            }
+            peakMeta={peakHours}
+            loading={loadingSnapshots}
+          />
         </div>
         <RecentRecognitionActivity
           data={recentRecognition.map((item) => ({
@@ -1155,7 +1346,7 @@ export default function Dashboard() {
       )}
 
       {securityAlerts.length === 0 && recognitionLogs.length > 0 && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-center gap-2 text-emerald-700">
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-center gap-2 text-green-700">
           <ShieldAlert className="w-5 h-5" />
           <span className="text-sm font-medium">
             Chưa phát hiện cảnh báo an ninh nổi bật trong các bản ghi gần đây.

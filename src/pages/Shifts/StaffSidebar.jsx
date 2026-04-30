@@ -230,7 +230,7 @@ function StaffSidebar({ staff, loading, onRetry, filteredByRange }) {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Tìm theo tên, email, sđt..."
+            placeholder="Tìm theo tên, email, số điện thoại..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl

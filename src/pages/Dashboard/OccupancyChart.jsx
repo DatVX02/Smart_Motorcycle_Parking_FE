@@ -36,8 +36,8 @@ function OccupancyChart({ data: rawData, loading }) {
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
       <div className="mb-5 flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100">
-          <BarChart3 className="h-5 w-5 text-emerald-600" />
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100">
+          <BarChart3 className="h-5 w-5 text-green-600" />
         </div>
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
@@ -49,7 +49,7 @@ function OccupancyChart({ data: rawData, loading }) {
       {loading ? (
         <div className="flex h-[300px] items-center justify-center rounded-xl bg-slate-50/50">
           <div className="flex flex-col items-center gap-2">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
             <span className="text-sm text-slate-500">Đang tải...</span>
           </div>
         </div>

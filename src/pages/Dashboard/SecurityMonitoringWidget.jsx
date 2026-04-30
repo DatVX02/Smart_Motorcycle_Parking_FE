@@ -52,7 +52,7 @@ function SecurityMonitoringWidget({ alerts = [], loading = false }) {
           ))}
         </div>
       ) : alerts.length === 0 ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-700">
+        <div className="rounded-xl border border-green-200 bg-green-50/70 p-4 text-sm text-green-700">
           Không có cảnh báo an ninh quan trọng ở thời điểm hiện tại.
         </div>
       ) : (

@@ -78,7 +78,7 @@ const STATUS_LABELS = {
   PENDING_CHANGE: "Chờ đổi lịch",
   IN_PROGRESS: "Đang làm",
   COMPLETED: "Hoàn thành",
-  MISSED_CHECK_OUT: "Quên check-out",
+  MISSED_CHECK_OUT: "Chưa check-out",
   CANCELLED: "Đã hủy",
 };
 const SHIFT_TYPE_LABELS = {
@@ -406,7 +406,7 @@ const STATUS_DOT = {
   IN_PROGRESS: { color: "#3B82F6", label: "Đang làm" },
   PENDING_CHANGE: { color: "#F59E0B", label: "Chờ đổi lịch" },
   MISSED_CHECK_OUT: { color: "#EC4899", label: "Quên check-out", icon: "!" },
-  CANCELLED: { color: "#EF4444", label: "Đã hủy" },
+  CANCELLED: { color: "#EF4444", label: "Đã hủy", icon: "X" },
 };
 
 function renderEventContent(eventInfo) {

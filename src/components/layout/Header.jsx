@@ -25,7 +25,7 @@ const PAGE_TITLES = {
   "/monthly-passes": { title: "Quản Lý Vé Tháng" },
   "/monthly-passes/packages": { title: "Quản Lý Vé Tháng Bãi Xe" },
   "/monthly-passes/users": { title: "Quản Lý Vé Tháng Người Dùng" },
-  "/iot-devices": { title: "Quản Lý Thiết Bị IoT" },
+  "/iot-devices": { title: "Quản Lý Danh Sách Thiết Bị" },
   "/device-maintenance": { title: "Bảo Trì Thiết Bị" },
   "/incident-reports": { title: "Báo Cáo Sự Cố" },
 };
