@@ -54,6 +54,8 @@ export default function PayByPlate() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
 
+  const isLockedAfterPayment = Boolean(result);
+
   const normalizedPlate = useMemo(
     () => licensePlate.trim().toUpperCase(),
     [licensePlate],
@@ -173,6 +175,7 @@ export default function PayByPlate() {
   };
 
   const handlePlateChange = (value) => {
+    if (isLockedAfterPayment) return;
     setLicensePlate(value.toUpperCase());
     setPreview(null);
     setPreviewForPlate("");
@@ -182,6 +185,7 @@ export default function PayByPlate() {
   };
 
   const handleToggleImmediate = (immediate) => {
+    if (isLockedAfterPayment) return;
     setIsImmediate(immediate);
     if (immediate) {
       setExpectedCheckoutTime("");
@@ -194,6 +198,7 @@ export default function PayByPlate() {
   };
 
   const handleExpectedCheckoutTimeChange = (value) => {
+    if (isLockedAfterPayment) return;
     setExpectedCheckoutTime(value);
     setResult(null);
     setIsResultModalOpen(false);
@@ -231,6 +236,10 @@ export default function PayByPlate() {
 
   const handleLookup = async (event) => {
     event.preventDefault();
+    if (isLockedAfterPayment) {
+      toast.error("Vui lòng bấm 'Giao dịch mới' để thực hiện thanh toán khác");
+      return;
+    }
     if (!normalizedPlate) {
       toast.error("Vui lòng nhập biển số xe");
       return;
@@ -268,6 +277,10 @@ export default function PayByPlate() {
   };
 
   const handlePayment = async () => {
+    if (isLockedAfterPayment) {
+      toast.error("Vui lòng bấm 'Giao dịch mới' để thực hiện thanh toán khác");
+      return;
+    }
     if (!normalizedPlate) {
       toast.error("Vui lòng nhập biển số xe");
       return;
@@ -339,6 +352,19 @@ export default function PayByPlate() {
     }
   };
 
+  const handleNewPayment = () => {
+    setLicensePlate("");
+    setIsImmediate(true);
+    setExpectedCheckoutTime("");
+    setPreviewLoading(false);
+    setPaymentLoading(false);
+    setPreview(null);
+    setPreviewForPlate("");
+    setResult(null);
+    setIsDetailModalOpen(false);
+    setIsResultModalOpen(false);
+  };
+
   return (
     <div className="min-h-screen relative flex items-center justify-center bg-slate-50 font-sans p-4 overflow-hidden">
       <div className="absolute inset-0 bg-[url('/parking-lot.jpg')] bg-cover bg-center" />
@@ -377,6 +403,7 @@ export default function PayByPlate() {
               <PayByPlateForm
                 licensePlate={licensePlate}
                 onLicensePlateChange={handlePlateChange}
+                locked={isLockedAfterPayment}
                 isImmediate={isImmediate}
                 onToggleImmediate={handleToggleImmediate}
                 expectedCheckoutTime={expectedCheckoutTime}
@@ -411,6 +438,7 @@ export default function PayByPlate() {
           paymentTypeText={paymentTypeText}
           open={isResultModalOpen}
           onOpenChange={setIsResultModalOpen}
+          onNewPayment={handleNewPayment}
         />
 
         <div className="mt-8 text-center">

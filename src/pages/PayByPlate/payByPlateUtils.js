@@ -80,14 +80,26 @@ export function paymentTypeLabel(value) {
   return String(value);
 }
 
-export function formatDateTime(value, addSevenHours = false) {
+export function formatDateTime(value, offsetHoursOrLegacy = 0) {
   if (!value) return "";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return String(value);
 
-  const adjusted = addSevenHours
-    ? new Date(parsed.getTime() + 7 * 60 * 60 * 1000)
-    : parsed;
+  // Backward compatible:
+  // - `true`  => +7h (legacy behavior)
+  // - `false` => 0h
+  // - number  => offset hours (can be negative)
+  const offsetHours =
+    typeof offsetHoursOrLegacy === "number"
+      ? offsetHoursOrLegacy
+      : offsetHoursOrLegacy
+        ? 7
+        : 0;
+
+  const adjusted =
+    offsetHours === 0
+      ? parsed
+      : new Date(parsed.getTime() + offsetHours * 60 * 60 * 1000);
 
   return adjusted.toLocaleString("vi-VN", {
     hour: "2-digit",
@@ -119,7 +131,13 @@ export function formatHours(value) {
 /** Trạng thái phiên tương ứng nhãn "Hoàn thành" — không còn thanh toán thêm */
 export function isSessionCompleted(value) {
   const key = normalizeKey(value);
-  return key === "completed" || key === "paid";
+  return (
+    key === "completed" ||
+    key === "paid" ||
+    key === "prepaid" ||
+    key === "overtimepaid" ||
+    key === "overtime"
+  );
 }
 
 export function sessionStatusLabel(value) {

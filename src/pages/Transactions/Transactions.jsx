@@ -222,7 +222,7 @@ function formatTargetTypeLabel(type, empty = "") {
   if (!type) return empty;
   const normalized = String(type).trim().toLowerCase();
   if (["workshift", "work-shift", "work_shift"].includes(normalized)) {
-    return "Hoàn tiền";
+    return "Hoàn tiền ca làm việc";
   }
   if (["parking-session", "parkingsession"].includes(normalized)) {
     return "Phí gửi xe";
@@ -248,6 +248,9 @@ function formatTargetTypeLabel(type, empty = "") {
 function normalizeTargetTypeParam(type) {
   if (!type) return "";
   const normalized = String(type).trim().toLowerCase();
+  if (["workshift", "work-shift", "work_shift"].includes(normalized)) {
+    return "work-shift";
+  }
   if (["parking", "parking_session", "parkingsession"].includes(normalized)) {
     return "parking-session";
   }
@@ -299,6 +302,9 @@ function formatComponentDescription(value, empty = "") {
     .replace(/\s+([(),.])/g, "$1")
     .replace(/[,_-]+$/g, "")
     .trim();
+
+  // Việt hoá một số từ khoá backend hay trả về trong mô tả
+  candidate = candidate.replace(/\bstaff\b/gi, "nhân viên").trim();
 
   if (!candidate) return empty;
 
@@ -476,6 +482,52 @@ function getTargetDisplay(item) {
 
 function getUserDisplay(item, userFullNameById = {}) {
   if (!item || typeof item !== "object") return "Vãng lai";
+
+  const extractStaffNameForWorkShift = () => {
+    const targetType = getTargetTypeValue(item);
+    if (targetType !== "work-shift") return "";
+
+    const label = pickFirst(item.targetLabel, item.targetName, item.staffName);
+    if (typeof label === "string" && label.trim()) {
+      const trimmed = label.trim();
+      // Nếu label là UUID/id thuần thì bỏ qua
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          trimmed,
+        )
+      ) {
+        return trimmed;
+      }
+    }
+
+    const descriptionCandidates = [];
+    if (typeof item.description === "string")
+      descriptionCandidates.push(item.description);
+    if (Array.isArray(item.components)) {
+      for (const c of item.components) {
+        if (typeof c?.description === "string")
+          descriptionCandidates.push(c.description);
+      }
+    }
+
+    for (const desc of descriptionCandidates) {
+      // Ví dụ: "Hoàn tiền mặt staff Dat Vo cho ca làm việc"
+      // hoặc: "Hoàn tiền mặt nhân viên Dat Vo cho ca làm việc"
+      const m = String(desc).match(
+        /\b(?:staff|nhân\s*viên)\s+(.+?)(?:\s+cho\b|\s+vào\b|$)/i,
+      );
+      if (m && m[1]) {
+        const name = m[1].trim().replace(/\s{2,}/g, " ");
+        if (name) return name;
+      }
+    }
+
+    return "";
+  };
+
+  const staffName = extractStaffNameForWorkShift();
+  if (staffName) return staffName;
+
   const fullName = pickFirst(
     item.fullName,
     item.customerName,
@@ -626,6 +678,7 @@ function getNetCashAmountWithFailed(item, fallbackTargetType) {
 function getCashflowDirection(targetType) {
   const normalized = normalizeTargetTypeParam(targetType);
   if (normalized === "wallet-withdraw") return "out";
+  if (normalized === "work-shift") return "out";
   if (
     ["parking-session", "monthly-pass", "wallet-deposit"].includes(normalized)
   ) {
@@ -720,6 +773,15 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const isEmptyFieldValue = (value) => {
+    if (value === null || value === undefined) return true;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed === "";
+    }
+    return false;
+  };
+
   useEffect(() => {
     if (!targetType || !targetId) return;
     let cancelled = false;
@@ -761,9 +823,16 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
   const components = Array.isArray(detail?.components) ? detail.components : [];
   const statusSource = getLatestStatusSource(detail, components);
 
+  const normalizedTargetType = normalizeTargetTypeParam(
+    detail?.targetType ?? targetType,
+  );
+
   const rows = detail
     ? [
-        ["Biển số thanh toán", getTargetDisplay(detail)],
+        [
+          "Biển số thanh toán",
+          normalizedTargetType === "work-shift" ? "" : getTargetDisplay(detail),
+        ],
         [
           "Hình thức",
           formatTargetTypeLabel(detail.targetType ?? targetType, ""),
@@ -787,6 +856,8 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
         ],
       ]
     : [];
+
+  const visibleRows = rows.filter(([, value]) => !isEmptyFieldValue(value));
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
@@ -829,7 +900,7 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
             <>
               {/* Info grid: 8 ô — 4 hàng × 2 cột, cân đối sau khi bỏ mã giao dịch */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-                {rows.map(([label, value]) => (
+                {visibleRows.map(([label, value]) => (
                   <div key={label} className="min-w-0">
                     <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
                       {label}
@@ -1483,7 +1554,7 @@ export default function Transactions() {
               <option value="monthly-pass">Vé tháng</option>
               <option value="wallet-deposit">Nạp ví</option>
               <option value="wallet-withdraw">Rút tiền</option>
-              <option value="work-shift">Hoàn tiền</option>
+              <option value="work-shift">Hoàn tiền ca làm việc</option>
             </select>
           </div>
 
@@ -1656,7 +1727,9 @@ export default function Transactions() {
                       </td>
                       {/* Biển số */}
                       <td className="p-3 text-center font-semibold text-gray-900">
-                        {getTargetDisplay(tx)}
+                        {targetTypeValue === "work-shift"
+                          ? ""
+                          : getTargetDisplay(tx)}
                       </td>
                       {/* Người dùng */}
                       <td className="p-3 text-center text-gray-600 max-w-[140px] truncate">

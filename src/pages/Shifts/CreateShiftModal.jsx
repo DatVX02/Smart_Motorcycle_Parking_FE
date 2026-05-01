@@ -175,7 +175,11 @@ function shiftTimeByHours(value, deltaHours, withSeconds = false) {
  */
 function getLocalDateFromShift(shift) {
   const raw =
-    shift?.shiftDate ?? shift?.workDate ?? shift?.date ?? shift?.ShiftDate ?? "";
+    shift?.shiftDate ??
+    shift?.workDate ??
+    shift?.date ??
+    shift?.ShiftDate ??
+    "";
   let d = raw ? raw.split("T")[0] : "";
   if (!d) return d;
 
@@ -386,7 +390,9 @@ function CreateShiftModal({
   const [editDate, setEditDate] = useState(() => {
     if (!isEdit) return date;
     const rawStart = String(editingShift?.startTime ?? "").trim();
-    const timePart = rawStart.includes("T") ? rawStart.split("T")[1].replace("Z", "") : rawStart;
+    const timePart = rawStart.includes("T")
+      ? rawStart.split("T")[1].replace("Z", "")
+      : rawStart;
     const hMatch = timePart.match(/^(\d{1,2}):/);
     const utcHour = hMatch ? Number(hMatch[1]) : 0;
     if (utcHour >= 17) {
@@ -559,6 +565,59 @@ function CreateShiftModal({
 
   const activeDate = isEdit ? editDate : date;
 
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  });
+
+  const isToday = useMemo(() => {
+    if (!activeDate) return false;
+    const now = new Date();
+    const yy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}` === activeDate;
+  }, [activeDate]);
+
+  useEffect(() => {
+    if (!isToday) return;
+    const id = setInterval(() => {
+      const now = new Date();
+      setNowMinutes(now.getHours() * 60 + now.getMinutes());
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [isToday]);
+
+  const isPresetEnded = useMemo(() => {
+    if (!isToday) return () => false;
+    return (preset) => {
+      const suggested = shiftSuggestions?.[preset.type];
+      const start = suggested?.start ?? preset.startTime;
+      const end = suggested?.end ?? preset.endTime;
+      let startMin = timeToMinutes(start);
+      let endMin = timeToMinutes(end);
+      if (endMin <= startMin) endMin += 24 * 60; // ca qua đêm
+      return nowMinutes >= endMin;
+    };
+  }, [isToday, nowMinutes, shiftSuggestions]);
+
+  useEffect(() => {
+    if (!isToday) return;
+    const current = SHIFT_PRESETS.find((p) => p.type === selectedPreset);
+    if (!current) return;
+    const suggested = shiftSuggestions?.[current.type];
+    const isAvailable = !shiftSuggestions || suggested !== null;
+    if (!isAvailable || isPresetEnded(current)) {
+      const next = SHIFT_PRESETS.find((p) => {
+        const s = shiftSuggestions?.[p.type];
+        const avail = !shiftSuggestions || s !== null;
+        return avail && !isPresetEnded(p);
+      });
+      if (next) handlePresetSelect(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isToday, nowMinutes]);
+
   const handleSubmit = async () => {
     if (!staffId) {
       toast.error("Vui lòng chọn nhân viên");
@@ -594,7 +653,7 @@ function CreateShiftModal({
       const existingShifts = await workShiftService.getByStaff(staffId);
       const shiftsArr = Array.isArray(existingShifts)
         ? existingShifts
-        : existingShifts?.items ?? existingShifts?.data ?? [];
+        : (existingShifts?.items ?? existingShifts?.data ?? []);
 
       for (const s of shiftsArr) {
         // Bỏ qua ca đã hủy/từ chối
@@ -998,14 +1057,16 @@ function CreateShiftModal({
               {SHIFT_PRESETS.map((preset) => {
                 const suggested = shiftSuggestions?.[preset.type];
                 const isAvailable = !shiftSuggestions || suggested !== null;
+                const isEnded = isPresetEnded(preset);
+                const isDisabled = !isAvailable || isEnded;
                 const isSelected = selectedPreset === preset.type;
                 return (
                   <button
                     key={preset.type}
-                    onClick={() => isAvailable && handlePresetSelect(preset)}
-                    disabled={!isAvailable}
+                    onClick={() => !isDisabled && handlePresetSelect(preset)}
+                    disabled={isDisabled}
                     className={`p-3 text-left rounded-xl border-2 transition-all flex flex-col gap-1 ${
-                      !isAvailable
+                      isDisabled
                         ? "bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60"
                         : isSelected
                           ? preset.activeBg
@@ -1014,7 +1075,7 @@ function CreateShiftModal({
                   >
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${!isAvailable ? "bg-gray-300" : isSelected ? "bg-white/70" : preset.dot}`}
+                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isDisabled ? "bg-gray-300" : isSelected ? "bg-white/70" : preset.dot}`}
                       />
                       <span className="text-sm font-bold">{preset.label}</span>
                     </div>

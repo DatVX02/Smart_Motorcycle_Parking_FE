@@ -2390,6 +2390,7 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
   const statusColor = STATUS_COLORS[statusKey] ?? "#6B7280";
   const barColor = SHIFT_COLORS[shiftType] ?? statusColor;
   const { checkIn, checkOut } = getAttendanceTimeLabels(shift);
+  const canModify = statusKey === "SCHEDULED";
 
   const handleDeleteConfirm = async () => {
     setDeleting(true);
@@ -2508,7 +2509,7 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
               >
                 Đóng
               </button>
-              {onEdit && (
+              {canModify && onEdit && (
                 <button
                   onClick={() => {
                     onClose();
@@ -2519,12 +2520,14 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
                   <Edit className="w-3.5 h-3.5" /> Sửa ca
                 </button>
               )}
-              <button
-                onClick={() => setShowDeleteDialog(true)}
-                className="flex-1 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Xóa ca
-              </button>
+              {canModify && (
+                <button
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="flex-1 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Xóa ca
+                </button>
+              )}
             </div>
           </div>
         </div>
