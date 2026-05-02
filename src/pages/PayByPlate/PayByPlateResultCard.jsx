@@ -18,6 +18,7 @@ export default function PayByPlateResultCard({
   onOpenChange,
   isImmediate,
   paymentTypeText,
+  onNewPayment,
 }) {
   if (!result) return null;
 
@@ -79,13 +80,20 @@ export default function PayByPlateResultCard({
             </div>{" "}
 
             <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange?.(false)}
-              >
-                Đóng
-              </Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                {onNewPayment && (
+                  <Button type="button" onClick={onNewPayment}>
+                    Giao dịch mới
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange?.(false)}
+                >
+                  Đóng
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

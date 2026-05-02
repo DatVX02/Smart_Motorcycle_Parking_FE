@@ -13,10 +13,10 @@ import {
   formatHours,
   formatVnd,
   isSessionCompleted,
-  paymentStatusLabel,
   sessionStatusBadgeClass,
   sessionStatusBadgeVariant,
   sessionStatusLabel,
+  normalizeKey,
 } from "./payByPlateUtils";
 
 export default function PayByPlateDetailCard({
@@ -29,6 +29,24 @@ export default function PayByPlateDetailCard({
   canPay,
 }) {
   if (!detailView) return null;
+
+  const sessionStatusText = sessionStatusLabel(detailView.sessionStatus);
+  const sessionStatusKey = normalizeKey(detailView.sessionStatus);
+  const isInLot = sessionStatusKey === "active" || sessionStatusKey === "inprogress";
+  const isPrepayment =
+    sessionStatusText === "Thanh toán trước" ||
+    sessionStatusKey === "prepaid" ||
+    sessionStatusKey === "parkingprepayment";
+  const isAlreadyPaid =
+    !isInLot &&
+    (isSessionCompleted(detailView.sessionStatus) ||
+      isPrepayment ||
+      ["Hoàn thành", "Thanh toán trước", "Thanh toán quá giờ"].includes(
+        sessionStatusText,
+      ) ||
+      ["completed", "paid", "prepaid", "overtimepaid", "overtime"].includes(
+        normalizeKey(detailView.paymentStatus),
+      ));
 
   return (
     <Card className="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 h-full flex flex-col">
@@ -77,19 +95,19 @@ export default function PayByPlateDetailCard({
           <div className="flex items-center justify-between gap-3">
             <span className="text-slate-600">Thời gian vào</span>
             <span className="font-medium text-slate-900">
-              {formatDateTime(detailView.checkInTime, true)}
+              {formatDateTime(detailView.checkInTime, 7)}
             </span>
           </div>
           <div className="flex items-center justify-between gap-3">
             <span className="text-slate-600">Thời gian ra dự kiến</span>
             <span className="font-medium text-slate-900">
-              {formatDateTime(detailView.expectedCheckoutTime, false)}
+              {formatDateTime(detailView.expectedCheckoutTime, 7)}
             </span>
           </div>
           <div className="flex items-center justify-between gap-3">
             <span className="text-slate-600">Thời gian ra thực tế</span>
             <span className="font-medium text-slate-900">
-              {formatDateTime(detailView.checkOutTime, false)}
+              {formatDateTime(detailView.checkOutTime)}
             </span>
           </div>
           {/* <div className="flex items-center justify-between gap-3">
@@ -137,7 +155,7 @@ export default function PayByPlateDetailCard({
               Đóng
             </Button>
           )}
-          {!isSessionCompleted(detailView.sessionStatus) && (
+          {!isAlreadyPaid && (
             <Button
               type="button"
               onClick={onPay}

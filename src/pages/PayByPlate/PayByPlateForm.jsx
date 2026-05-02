@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 export default function PayByPlateForm({
   licensePlate,
   onLicensePlateChange,
+  locked = false,
   isImmediate,
   onToggleImmediate,
   expectedCheckoutTime,
@@ -35,6 +36,7 @@ export default function PayByPlateForm({
               autoComplete="off"
               className="h-11 pl-10"
               required
+              disabled={locked || previewLoading || paymentLoading}
             />
           </div>
         </div>
@@ -47,6 +49,7 @@ export default function PayByPlateForm({
               variant={isImmediate ? "default" : "outline"}
               onClick={() => onToggleImmediate(true)}
               className="h-11 min-w-[150px] flex-1 sm:flex-none"
+              disabled={locked || previewLoading || paymentLoading}
             >
               <CheckCircle2 className="mr-2 h-4 w-4" />
               Ra bãi ngay
@@ -56,6 +59,7 @@ export default function PayByPlateForm({
               variant={isImmediate ? "outline" : "default"}
               onClick={() => onToggleImmediate(false)}
               className="h-11 min-w-[150px] flex-1 sm:flex-none"
+              disabled={locked || previewLoading || paymentLoading}
             >
               <Clock3 className="mr-2 h-4 w-4" />
               Hẹn giờ
@@ -85,6 +89,7 @@ export default function PayByPlateForm({
                   placeholder="dd/mm/yyyy hh:mm"
                   inputReadOnly
                   required
+                  disabled={locked || previewLoading || paymentLoading}
                 />
               </div>
             </ConfigProvider>
@@ -97,7 +102,7 @@ export default function PayByPlateForm({
           type="submit"
           variant="outline"
           className="h-11 w-full sm:w-auto sm:min-w-48"
-          disabled={previewLoading || paymentLoading}
+          disabled={locked || previewLoading || paymentLoading}
         >
           {previewLoading ? (
             <>

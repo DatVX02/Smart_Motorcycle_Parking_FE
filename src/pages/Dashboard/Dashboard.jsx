@@ -183,6 +183,9 @@ function normalizeStatus(value) {
 function normalizeTargetTypeParam(value) {
   if (!value) return "";
   const normalized = String(value).trim().toLowerCase();
+  if (["workshift", "work-shift", "work_shift"].includes(normalized)) {
+    return "work-shift";
+  }
   if (["parking", "parking_session", "parkingsession"].includes(normalized)) {
     return "parking-session";
   }
@@ -219,6 +222,60 @@ function getPaymentStatusValue(item) {
   );
 }
 
+function toStatusTimeMs(item) {
+  const rawTime =
+    item?.completedAt ??
+    item?.updatedAt ??
+    item?.createdAt ??
+    item?.paymentTime ??
+    item?.timestamp ??
+    null;
+  if (!rawTime) return NaN;
+  const ms = Date.parse(rawTime);
+  return Number.isFinite(ms) ? ms : NaN;
+}
+
+function getLatestStatusSource(detail, components) {
+  if (!Array.isArray(components) || components.length === 0) return detail;
+
+  const latest = components.reduce((best, component, index) => {
+    const status = getPaymentStatusValue(component);
+    if (!status) return best;
+
+    const current = {
+      source: component,
+      index,
+      time: toStatusTimeMs(component),
+    };
+
+    if (!best) return current;
+
+    const bestHasTime = Number.isFinite(best.time);
+    const currentHasTime = Number.isFinite(current.time);
+
+    if (bestHasTime && currentHasTime) {
+      if (current.time > best.time) return current;
+      if (current.time === best.time && current.index > best.index) return current;
+      return best;
+    }
+
+    if (currentHasTime && !bestHasTime) return current;
+    if (!currentHasTime && !bestHasTime && current.index > best.index) return current;
+
+    return best;
+  }, null);
+
+  return latest?.source ?? detail;
+}
+
+function getEffectivePaymentStatus(tx) {
+  const direct = getPaymentStatusValue(tx);
+  if (direct) return direct;
+  const components = Array.isArray(tx?.components) ? tx.components : [];
+  const source = getLatestStatusSource(tx, components);
+  return getPaymentStatusValue(source);
+}
+
 function isSuccessfulPaymentStatus(value) {
   const normalized = normalizeStatus(value);
   return (
@@ -242,6 +299,23 @@ function getCashAmount(item) {
       0,
     ),
   );
+}
+
+function getAbsSuccessfulCashAmount(tx) {
+  if (!tx || typeof tx !== "object") return 0;
+
+  const components = Array.isArray(tx.components) ? tx.components : [];
+  if (components.length > 0) {
+    return components.reduce((sum, c) => {
+      const status = getPaymentStatusValue(c);
+      if (!isSuccessfulPaymentStatus(status)) return sum;
+      return sum + Math.abs(getCashAmount(c));
+    }, 0);
+  }
+
+  const status = getEffectivePaymentStatus(tx);
+  if (!isSuccessfulPaymentStatus(status)) return 0;
+  return Math.abs(getCashAmount(tx));
 }
 
 function getTargetTypeValue(item) {
@@ -970,6 +1044,7 @@ export default function Dashboard() {
 
     let transactionAmount = 0;
     let withdrawAmount = 0;
+    let refundAmount = 0;
 
     for (const tx of Array.isArray(revenueTransactions)
       ? revenueTransactions
@@ -984,39 +1059,54 @@ export default function Dashboard() {
         continue;
       }
 
-      const status = getPaymentStatusValue(tx);
+      const status = getEffectivePaymentStatus(tx);
       if (!isSuccessfulPaymentStatus(status)) continue;
 
       const targetType = getTargetTypeValue(tx);
+      const normalizedTargetType = normalizeTargetTypeParam(targetType);
       const signedAmount = getNetCashAmountWithFailed(tx);
       const absAmount = Math.abs(Number(signedAmount || 0));
 
-      if (targetType === "wallet-withdraw") {
+      if (normalizedTargetType === "wallet-withdraw") {
         withdrawAmount += absAmount;
+      } else if (normalizedTargetType === "work-shift") {
+        refundAmount += getAbsSuccessfulCashAmount(tx);
       } else {
         transactionAmount += absAmount;
       }
     }
 
-    return { transactionAmount, withdrawAmount };
+    return { transactionAmount, withdrawAmount, refundAmount };
   }, [revenueTransactions]);
+
+  const todayNetAmount = useMemo(() => {
+    return (
+      Number(todayCashSummary.transactionAmount || 0) -
+      Number(todayCashSummary.refundAmount || 0) -
+      Number(todayCashSummary.withdrawAmount || 0)
+    );
+  }, [todayCashSummary]);
 
   const systemCashSummary = useMemo(() => {
     let transactionAmount = 0;
     let withdrawAmount = 0;
+    let refundAmount = 0;
 
     for (const tx of Array.isArray(revenueTransactions)
       ? revenueTransactions
       : []) {
-      const status = getPaymentStatusValue(tx);
+      const status = getEffectivePaymentStatus(tx);
       if (!isSuccessfulPaymentStatus(status)) continue;
 
       const targetType = getTargetTypeValue(tx);
+      const normalizedTargetType = normalizeTargetTypeParam(targetType);
       const signedAmount = getNetCashAmountWithFailed(tx);
       const absAmount = Math.abs(Number(signedAmount || 0));
 
-      if (targetType === "wallet-withdraw") {
+      if (normalizedTargetType === "wallet-withdraw") {
         withdrawAmount += absAmount;
+      } else if (normalizedTargetType === "work-shift") {
+        refundAmount += getAbsSuccessfulCashAmount(tx);
       } else {
         transactionAmount += absAmount;
       }
@@ -1025,7 +1115,8 @@ export default function Dashboard() {
     return {
       transactionAmount,
       withdrawAmount,
-      netAmount: transactionAmount - withdrawAmount,
+      refundAmount,
+      netAmount: transactionAmount - refundAmount - withdrawAmount,
     };
   }, [revenueTransactions]);
 
@@ -1137,13 +1228,13 @@ export default function Dashboard() {
     },
     {
       title: "Doanh thu hôm nay",
-      value: formatCurrency(todayRevenue),
+      value: formatCurrency(todayNetAmount),
       unit: "VNĐ",
       icon: CircleDollarSign,
       color: "bg-green-500",
       bgTint: "green",
       iconColor: "text-green-600",
-      infoTooltip: `Số tiền giao dịch: ${formatCurrency(todayCashSummary.transactionAmount)} VNĐ\n\nSố tiền rút: -${formatCurrency(todayCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu hôm nay: ${formatCurrency(todayRevenue)} VNĐ`,
+      infoTooltip: `Số tiền giao dịch: ${formatCurrency(todayCashSummary.transactionAmount)} VNĐ\n\nTổng tiền hoàn: -${formatCurrency(todayCashSummary.refundAmount)} VNĐ\n\nSố tiền rút: -${formatCurrency(todayCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu hôm nay: ${formatCurrency(todayNetAmount)} VNĐ`,
     },
     {
       title: "Doanh thu ròng",
@@ -1153,7 +1244,7 @@ export default function Dashboard() {
       color: "bg-indigo-500",
       bgTint: "indigo",
       iconColor: "text-indigo-600",
-      infoTooltip: `Tổng tiền giao dịch: ${formatCurrency(systemCashSummary.transactionAmount)} VNĐ\n\nTổng tiền rút: -${formatCurrency(systemCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu ròng: ${formatCurrency(systemCashSummary.netAmount)} VNĐ`,
+      infoTooltip: `Tổng tiền giao dịch: ${formatCurrency(systemCashSummary.transactionAmount)} VNĐ\n\nTổng tiền hoàn: -${formatCurrency(systemCashSummary.refundAmount)} VNĐ\n\nTổng tiền rút: -${formatCurrency(systemCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu ròng: ${formatCurrency(systemCashSummary.netAmount)} VNĐ`,
     },
   ];
 
