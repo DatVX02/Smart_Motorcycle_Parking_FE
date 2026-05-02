@@ -5,7 +5,6 @@ import {
   ShieldAlert,
   TrendingUp,
   WifiOff,
-  Server,
   Cpu,
   Wallet,
 } from "lucide-react";
@@ -23,17 +22,42 @@ import RecentRecognitionActivity from "./RecentRecognitionActivity";
 import SecurityMonitoringWidget from "./SecurityMonitoringWidget";
 import SystemRevenueWidget from "./SystemRevenueWidget";
 
+// Kiểm tra nhanh giá trị ngày hợp lệ.
+// Dùng để tránh crash khi user chọn ngày sai hoặc API trả về không đúng định dạng.
 function isValidDate(value) {
   if (!value) return false;
   const date = new Date(value);
   return !Number.isNaN(date.getTime());
 }
 
+// Parse về Date nếu hợp lệ.
 function asDate(value) {
   if (!isValidDate(value)) return null;
   return new Date(value);
 }
 
+// Chuyển Date sang chuỗi yyyy-MM-dd cho input date.
+function toDateInputValue(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Tạo khoảng thời gian đầu/kết (00:00:00 -> 23:59:59.999) để lọc dữ liệu.
+// Nếu sai định dạng hoặc from > to thì trả về null.
+function buildDateRange(from, to) {
+  if (!isValidDate(from) || !isValidDate(to)) return null;
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T23:59:59.999`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+    return null;
+  }
+  if (start > end) return null;
+  return { start, end };
+}
+
+// Chuẩn hóa response về mảng.
 function toArray(raw) {
   if (Array.isArray(raw)) return raw;
   if (Array.isArray(raw?.items)) return raw.items;
@@ -100,11 +124,19 @@ function resolveImageUrl(rawUrl, apiBaseUrl) {
   return `${apiBaseUrl}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
-function getHourlyTrafficData(sessionItems, sessionEvents) {
+// Gom lượt xe theo 24 khung giờ, lọc theo range để khớp bộ lọc.
+// sessionItems: danh sách phiên gửi xe; sessionEvents: sự kiện realtime từ hub.
+function getHourlyTrafficData(sessionItems, sessionEvents, range) {
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-  const currentDate = now.getDate();
+  const defaultStart = new Date(now);
+  defaultStart.setHours(0, 0, 0, 0);
+  const defaultEnd = new Date(now);
+  defaultEnd.setHours(23, 59, 59, 999);
+
+  const rangeStart = isValidDate(range?.start)
+    ? new Date(range.start)
+    : defaultStart;
+  const rangeEnd = isValidDate(range?.end) ? new Date(range.end) : defaultEnd;
 
   const buckets = Array.from({ length: 24 }, (_, hour) => ({
     hour,
@@ -113,19 +145,15 @@ function getHourlyTrafficData(sessionItems, sessionEvents) {
     outCount: 0,
   }));
 
+  // Heuristics từ khóa để nhận biết sự kiện vào/ra từ chuỗi mô tả.
   const inRegex = /(check.?in|entry|\bin\b|vao)/i;
   const outRegex = /(check.?out|exit|\bout\b|ra)/i;
 
-  const countIfToday = (rawTime, key) => {
+  // Tăng counter cho bucket theo giờ nếu thời gian nằm trong range.
+  const countInRange = (rawTime, key) => {
     const date = asDate(rawTime);
     if (!date) return;
-    if (
-      date.getFullYear() !== currentYear ||
-      date.getMonth() !== currentMonth ||
-      date.getDate() !== currentDate
-    ) {
-      return;
-    }
+    if (date < rangeStart || date > rangeEnd) return;
 
     const hour = date.getHours();
     if (hour < 0 || hour > 23) return;
@@ -136,8 +164,8 @@ function getHourlyTrafficData(sessionItems, sessionEvents) {
     const inTime =
       session.checkInTime ?? session.entryTime ?? session.createdAt ?? null;
     const outTime = session.checkOutTime ?? session.exitTime ?? null;
-    countIfToday(inTime, "inCount");
-    countIfToday(outTime, "outCount");
+    countInRange(inTime, "inCount");
+    countInRange(outTime, "outCount");
   }
 
   for (const event of sessionEvents) {
@@ -155,12 +183,12 @@ function getHourlyTrafficData(sessionItems, sessionEvents) {
       .join(" ");
 
     if (outRegex.test(directionHints)) {
-      countIfToday(time, "outCount");
+      countInRange(time, "outCount");
       continue;
     }
 
     if (inRegex.test(directionHints)) {
-      countIfToday(time, "inCount");
+      countInRange(time, "inCount");
     }
   }
 
@@ -255,12 +283,14 @@ function getLatestStatusSource(detail, components) {
 
     if (bestHasTime && currentHasTime) {
       if (current.time > best.time) return current;
-      if (current.time === best.time && current.index > best.index) return current;
+      if (current.time === best.time && current.index > best.index)
+        return current;
       return best;
     }
 
     if (currentHasTime && !bestHasTime) return current;
-    if (!currentHasTime && !bestHasTime && current.index > best.index) return current;
+    if (!currentHasTime && !bestHasTime && current.index > best.index)
+      return current;
 
     return best;
   }, null);
@@ -380,6 +410,8 @@ function getNetCashAmountWithFailed(item) {
   return 0;
 }
 
+// Parse thời gian backend (có/không timezone) về milliseconds.
+// Dùng cho các phép so sánh thời gian chính xác.
 function parseBackendDateToMs(value) {
   if (!value) return NaN;
   const raw = String(value).trim();
@@ -760,8 +792,40 @@ export default function Dashboard() {
   const [recognitionLogs, setRecognitionLogs] = useState([]);
   const [revenueData, setRevenueData] = useState(null);
   const [loadingSnapshots, setLoadingSnapshots] = useState(true);
+  const [trafficFrom, setTrafficFrom] = useState(() => toDateInputValue());
+  const [trafficTo, setTrafficTo] = useState(() => toDateInputValue());
 
-  // load parking lots
+  // Range lọc dữ liệu cho biểu đồ (mặc định = hôm nay).
+  const trafficRange = useMemo(() => {
+    const range = buildDateRange(trafficFrom, trafficTo);
+    if (range) return range;
+    const today = new Date();
+    const start = new Date(today);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(today);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }, [trafficFrom, trafficTo]);
+
+  // Nếu user chọn "từ ngày" lớn hơn "đến ngày" thì tự động cập nhật cho hợp lệ.
+  const handleTrafficFromChange = (value) => {
+    setTrafficFrom(value);
+    if (trafficTo && value && value > trafficTo) setTrafficTo(value);
+  };
+
+  const handleTrafficToChange = (value) => {
+    setTrafficTo(value);
+    if (trafficFrom && value && value < trafficFrom) setTrafficFrom(value);
+  };
+
+  // Reset nhanh về hôm nay.
+  const handleTrafficReset = () => {
+    const today = toDateInputValue();
+    setTrafficFrom(today);
+    setTrafficTo(today);
+  };
+
+  // Tải danh sách bãi xe.
   useEffect(() => {
     let cancelled = false;
     parkingLotService
@@ -823,32 +887,6 @@ export default function Dashboard() {
     Promise.allSettled([
       dashboardService.getSessions(),
       dashboardService.getRevenue(),
-      (() => {
-        const now = new Date();
-        // Mặc định lấy từ đầu tháng đến hết hôm nay để bắt được "giờ cao điểm"
-        const start = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          1,
-          0,
-          0,
-          0,
-          0,
-        );
-        const end = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-          23,
-          59,
-          59,
-          999,
-        );
-        return dashboardService.getPeakHours({
-          startDate: start.toISOString(),
-          endDate: end.toISOString(),
-        });
-      })(),
       parkingSessionService.getAll({ pageSize: 9999 }),
       recognitionLogService.getAll({ page: 1, pageSize: 20 }),
       transactionService.getPaymentBreakdowns({ pageSize: 9999 }),
@@ -858,10 +896,9 @@ export default function Dashboard() {
 
         const sessionsResult = results[0];
         const revenueResult = results[1];
-        const peakHoursResult = results[2];
-        const parkingSessionsResult = results[3];
-        const recognitionResult = results[4];
-        const revenueTransactionsResult = results[5];
+        const parkingSessionsResult = results[2];
+        const recognitionResult = results[3];
+        const revenueTransactionsResult = results[4];
 
         if (sessionsResult.status === "fulfilled") {
           setSessionsFromApi(toArray(sessionsResult.value));
@@ -873,12 +910,6 @@ export default function Dashboard() {
           setRevenueData(revenueResult.value);
         } else {
           setRevenueData(null);
-        }
-
-        if (peakHoursResult.status === "fulfilled") {
-          setPeakHours(peakHoursResult.value ?? null);
-        } else {
-          setPeakHours(null);
         }
 
         if (parkingSessionsResult.status === "fulfilled") {
@@ -918,6 +949,28 @@ export default function Dashboard() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const start = trafficRange.start;
+    const end = trafficRange.end;
+
+    dashboardService
+      .getPeakHours({
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      })
+      .then((result) => {
+        if (!cancelled) setPeakHours(result ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setPeakHours(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [trafficRange]);
 
   // Tổng số chỗ trống (cộng tất cả các bãi, ưu tiên realtime)
   const totalAvailableSpots = lots.reduce((sum, lot) => {
@@ -1120,23 +1173,16 @@ export default function Dashboard() {
     };
   }, [revenueTransactions]);
 
+  // Dữ liệu lưu lượng theo giờ (tổng hợp từ sessions + events).
   const trafficData = useMemo(
-    () => getHourlyTrafficData(sessionsFromApi, sessionEvents),
-    [sessionsFromApi, sessionEvents],
+    () => getHourlyTrafficData(sessionsFromApi, sessionEvents, trafficRange),
+    [sessionsFromApi, sessionEvents, trafficRange],
   );
 
+  // Dữ liệu lưu lượng theo giờ (chỉ tính từ danh sách phiên gửi xe).
   const parkingSessionTrafficData = useMemo(() => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    const end = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      23,
-      59,
-      59,
-      999,
-    );
+    const start = trafficRange.start;
+    const end = trafficRange.end;
 
     const buckets = Array.from({ length: 24 }, (_, hour) => ({
       hour,
@@ -1165,8 +1211,9 @@ export default function Dashboard() {
     }
 
     return buckets;
-  }, [parkingSessionsFromApi]);
+  }, [parkingSessionsFromApi, trafficRange]);
 
+  // Dữ liệu giờ cao điểm từ API.
   const peakTrafficData = useMemo(() => {
     const rows = Array.isArray(peakHours?.hourlyData)
       ? peakHours.hourlyData
@@ -1276,6 +1323,11 @@ export default function Dashboard() {
             }
             peakMeta={peakHours}
             loading={loadingSnapshots}
+            dateFrom={trafficFrom}
+            dateTo={trafficTo}
+            onDateFromChange={handleTrafficFromChange}
+            onDateToChange={handleTrafficToChange}
+            onResetDate={handleTrafficReset}
           />
         </div>
         <RecentRecognitionActivity

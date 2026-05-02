@@ -59,6 +59,7 @@ import authService from "../../services/authService";
 import workShiftService from "../../services/workShiftService";
 import parkingLotService from "../../services/parkingLotService";
 
+// Bảng màu theo loại ca và trạng thái (dùng cho lịch và badge).
 const SHIFT_COLORS = {
   MORNING: "#3B82F6",
   AFTERNOON: "#F59E0B",
@@ -101,6 +102,7 @@ const SHIFT_TYPE_LABELS = {
 // CANCELLED cần hiển thị để admin dễ theo dõi ca bị hủy.
 const HIDDEN_CALENDAR_STATUSES = new Set(["REJECTED"]);
 
+// Chuẩn hóa trạng thái từ nhiều định dạng về một key thống nhất.
 function normalizeStatusKey(value) {
   const normalized = String(value ?? "")
     .trim()
@@ -149,6 +151,7 @@ const AVATAR_COLORS = [
   "bg-orange-500",
 ];
 
+// Tạo màu avatar ổn định theo id để dễ nhận biết nhân viên.
 function getAvatarColor(id = "") {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + h * 31;
@@ -164,6 +167,7 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
+// Đổi các định dạng giờ/timestamp về hh:mm (đã bù +7h theo UI).
 function toUtcTimeLabel(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
@@ -225,6 +229,7 @@ function toUtcTimeLabel(value) {
   }
 }
 
+// Lấy giờ check-in/out từ nhiều tên field khác nhau của backend.
 function pickActualAttendanceTime(shift, type) {
   if (!shift || typeof shift !== "object") return "";
 
@@ -255,6 +260,7 @@ function pickActualAttendanceTime(shift, type) {
   );
 }
 
+// Chuyển giờ check-in/out thành nhãn hh:mm để hiển thị.
 function getAttendanceTimeLabels(shift) {
   const checkIn = toUtcTimeLabel(pickActualAttendanceTime(shift, "in"));
   const checkOut = toUtcTimeLabel(pickActualAttendanceTime(shift, "out"));
@@ -274,6 +280,7 @@ function getLocalYmd(d = new Date()) {
  * DB lưu ngày UTC, nhưng khi startTime UTC >= 17h thì local date = UTC date + 1.
  * Ví dụ: DB shift ngày 16, startTime 23:00 UTC → local ngày 17, 06:00.
  */
+// Tính ngày local để khớp với ô ngày trên lịch (có bù giờ).
 function getLocalShiftDate(shift) {
   const raw =
     shift?.shiftDate ??
@@ -316,6 +323,7 @@ function getScheduledStatsDateRangeYmd(viewedMonth, todayYmd) {
   return { start: rangeStart, end: monthEnd };
 }
 
+// Chuyển shift sang format event của FullCalendar, kèm cờ read-only.
 function toCalendarEvent(shift, todayYmd) {
   const date = getLocalShiftDate(shift);
   const rawStartTime = shift.startTime ?? shift.StartTime ?? shift.start ?? "";
@@ -409,6 +417,7 @@ const STATUS_DOT = {
   CANCELLED: { color: "#EF4444", label: "Đã hủy", icon: "X" },
 };
 
+// Nội dung hiển thị bên trong ô ca trên lịch.
 function renderEventContent(eventInfo) {
   const { shift } = eventInfo.event.extendedProps;
   const name = shift?.staffName ?? eventInfo.event.title;
@@ -445,6 +454,7 @@ function renderEventContent(eventInfo) {
   );
 }
 
+// Tooltip nhanh khi hover vào ca trên lịch.
 function ShiftTooltip({ tooltip }) {
   if (!tooltip) return null;
   const { x, y, shift } = tooltip;
@@ -940,6 +950,7 @@ function ShiftTypeDropdown({ value, onChange }) {
   );
 }
 
+// Màn hình quản lý lịch: lưu state, lọc, kéo thả và hiển thị modal.
 function Shifts() {
   const [allStaff, setAllStaff] = useState([]);
   const [staffLoading, setStaffLoading] = useState(true);
@@ -1327,8 +1338,9 @@ function Shifts() {
   const handleEventClick = (info) => {
     const shift = info.event.extendedProps.shift;
     if (!shift) return;
-    if (info.event.extendedProps.isReadOnlyShift) return;
+    const isReadOnlyShift = !!info.event.extendedProps.isReadOnlyShift;
     if (isMultiDeleteMode) {
+      if (isReadOnlyShift) return;
       const id = String(shift.shiftId ?? shift.ShiftId ?? shift.id);
       setSelectedShiftIds((prev) => {
         const next = new Set(prev);
@@ -2366,6 +2378,7 @@ function Shifts() {
   );
 }
 
+// Modal chi tiết ca, cho xem thông tin và xử lý sửa/xóa.
 function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -2390,7 +2403,24 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
   const statusColor = STATUS_COLORS[statusKey] ?? "#6B7280";
   const barColor = SHIFT_COLORS[shiftType] ?? statusColor;
   const { checkIn, checkOut } = getAttendanceTimeLabels(shift);
-  const canModify = statusKey === "SCHEDULED";
+  const shiftDate = getLocalShiftDate(shift);
+  const todayLocalStr = getLocalYmd();
+  const isPastShift = Boolean(
+    shiftDate && todayLocalStr && shiftDate < todayLocalStr,
+  );
+  const checkInImageUrl =
+    shift.checkInImageUrl ??
+    shift.CheckInImageUrl ??
+    shift.checkInImage ??
+    shift.CheckInImage ??
+    "";
+  const checkOutImageUrl =
+    shift.checkOutImageUrl ??
+    shift.CheckOutImageUrl ??
+    shift.checkOutImage ??
+    shift.CheckOutImage ??
+    "";
+  const canModify = statusKey === "SCHEDULED" && !isPastShift;
 
   const handleDeleteConfirm = async () => {
     setDeleting(true);
@@ -2414,7 +2444,7 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
   return createPortal(
     <>
       <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden my-auto">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden my-auto">
           <div className="h-1.5" style={{ background: barColor }} />
 
           {/* Header */}
@@ -2478,6 +2508,36 @@ function ShiftDetailPopup({ shift, onClose, onDelete, onEdit }) {
               <span className="text-xs text-green-700 font-semibold">
                 {checkIn || ""} → {checkOut || ""}
               </span>
+              {(checkInImageUrl || checkOutImageUrl) && (
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  {checkInImageUrl && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] text-green-700">
+                        Ảnh check-in
+                      </span>
+                      <img
+                        src={checkInImageUrl}
+                        alt="Ảnh check-in"
+                        className="h-40 w-full rounded-lg border border-green-100 object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  {checkOutImageUrl && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] text-green-700">
+                        Ảnh check-out
+                      </span>
+                      <img
+                        src={checkOutImageUrl}
+                        alt="Ảnh check-out"
+                        className="h-40 w-full rounded-lg border border-green-100 object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {shift.lotName && (
