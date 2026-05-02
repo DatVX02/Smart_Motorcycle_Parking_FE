@@ -13,6 +13,7 @@ import {
 import { ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+// Rút gọn tên thứ trong tuần để hiển thị gọn hơn trên UI.
 function formatBusiestDayLabel(day) {
   const d = String(day ?? "")
     .trim()
@@ -30,6 +31,7 @@ function formatBusiestDayLabel(day) {
   return map[d] ?? String(day);
 }
 
+// Định dạng giờ về dạng HH:00.
 function formatHourLabel(hour) {
   const h = Number(hour ?? 0);
   if (!Number.isFinite(h)) return "";
@@ -41,7 +43,13 @@ function TrafficTrendChart({
   inOutData = [],
   peakMeta = null,
   loading = false,
+  dateFrom,
+  dateTo,
+  onDateFromChange,
+  onDateToChange,
+  onResetDate,
 }) {
+  // Kiểm tra nhanh xem có dữ liệu hay không để hiển thị empty-state cho đúng.
   const hasPeakData = peakData.some(
     (item) => Number(item?.sessionCount ?? 0) > 0,
   );
@@ -49,6 +57,7 @@ function TrafficTrendChart({
     (item) => Number(item?.inCount ?? 0) > 0 || Number(item?.outCount ?? 0) > 0,
   );
 
+  // Cho phép chuyển giữa biểu đồ tổng và chi tiết vào/ra.
   const [viewMode, setViewMode] = useState(() =>
     hasPeakData ? "peak" : "inout",
   ); // peak | inout
@@ -56,9 +65,11 @@ function TrafficTrendChart({
   // Cho phép user gạt qua lại dù dữ liệu của mode đó đang rỗng
   // (sẽ hiển thị empty-state), nên không auto-redirect viewMode nữa.
 
+  // Dữ liệu hiển thị phụ thuộc vào tab đang chọn.
   const data = viewMode === "peak" ? peakData : inOutData;
   const hasData = viewMode === "peak" ? hasPeakData : hasInOutData;
 
+  // Tiêu đề thay đổi theo tab đang chọn.
   const headerTitle =
     viewMode === "peak"
       ? "Lưu lượng xe theo giờ"
@@ -66,9 +77,9 @@ function TrafficTrendChart({
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-      <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 className="text-lg font-semibold text-slate-900 ">
             {headerTitle}
           </h2>
           {viewMode === "peak" && peakMeta ? (
@@ -118,6 +129,36 @@ function TrafficTrendChart({
             </button>
           </div>
 
+          {onDateFromChange && onDateToChange ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1 text-xs">
+                <input
+                  type="date"
+                  value={dateFrom ?? ""}
+                  onChange={(e) => onDateFromChange(e.target.value)}
+                  className="bg-transparent text-slate-700 outline-none"
+                />
+                <span className="text-slate-300">–</span>
+                <input
+                  type="date"
+                  value={dateTo ?? ""}
+                  min={dateFrom || undefined}
+                  onChange={(e) => onDateToChange(e.target.value)}
+                  className="bg-transparent text-slate-700 outline-none"
+                />
+              </div>
+              {onResetDate ? (
+                <button
+                  type="button"
+                  onClick={onResetDate}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  Hôm nay
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
           {viewMode === "inout" ? (
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
@@ -144,6 +185,7 @@ function TrafficTrendChart({
         </div>
       ) : (
         <>
+          {/* Khu vực vẽ biểu đồ: bar (tổng) hoặc area (vào/ra). */}
           <ResponsiveContainer width="100%" height={320}>
             {viewMode === "peak" ? (
               <BarChart
@@ -170,6 +212,7 @@ function TrafficTrendChart({
                   axisLine={false}
                   allowDecimals={false}
                 />
+                {/* Tooltip hiển thị tổng lượt tại từng giờ. */}
                 <Tooltip
                   cursor={false}
                   contentStyle={{
@@ -243,6 +286,7 @@ function TrafficTrendChart({
                   axisLine={false}
                   allowDecimals={false}
                 />
+                {/* Tooltip cho từng loại (vào/ra). */}
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "#fff",
@@ -257,6 +301,7 @@ function TrafficTrendChart({
                     return [value, name];
                   }}
                 />
+                {/* Chú thích màu cho vào/ra. */}
                 <Legend
                   formatter={(value) =>
                     value === "inCount" ? "Xe vào" : "Xe ra"

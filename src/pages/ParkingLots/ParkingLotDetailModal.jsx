@@ -18,7 +18,6 @@ import {
   Construction,
   X,
   Shield,
-  Plus,
   BarChart3,
   LogIn,
   LogOut,
@@ -68,6 +67,7 @@ const RANGE_PRESET_OPTIONS = [
 ];
 
 /* formatters */
+// Định dạng tiền/giờ/ngày để hiển thị trên UI.
 const fmtVND = (v) =>
   v != null
     ? new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" })
@@ -82,6 +82,7 @@ const fmtDate = (v) => {
 };
 
 /* lookup maps */
+// Map thông tin trạng thái để hiển thị badge/label đồng nhất.
 const STATUS_VARIANT = {
   active: "success",
   inactive: "secondary",
@@ -97,6 +98,7 @@ const getStatusVariant = (r) =>
 const getStatusLabel = (r) =>
   STATUS_LABEL[String(r ?? "").toLowerCase()] ?? (r || "");
 
+// Loại cổng từ backend (nhiều biến thể) -> label tiếng Việt.
 const GATE_TYPE = {
   entry: "Cổng vào",
   exit: "Cổng ra",
@@ -106,6 +108,7 @@ const GATE_TYPE = {
   BOTH: "Cả hai",
 };
 
+// Định nghĩa label + icon cho từng loại thiết bị.
 const DEVICE_TYPE_MAP = {
   CAMERA: {
     label: "Camera",
@@ -137,6 +140,7 @@ const DEVICE_TYPE_MAP = {
   },
 };
 
+// Chuẩn hóa tên loại thiết bị từ nhiều cách gọi về một key.
 const normalizeDeviceType = (raw) => {
   const key = String(raw ?? "").toUpperCase();
   if (key === "LPR" || key === "LPR_CAMERA") return "CAMERA";
@@ -171,6 +175,7 @@ const getDType = (r) =>
     iconColor: "text-gray-500",
   };
 
+// Trạng thái kết nối thiết bị -> label + icon.
 const CONN_MAP = {
   ONLINE: { label: "Trực tuyến", variant: "success", Icon: Wifi },
   OFFLINE: { label: "Ngoại tuyến", variant: "destructive", Icon: WifiOff },
@@ -187,6 +192,7 @@ const getConn = (r) =>
     Icon: Cpu,
   };
 
+// Chỉnh giờ từ API: nếu không có timezone thì cộng +7h để đúng giờ VN.
 function adjustApiDate(value) {
   if (!value) return null;
   const raw = String(value).trim();
@@ -204,6 +210,7 @@ function adjustApiDate(value) {
   return d;
 }
 
+// Cắt mốc đầu/kết thúc ngày cho các phép tính theo ngày.
 function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -217,6 +224,7 @@ function endOfDay(date) {
 }
 
 /* small shared components */
+// Tiêu đề nhỏ cho các khu vực trong modal.
 function SectionTitle({ children, icon: Icon }) {
   return (
     <div className="flex items-center gap-2 mb-3">
@@ -230,6 +238,7 @@ function SectionTitle({ children, icon: Icon }) {
 }
 
 /* Main component */
+// Modal chi tiết bãi xe: thông tin, thống kê, biểu đồ và danh sách thiết bị.
 function ParkingLotDetailModal({ lot, onClose }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -246,6 +255,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
   /** Doanh thu hôm nay (VNĐ): ưu tiên cộng từ payment breakdown giống trang Giao dịch; không dùng totalRevenue làm “hôm nay”. */
   const [todayRevenueVnd, setTodayRevenueVnd] = useState(null);
 
+  // Tải thông tin tổng quan, cổng, thiết bị và doanh thu hôm nay.
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -293,6 +303,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
     }
   }, [lot?.id]);
 
+  // Lấy danh sách phiên gửi xe để vẽ biểu đồ lưu lượng.
   const loadTrafficSessions = useCallback(async () => {
     try {
       setTrafficLoading(true);
@@ -319,6 +330,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
   }, [lot?.id, loadData, loadTrafficSessions]);
 
   /* flatten all devices — chỉ đếm thiết bị còn gắn với một cổng hợp lệ của bãi */
+  // Gom danh sách thiết bị và chỉ giữ thiết bị còn gắn với cổng hợp lệ.
   const allDevices = useMemo(() => {
     const detailDevices = Array.isArray(detail?.devices) ? detail.devices : [];
     const devs = detailDevices.length > 0 ? detailDevices : devicesByLot;
@@ -344,6 +356,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
   }, [detail, gates, devicesByLot]);
 
   /* Tạo thiết bị mới cho cổng */
+  // Thêm thiết bị mới và reload lại danh sách.
   const handleSaveDevice = async (payload) => {
     const gId = addDeviceGate?.gateId ?? addDeviceGate?.id;
     try {
@@ -376,6 +389,7 @@ function ParkingLotDetailModal({ lot, onClose }) {
   const aiConfig = d.cameraSetup?.aiConfig || d.aiConfig;
   const rawStatus = d.status ?? lot.status;
 
+  // Xác định khoảng thời gian theo preset để vẽ biểu đồ.
   const trafficRange = useMemo(() => {
     const now = new Date();
     const todayStart = startOfDay(now);
@@ -415,9 +429,10 @@ function ParkingLotDetailModal({ lot, onClose }) {
     return { start: from, end: to, valid: true };
   }, [trafficPreset, customFromDate, customToDate]);
 
-  const { trafficChartData, trafficXAxisInterval } = useMemo(() => {
+  // Gom nhóm phiên gửi xe theo giờ (<=2 ngày) hoặc theo ngày (>2 ngày).
+  const { trafficChartData, trafficXAxisInterval, trafficMax } = useMemo(() => {
     if (!trafficRange.valid) {
-      return { trafficChartData: [], trafficXAxisInterval: 0 };
+      return { trafficChartData: [], trafficXAxisInterval: 0, trafficMax: 0 };
     }
 
     const start = trafficRange.start;
@@ -470,9 +485,12 @@ function ParkingLotDetailModal({ lot, onClose }) {
         }
       }
 
+      const rows = Array.from(bucket.values());
+      const max = rows.reduce((m, r) => Math.max(m, r.vào ?? 0, r.ra ?? 0), 0);
       return {
-        trafficChartData: Array.from(bucket.values()),
+        trafficChartData: rows,
         trafficXAxisInterval: 3,
+        trafficMax: max,
       };
     }
 
@@ -508,12 +526,27 @@ function ParkingLotDetailModal({ lot, onClose }) {
       }
     }
 
+    const rows = Array.from(bucket.values());
+    const max = rows.reduce((m, r) => Math.max(m, r.vào ?? 0, r.ra ?? 0), 0);
+
     return {
-      trafficChartData: Array.from(bucket.values()),
+      trafficChartData: rows,
       trafficXAxisInterval: days > 14 ? 2 : 0,
+      trafficMax: max,
     };
   }, [trafficRange, trafficSessions]);
 
+  // Tạo các mốc trục Y theo số nguyên (không hiện số thập phân).
+  const trafficYAxisTicks = useMemo(() => {
+    const max = Math.max(1, Math.ceil(trafficMax));
+    const step = max <= 6 ? 1 : Math.ceil(max / 6);
+    const ticks = [];
+    for (let v = 0; v <= max; v += step) ticks.push(v);
+    if (ticks[ticks.length - 1] !== max) ticks.push(max);
+    return ticks;
+  }, [trafficMax]);
+
+  // Nhật ký ra/vào: lấy 10 sự kiện mới nhất.
   const accessLogs = useMemo(() => {
     const events = [];
 
@@ -932,6 +965,9 @@ function ParkingLotDetailModal({ lot, onClose }) {
                             interval={trafficXAxisInterval}
                           />
                           <YAxis
+                            ticks={trafficYAxisTicks}
+                            domain={[0, Math.max(1, Math.ceil(trafficMax))]}
+                            allowDecimals={false}
                             tick={{ fontSize: 9, fill: "#94a3b8" }}
                             tickLine={false}
                             axisLine={false}
@@ -1088,10 +1124,12 @@ function ParkingLotDetailModal({ lot, onClose }) {
                                     <th className="px-4 py-2 text-left">
                                       Tên thiết bị
                                     </th>
-                                    <th className="px-4 py-2 text-left">
+                                    <th className="px-4 py-2 text-center">
                                       Loại
                                     </th>
-                                    <th className="px-4 py-2 text-left">IP</th>
+                                    <th className="px-4 py-2 text-center">
+                                      IP
+                                    </th>
                                     <th className="px-4 py-2 text-center">
                                       Kết nối
                                     </th>
@@ -1135,23 +1173,21 @@ function ParkingLotDetailModal({ lot, onClose }) {
                                             </div>
                                           </div>
                                         </td>
-                                        <td className="px-4 py-2.5">
+                                        <td className="px-4 py-2.5 text-center">
                                           <Badge
                                             variant={dtype.variant}
-                                            className="text-[10px]"
+                                            className="text-[10px] inline-flex"
                                           >
                                             {dtype.label}
                                           </Badge>
                                         </td>
-                                        <td className="px-4 py-2.5">
+                                        <td className="px-4 py-2.5 text-center">
                                           {dev.ipAddress ? (
-                                            <span className="font-mono text-[11px] text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                                            <span className="inline-block font-mono text-[11px] text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
                                               {dev.ipAddress}
                                             </span>
                                           ) : (
-                                            <span className="text-gray-300 text-xs">
-                                              —
-                                            </span>
+                                            <span className="text-gray-300 text-xs"></span>
                                           )}
                                         </td>
                                         <td className="px-4 py-2.5 text-center">
