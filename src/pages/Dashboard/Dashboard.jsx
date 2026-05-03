@@ -1213,24 +1213,42 @@ export default function Dashboard() {
     return buckets;
   }, [parkingSessionsFromApi, trafficRange]);
 
-  // Dữ liệu giờ cao điểm từ API.
+  const effectiveInOutData = useMemo(() => {
+    const hasParkingData = parkingSessionTrafficData.some(
+      (x) => x.inCount > 0 || x.outCount > 0,
+    );
+    return hasParkingData ? parkingSessionTrafficData : trafficData;
+  }, [parkingSessionTrafficData, trafficData]);
+
+  // Dữ liệu giờ cao điểm – tính từ dữ liệu thực tế trên biểu đồ.
   const peakTrafficData = useMemo(() => {
-    const rows = Array.isArray(peakHours?.hourlyData)
-      ? peakHours.hourlyData
-      : [];
-    if (rows.length === 0) return [];
-    return rows
-      .slice()
-      .sort((a, b) => Number(a.hour ?? 0) - Number(b.hour ?? 0))
-      .map((item) => {
-        const hour = Number(item.hour ?? 0);
-        return {
-          hour,
-          label: `${String(hour).padStart(2, "0")}:00`,
-          sessionCount: Number(item.sessionCount ?? 0),
-        };
-      });
-  }, [peakHours]);
+    return effectiveInOutData.map((item) => {
+      const hour = Number(item.hour ?? 0);
+      return {
+        hour,
+        label: item.label ?? `${String(hour).padStart(2, "0")}:00`,
+        sessionCount: Number(item.inCount ?? 0) + Number(item.outCount ?? 0),
+      };
+    });
+  }, [effectiveInOutData]);
+
+  // Tính giờ cao điểm từ dữ liệu thực tế thay vì lấy từ API (tránh lệch).
+  const effectivePeakMeta = useMemo(() => {
+    let maxCount = 0;
+    let peakHour = null;
+    for (const bucket of peakTrafficData) {
+      if (bucket.sessionCount > maxCount) {
+        maxCount = bucket.sessionCount;
+        peakHour = bucket.hour;
+      }
+    }
+    // Nếu không có dữ liệu local thì fallback về API.
+    if (maxCount === 0 && peakHours) return peakHours;
+    return {
+      peakHour,
+      busiestDays: peakHours?.busiestDays ?? [],
+    };
+  }, [peakTrafficData, peakHours]);
 
   const recentRecognition = useMemo(
     () =>
@@ -1314,14 +1332,8 @@ export default function Dashboard() {
         <div className="xl:col-span-2">
           <TrafficTrendChart
             peakData={peakTrafficData}
-            inOutData={
-              parkingSessionTrafficData.some(
-                (x) => x.inCount > 0 || x.outCount > 0,
-              )
-                ? parkingSessionTrafficData
-                : trafficData
-            }
-            peakMeta={peakHours}
+            inOutData={effectiveInOutData}
+            peakMeta={effectivePeakMeta}
             loading={loadingSnapshots}
             dateFrom={trafficFrom}
             dateTo={trafficTo}
