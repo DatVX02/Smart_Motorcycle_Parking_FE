@@ -60,7 +60,7 @@ function stripTimestampFromMessage(value) {
   let msg = String(value).trim();
   if (!msg) return "";
   msg = msg.replace(/\s+lúc\s+.*$/i, "");
-  msg = msg.replace(/^Thiết bị\s+/i, "Cụm thiết bị ");
+  msg = msg.replace(/^Thiết bị\s+/i, "Thiết bị ");
   msg = msg.replace(/\s+\.$/, ".");
   if (!msg.endsWith(".")) msg += ".";
   return msg;
@@ -107,13 +107,13 @@ function normalizeDeviceStatusNotification(item, index) {
     item.createdAt ?? item.timestamp ?? item.time,
   );
 
-  let fallbackMessage = `Cụm thiết bị ${deviceName}`;
+  let fallbackMessage = `Thiết bị ${deviceName}`;
   if (status === "offline") {
-    fallbackMessage = `Cụm thiết bị ${deviceName} mất kết nối`;
+    fallbackMessage = `Thiết bị ${deviceName} mất kết nối`;
   } else if (status === "online") {
-    fallbackMessage = `Cụm thiết bị ${deviceName} hoạt động trở lại`;
+    fallbackMessage = `Thiết bị ${deviceName} hoạt động trở lại`;
   } else if (status) {
-    fallbackMessage = `Cụm thiết bị ${deviceName}: ${status}`;
+    fallbackMessage = `Thiết bị ${deviceName}: ${status}`;
   }
 
   return {
@@ -316,8 +316,10 @@ function Header({ onMenuClick }) {
               title="Thông báo thiết bị"
             >
               <Bell className="w-5 h-5 md:w-6 md:h-6" />
-              {hasNotifications && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              {unreadCount > 0 && (
+                <span className="absolute top-0 right-0 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white translate-x-1/3 -translate-y-1/3">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
               )}
             </button>
 

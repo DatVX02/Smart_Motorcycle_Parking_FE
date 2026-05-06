@@ -94,32 +94,34 @@ export default function PayByPlate() {
       .trim()
       .toUpperCase();
 
+    const cancelVal = searchParams.get("cancel")?.trim().toLowerCase();
+    // Ưu tiên kiểm tra cancel từ URL param của PayOS
+    const isCancelled =
+      cancelVal === "true" ||
+      cancelVal === "1" ||
+      ["FAILED", "CANCEL", "CANCELED", "CANCELLED", "ERROR"].includes(status);
+
     const isSuccess =
-      code === "00" ||
-      isTruthyQueryValue(searchParams.get("success")) ||
-      [
-        "PAID",
-        "SUCCESS",
-        "SUCCEEDED",
-        "COMPLETED",
-        "OVERTIMEPAID",
-        "OVERTIME_PAID",
-        "PREPAID",
-      ].includes(status) ||
-      (isFalsyQueryValue(searchParams.get("cancel")) &&
+      !isCancelled &&
+      (searchParams.get("success")?.toLowerCase() === "true" ||
+        (code === "00" && (cancelVal === "false" || !cancelVal)) ||
         [
           "PAID",
           "SUCCESS",
+          "SUCCEEDED",
           "COMPLETED",
           "OVERTIMEPAID",
           "OVERTIME_PAID",
           "PREPAID",
-          "",
         ].includes(status));
 
-    const isCancelled =
-      isTruthyQueryValue(searchParams.get("cancel")) ||
-      ["FAILED", "CANCEL", "CANCELED", "CANCELLED", "ERROR"].includes(status);
+    console.log("PayOS Callback Debug:", {
+      code,
+      status,
+      cancelVal,
+      isCancelled,
+      isSuccess,
+    });
 
     if (!isSuccess && !isCancelled) return;
 
@@ -147,7 +149,14 @@ export default function PayByPlate() {
       }
       toast.success("Thanh toán thành công");
     } else {
-      toast.error("Thanh toán chưa hoàn tất");
+      // Nếu hủy, chỉ cần khôi phục biển số (để tiện lợi) nhưng đóng modal/card chi tiết để quay về trạng thái ban đầu
+      if (pending?.licensePlate) {
+        setLicensePlate(String(pending.licensePlate).toUpperCase());
+      }
+      setPreview(null);
+      setPreviewForPlate("");
+      setIsDetailModalOpen(false);
+      toast.error("Thanh toán bị hủy");
     }
 
     localStorage.removeItem(PAY_BY_PLATE_PENDING_KEY);
@@ -382,24 +391,26 @@ export default function PayByPlate() {
         >
           {/* Card Thanh toán */}
           <Card className="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 h-full flex flex-col">
-            <CardHeader className="text-center space-y-2 pt-8 pb-4">
-              <div className="mx-auto mb-2">
+            <CardHeader className="text-center space-y-6 pt-10 pb-8">
+              <div className="mx-auto mb-4">
                 <img
                   src="/logo_motorguard.png"
                   alt="MotoGuard"
-                  className="w-60 h-40 object-contain mx-auto"
+                  className="w-64 h-44 object-contain mx-auto"
                 />
               </div>
-              <CardTitle className="text-2xl font-bold tracking-tight text-slate-900 mt-2">
-                Thanh toán gửi xe theo biển số
-              </CardTitle>
-              <CardDescription className="text-slate-500 text-sm font-medium">
-                Dành cho khách vãng lai. Nhập biển số xe để tra cứu phiên gửi
-                và thực hiện thanh toán.
-              </CardDescription>
+              <div className="space-y-3">
+                <CardTitle className="text-3xl font-bold tracking-tight text-slate-900">
+                  Thanh toán gửi xe theo biển số
+                </CardTitle>
+                <CardDescription className="text-slate-500 text-base font-medium max-w-md mx-auto leading-relaxed">
+                  Dành cho khách vãng lai. Nhập biển số xe để tra cứu phiên gửi
+                  và thực hiện thanh toán.
+                </CardDescription>
+              </div>
             </CardHeader>
 
-            <CardContent className="px-6 pb-8 sm:px-10">
+            <CardContent className="px-6 pb-10 sm:px-10 flex-1 flex flex-col">
               <PayByPlateForm
                 licensePlate={licensePlate}
                 onLicensePlateChange={handlePlateChange}

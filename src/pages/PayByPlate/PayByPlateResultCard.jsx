@@ -15,6 +15,9 @@ export default function PayByPlateResultCard({
   onNewPayment,
 }) {
   if (!result) return null;
+  const payload = result?.data ?? result;
+  const payosUrl = String(payload.paymentUrl ?? "").trim();
+  const hasPayosUrl = Boolean(payosUrl);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -26,7 +29,7 @@ export default function PayByPlateResultCard({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {result.hasAdditionalFee && (
+            {payload.hasAdditionalFee && (
               <Alert variant="warning" className="border-amber-200">
                 <CircleAlert className="mb-2 h-4 w-4" />
                 <AlertTitle>Có phí phát sinh quá giờ</AlertTitle>
@@ -35,7 +38,7 @@ export default function PayByPlateResultCard({
                 </AlertDescription>
               </Alert>
             )}
-            {!result.hasAdditionalFee && result.totalAmount === 0 && (
+            {!payload.hasAdditionalFee && payload.totalAmount === 0 && (
               <Alert variant="success" className="border-green-200">
                 <CheckCircle2 className="mb-2 h-4 w-4" />
                 <AlertTitle>Không cần thanh toán thêm</AlertTitle>
@@ -52,13 +55,13 @@ export default function PayByPlateResultCard({
               <div className="flex items-center justify-between gap-3">
                 <span className="text-slate-600">Tổng tiền</span>
                 <span className="font-semibold text-slate-900">
-                  {formatVnd(result.totalAmount)}
+                  {formatVnd(payload.totalAmount)}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 md:col-span-2">
                 <span className="text-slate-600">Trạng thái</span>
                 <span className="text-right font-medium text-slate-800">
-                  {result.message || "Không có thông báo"}
+                  {payload.message || "Không có thông báo"}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3">
@@ -74,9 +77,19 @@ export default function PayByPlateResultCard({
             </div>{" "}
             <div className="flex justify-end">
               <div className="flex flex-wrap justify-end gap-2">
-                {onNewPayment && (
+                {/* {onNewPayment && (
                   <Button type="button" onClick={onNewPayment}>
                     Giao dịch mới
+                  </Button>
+                )} */}
+                {hasPayosUrl && (
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      window.open(payosUrl, "_blank", "noopener,noreferrer")
+                    }
+                  >
+                    Xác nhận thanh toán
                   </Button>
                 )}
                 <Button

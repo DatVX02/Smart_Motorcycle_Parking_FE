@@ -629,7 +629,7 @@ function getDeviceAlertVariant(status) {
       textClass: "text-red-700",
       badgeClass: "bg-red-100 text-red-800 border border-red-200 animate-pulse",
       containerClass: "border-red-200 bg-red-50/70",
-      label: "Khẩn cấp",
+      label: "Ngoại tuyến",
     };
   }
 
@@ -1448,9 +1448,13 @@ export default function Dashboard() {
                   </div>
 
                   <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-700">
-                      {event.status}
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      {event.status?.toLowerCase() !== "offline" && (
+                        <span className="font-medium text-slate-700">
+                          {event.status}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs text-slate-500">
                       {formatTime(event.time)}
                     </span>

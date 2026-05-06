@@ -22,33 +22,39 @@ export default function PayByPlateForm({
   onLookup,
 }) {
   return (
-    <form className="mx-auto w-full max-w-2xl space-y-6" onSubmit={onLookup}>
-      <div className="space-y-5 rounded-xl border border-slate-200 bg-slate-50/40 p-4 sm:p-5">
-        <div className="space-y-2">
-          <Label htmlFor="licensePlate">Biển số xe *</Label>
+    <form className="flex-1 flex flex-col" onSubmit={onLookup}>
+      <div className="space-y-8 rounded-xl border border-slate-200 bg-slate-50/40 p-6">
+        <div className="space-y-3">
+          <Label htmlFor="licensePlate" className="text-slate-700 font-semibold">
+            Biển số xe *
+          </Label>
           <div className="relative">
-            <Motorbike className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Motorbike className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <Input
               id="licensePlate"
               value={licensePlate}
               onChange={(event) => onLicensePlateChange(event.target.value)}
               placeholder="VD: 59A-123.45"
               autoComplete="off"
-              className="h-11 pl-10"
+              className="h-12 pl-12 text-base border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl"
               required
               disabled={locked || previewLoading || paymentLoading}
             />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>Chọn thời gian ra</Label>
-          <div className="flex flex-wrap gap-2">
+        <div className="space-y-3">
+          <Label className="text-slate-700 font-semibold">Chọn thời gian ra</Label>
+          <div className="flex flex-wrap gap-3">
             <Button
               type="button"
               variant={isImmediate ? "default" : "outline"}
               onClick={() => onToggleImmediate(true)}
-              className="h-11 min-w-[150px] flex-1 sm:flex-none"
+              className={`h-12 flex-1 rounded-xl transition-all ${
+                isImmediate
+                  ? "bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200"
+                  : "hover:bg-slate-100"
+              }`}
               disabled={locked || previewLoading || paymentLoading}
             >
               <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -58,7 +64,11 @@ export default function PayByPlateForm({
               type="button"
               variant={isImmediate ? "outline" : "default"}
               onClick={() => onToggleImmediate(false)}
-              className="h-11 min-w-[150px] flex-1 sm:flex-none"
+              className={`h-12 flex-1 rounded-xl transition-all ${
+                !isImmediate
+                  ? "bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200"
+                  : "hover:bg-slate-100"
+              }`}
               disabled={locked || previewLoading || paymentLoading}
             >
               <Clock3 className="mr-2 h-4 w-4" />
@@ -85,7 +95,7 @@ export default function PayByPlateForm({
                   showNow
                   disabledDate={disabledPastDate}
                   disabledTime={disabledPastTime}
-                  className="h-11 w-full"
+                  className="h-12 w-full rounded-xl border-slate-200"
                   placeholder="dd/mm/yyyy hh:mm"
                   inputReadOnly
                   required
@@ -97,29 +107,28 @@ export default function PayByPlateForm({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-auto pt-10 space-y-4">
         <Button
           type="submit"
-          variant="outline"
-          className="h-11 w-full sm:w-auto sm:min-w-48"
+          className="h-14 w-full bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-700 hover:to-cyan-700 text-lg font-bold shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] rounded-xl"
           disabled={locked || previewLoading || paymentLoading}
         >
           {previewLoading ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               Đang tra cứu...
             </>
           ) : (
             <>
-              <Search className="mr-2 h-4 w-4" />
+              <Search className="mr-2 h-5 w-5" />
               Xem chi tiết
             </>
           )}
         </Button>
 
         {!canPay && (
-          <p className="text-xs text-red-700 sm:text-right">
-            Bạn cần tra cứu biển số để xem chi tiết trước khi thanh toán.
+          <p className="text-sm text-center text-slate-500 font-medium italic">
+            * Vui lòng tra cứu biển số để xem chi tiết trước khi thanh toán.
           </p>
         )}
       </div>

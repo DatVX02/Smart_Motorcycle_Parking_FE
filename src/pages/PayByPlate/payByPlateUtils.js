@@ -367,6 +367,9 @@ export function normalizePreviewResponse(raw) {
     isOvertime: parseBool(merged.isOvertime ?? merged.IsOvertime),
     totalAmount,
     remainingAmount,
+    prepaidAmount: parseNumberOrNull(
+      merged.prepaidAmount ?? merged.PrepaidAmount,
+    ),
     orderCode: String(merged.orderCode ?? merged.OrderCode ?? "").trim(),
     paymentUrl: String(merged.paymentUrl ?? merged.PaymentUrl ?? "").trim(),
     paymentType: String(merged.paymentType ?? merged.PaymentType ?? "").trim(),

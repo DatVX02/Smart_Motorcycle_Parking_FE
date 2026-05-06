@@ -387,7 +387,7 @@ function getStatusBucket(status) {
 function formatStatusLabel(status) {
   const s = normalizeStatus(status);
   if (s === "completed") return "Hoàn thành";
-  if (s === "overtimepaid") return "Quá giờ";
+  if (s === "overtimepaid") return "Thanh toán quá giờ";
   if (s === "prepaid") return "Thanh toán trước";
   if (s === "pending") return "Chờ thanh toán";
   if (s === "failed") return "Thất bại";
@@ -1243,11 +1243,11 @@ function SystemRevenueWidget({
                               <span className="col-span-2 text-slate-500">
                                 {detail.targetTypeLabel}
                               </span>
-                              <span className="col-span-3 text-slate-500">
+                              <span className="col-span-2 text-slate-500">
                                 {formatTransactionTime(detail.createdAt)}
                               </span>
                               <span
-                                className={`col-span-2 rounded-full px-2 py-0.5 text-center ${
+                                className={`col-span-3 whitespace-nowrap rounded-full px-2 py-0.5 text-center ${
                                   detail.statusLabel === "Thất bại"
                                     ? "bg-amber-100 text-amber-700"
                                     : detail.statusLabel === "Chờ thanh toán"
@@ -1360,8 +1360,8 @@ function SystemRevenueWidget({
             </p>
             <div className="mb-2 grid grid-cols-12 items-center gap-2 px-2 text-[11px] font-semibold text-slate-400">
               <span className="col-span-3">Loại giao dịch</span>
-              <span className="col-span-4">Thời gian</span>
-              <span className="col-span-2 text-center">Trạng thái</span>
+              <span className="col-span-3">Thời gian</span>
+              <span className="col-span-3 text-center">Trạng thái</span>
               <span className="col-span-3 text-right">Số tiền</span>
             </div>
             <div className="space-y-1.5">
@@ -1373,11 +1373,11 @@ function SystemRevenueWidget({
                   <span className="col-span-3 font-medium text-slate-700">
                     {detail.targetTypeLabel}
                   </span>
-                  <span className="col-span-4 text-slate-500">
+                  <span className="col-span-3 text-slate-500">
                     {formatTransactionTime(detail.createdAt)}
                   </span>
                   <span
-                    className={`col-span-2 rounded-full px-2 py-0.5 text-center ${
+                    className={`col-span-3 whitespace-nowrap rounded-full px-2 py-0.5 text-center ${
                       detail.statusLabel === "Thất bại"
                         ? "bg-amber-100 text-amber-700"
                         : detail.statusLabel === "Chờ thanh toán"
