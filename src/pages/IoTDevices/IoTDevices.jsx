@@ -271,6 +271,7 @@ function IoTDevices() {
   });
 
   const [deviceNextMaintenance, setDeviceNextMaintenance] = useState({});
+  const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
   const fetchDevices = useCallback(async () => {
     try {
@@ -316,6 +317,43 @@ function IoTDevices() {
       setLoading(false);
     }
   }, []);
+
+  const handleSaveDevice = async (payload, deviceId) => {
+    try {
+      const resolvedLotId =
+        payload?.parkingLotId ??
+        payload?.lotId ??
+        (filterLot !== "all" ? filterLot : "");
+      const hasLot = Boolean(resolvedLotId);
+      const finalPayload = { ...payload };
+
+      if (hasLot) {
+        finalPayload.parkingLotId = resolvedLotId;
+        finalPayload.lotId = resolvedLotId;
+      } else {
+        delete finalPayload.parkingLotId;
+        delete finalPayload.lotId;
+      }
+
+      if (deviceId) {
+        await iotDeviceService.update(deviceId, finalPayload);
+        toast.success("Đã cập nhật thiết bị", { duration: 1000 });
+      } else {
+        await iotDeviceService.create(finalPayload);
+        toast.success("Đã thêm thiết bị", { duration: 1000 });
+      }
+
+      setShowModal(false);
+      setSelected(null);
+      await fetchDevices();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ??
+        (deviceId ? "Không thể cập nhật thiết bị" : "Không thể thêm thiết bị");
+      toast.error(msg);
+      throw err;
+    }
+  };
 
   useEffect(() => {
     fetchDevices();
@@ -884,7 +922,7 @@ function IoTDevices() {
         <DeviceModal
           device={selected}
           onClose={() => setShowModal(false)}
-          onSave={fetchDevices}
+          onSave={handleSaveDevice}
         />
       )}
 

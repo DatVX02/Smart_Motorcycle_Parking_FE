@@ -49,6 +49,13 @@ function TrafficTrendChart({
   onDateToChange,
   onResetDate,
 }) {
+  const formatDateDisplay = (value) => {
+    if (!value) return "";
+    const [year, month, day] = String(value).split("-");
+    if (!year || !month || !day) return String(value);
+    return `${day}/${month}/${year}`;
+  };
+
   // Kiểm tra nhanh xem có dữ liệu hay không để hiển thị empty-state cho đúng.
   const hasPeakData = peakData.some(
     (item) => Number(item?.sessionCount ?? 0) > 0,
@@ -132,20 +139,30 @@ function TrafficTrendChart({
           {onDateFromChange && onDateToChange ? (
             <div className="flex flex-wrap items-center justify-end gap-2">
               <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1 text-xs">
-                <input
-                  type="date"
-                  value={dateFrom ?? ""}
-                  onChange={(e) => onDateFromChange(e.target.value)}
-                  className="bg-transparent text-slate-700 outline-none"
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={dateFrom ?? ""}
+                    onChange={(e) => onDateFromChange(e.target.value)}
+                    className="relative z-10 w-[118px] bg-transparent text-transparent caret-transparent outline-none"
+                  />
+                  <span className="pointer-events-none absolute inset-0 flex items-center text-slate-700">
+                    {formatDateDisplay(dateFrom)}
+                  </span>
+                </div>
                 <span className="text-slate-300">–</span>
-                <input
-                  type="date"
-                  value={dateTo ?? ""}
-                  min={dateFrom || undefined}
-                  onChange={(e) => onDateToChange(e.target.value)}
-                  className="bg-transparent text-slate-700 outline-none"
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={dateTo ?? ""}
+                    min={dateFrom || undefined}
+                    onChange={(e) => onDateToChange(e.target.value)}
+                    className="relative z-10 w-[118px] bg-transparent text-transparent caret-transparent outline-none"
+                  />
+                  <span className="pointer-events-none absolute inset-0 flex items-center text-slate-700">
+                    {formatDateDisplay(dateTo)}
+                  </span>
+                </div>
               </div>
               {onResetDate ? (
                 <button

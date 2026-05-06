@@ -357,6 +357,7 @@ function getTargetTypeValue(item) {
 
 function getCashflowDirection(targetType) {
   const normalized = normalizeTargetTypeParam(targetType);
+  if (normalized === "work-shift") return "in"; // Deposit to system -> revenue (+)
   if (normalized === "wallet-withdraw") return "out";
   if (
     ["parking-session", "monthly-pass", "wallet-deposit"].includes(normalized)
@@ -380,6 +381,42 @@ function getSignedComponentCashAmount(component, targetType) {
     if (direction === "in") return amount;
   }
 
+  return 0;
+}
+
+function getSignedComponentCashAmountSuccessful(component, targetType) {
+  if (!component || typeof component !== "object") return 0;
+
+  const status = getPaymentStatusValue(component);
+  if (!isSuccessfulPaymentStatus(status)) return 0;
+
+  const amount = Math.abs(getCashAmount(component));
+  const direction = getCashflowDirection(targetType);
+  if (direction === "out") return -amount;
+  if (direction === "in") return amount;
+  return 0;
+}
+
+function getSignedSuccessfulAmount(tx) {
+  if (!tx || typeof tx !== "object") return 0;
+
+  const targetType = getTargetTypeValue(tx);
+  const components = Array.isArray(tx.components) ? tx.components : [];
+  if (components.length > 0) {
+    return components.reduce(
+      (sum, component) =>
+        sum + getSignedComponentCashAmountSuccessful(component, targetType),
+      0,
+    );
+  }
+
+  const status = getEffectivePaymentStatus(tx);
+  if (!isSuccessfulPaymentStatus(status)) return 0;
+
+  const amount = Math.abs(getCashAmount(tx));
+  const direction = getCashflowDirection(targetType);
+  if (direction === "out") return -amount;
+  if (direction === "in") return amount;
   return 0;
 }
 
@@ -408,6 +445,27 @@ function getNetCashAmountWithFailed(item) {
   }
 
   return 0;
+}
+
+function isCashTransaction(tx) {
+  if (!tx || typeof tx !== "object") return false;
+
+  const methods = [];
+  if (Array.isArray(tx.paymentMethods)) methods.push(...tx.paymentMethods);
+  methods.push(tx.paymentMethod, tx.method, tx.channel);
+
+  if (Array.isArray(tx.components) && tx.components.length) {
+    tx.components.forEach((c) => {
+      methods.push(c?.method, c?.paymentMethod);
+    });
+  }
+
+  return methods.filter(Boolean).some((m) => {
+    const s = String(m)
+      .toLowerCase()
+      .replace(/[\s_-]+/g, "");
+    return s === "cash" || s.includes("tiềnmặt");
+  });
 }
 
 // Parse thời gian backend (có/không timezone) về milliseconds.
@@ -447,9 +505,10 @@ function parseBackendDateToMs(value) {
 
 function getTransactionDate(transaction) {
   const raw =
-    transaction?.createdAt ??
+    transaction?.completedAt ??
     transaction?.paymentTime ??
-    transaction?.updatedAt;
+    transaction?.updatedAt ??
+    transaction?.createdAt;
   if (!raw) return null;
   const ms = parseBackendDateToMs(raw);
   if (!Number.isFinite(ms)) return null;
@@ -477,7 +536,10 @@ function sumTodayRevenueFromTransactions(transactions) {
       continue;
     }
 
-    sum += getNetCashAmountWithFailed(tx);
+    const netAmount = getSignedSuccessfulAmount(tx);
+    const revenueContribution = isCashTransaction(tx) ? 0 : netAmount;
+
+    sum += revenueContribution;
     hasTodayTransaction = true;
   }
 
@@ -629,7 +691,7 @@ function buildSecurityAlerts(recognitionLogs, sessions) {
         id: `sec-face-${item.logId ?? Math.random()}`,
         severity: "high",
         title: "Khuôn mặt lạ",
-        description: `Phát hiện khuôn mặt chưa xác thực tại ${item.lotName || "bãi không rõ"}.`,
+        description: `Phát hiện khuôn mặt chưa xác thực tại ${item.lotName || "chưa có bãi"}.`,
         time: item.createdAt,
       });
     }
@@ -755,7 +817,7 @@ function normalizeRecentRecognition(log, apiBaseUrl) {
       `${log.licensePlate ?? "unknown"}-${log.createdAt ?? Date.now()}`,
     faceImage,
     plateImage,
-    lotName: log.lotName ?? log.lotId ?? "Bãi không rõ",
+    lotName: log.lotName ?? log.lotId ?? "Chưa có bãi",
     plate: log.licensePlate ?? "Không rõ biển số",
     recognitionType,
     time: log.createdAt,
@@ -1061,7 +1123,7 @@ export default function Dashboard() {
           const lotName =
             event.lotName ??
             lotNameMap.get(String(event.lotId ?? event.parkingLotId ?? "")) ??
-            "Bãi không rõ";
+            "Chưa có bãi";
 
           return {
             id: `${deviceId}-${event.timestamp ?? event.createdAt ?? idx}`,
@@ -1089,21 +1151,23 @@ export default function Dashboard() {
     [revenueData, sessionsFromApi, revenueTransactions],
   );
 
+  // Tính toán tóm tắt doanh thu trong ngày hiện tại
   const todayCashSummary = useMemo(() => {
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
     const d = now.getDate();
 
-    let transactionAmount = 0;
-    let withdrawAmount = 0;
-    let refundAmount = 0;
+    let transactionAmount = 0; // Tổng tiền các giao dịch thu vào (PayOS, ví)
+    let withdrawAmount = 0; // Tổng tiền rút ra khỏi hệ thống
 
     for (const tx of Array.isArray(revenueTransactions)
       ? revenueTransactions
       : []) {
       const txDate = getTransactionDate(tx);
       if (!txDate) continue;
+
+      // Chỉ lấy các giao dịch phát sinh trong ngày hôm nay
       if (
         txDate.getFullYear() !== y ||
         txDate.getMonth() !== m ||
@@ -1112,64 +1176,56 @@ export default function Dashboard() {
         continue;
       }
 
-      const status = getEffectivePaymentStatus(tx);
-      if (!isSuccessfulPaymentStatus(status)) continue;
-
       const targetType = getTargetTypeValue(tx);
       const normalizedTargetType = normalizeTargetTypeParam(targetType);
-      const signedAmount = getNetCashAmountWithFailed(tx);
-      const absAmount = Math.abs(Number(signedAmount || 0));
 
-      if (normalizedTargetType === "wallet-withdraw") {
-        withdrawAmount += absAmount;
-      } else if (normalizedTargetType === "work-shift") {
-        refundAmount += getAbsSuccessfulCashAmount(tx);
+      const netAmount = getSignedSuccessfulAmount(tx);
+      const revenueContribution = isCashTransaction(tx) ? 0 : netAmount;
+
+      if (revenueContribution < 0) {
+        withdrawAmount += Math.abs(Number(revenueContribution || 0));
       } else {
-        transactionAmount += absAmount;
+        transactionAmount += Math.abs(Number(revenueContribution || 0));
       }
     }
 
-    return { transactionAmount, withdrawAmount, refundAmount };
+    return { transactionAmount, withdrawAmount };
   }, [revenueTransactions]);
 
+  // Doanh thu hôm nay = Tổng các khoản thu số (trừ tiền mặt) - Tổng tiền rút
   const todayNetAmount = useMemo(() => {
     return (
       Number(todayCashSummary.transactionAmount || 0) -
-      Number(todayCashSummary.refundAmount || 0) -
       Number(todayCashSummary.withdrawAmount || 0)
     );
   }, [todayCashSummary]);
 
+  // Tính toán tóm tắt doanh thu toàn hệ thống (tất cả thời gian)
   const systemCashSummary = useMemo(() => {
-    let transactionAmount = 0;
-    let withdrawAmount = 0;
-    let refundAmount = 0;
+    let transactionAmount = 0; // Tổng thu
+    let withdrawAmount = 0; // Tổng chi (rút tiền)
 
     for (const tx of Array.isArray(revenueTransactions)
       ? revenueTransactions
       : []) {
-      const status = getEffectivePaymentStatus(tx);
-      if (!isSuccessfulPaymentStatus(status)) continue;
-
       const targetType = getTargetTypeValue(tx);
       const normalizedTargetType = normalizeTargetTypeParam(targetType);
-      const signedAmount = getNetCashAmountWithFailed(tx);
-      const absAmount = Math.abs(Number(signedAmount || 0));
 
-      if (normalizedTargetType === "wallet-withdraw") {
-        withdrawAmount += absAmount;
-      } else if (normalizedTargetType === "work-shift") {
-        refundAmount += getAbsSuccessfulCashAmount(tx);
+      const netAmount = getSignedSuccessfulAmount(tx);
+      const revenueContribution = isCashTransaction(tx) ? 0 : netAmount;
+
+      if (revenueContribution < 0) {
+        withdrawAmount += Math.abs(Number(revenueContribution || 0));
       } else {
-        transactionAmount += absAmount;
+        transactionAmount += Math.abs(Number(revenueContribution || 0));
       }
     }
 
     return {
       transactionAmount,
       withdrawAmount,
-      refundAmount,
-      netAmount: transactionAmount - refundAmount - withdrawAmount,
+      // Doanh thu ròng = Tổng thu - Tổng chi
+      netAmount: transactionAmount - withdrawAmount,
     };
   }, [revenueTransactions]);
 
@@ -1213,24 +1269,42 @@ export default function Dashboard() {
     return buckets;
   }, [parkingSessionsFromApi, trafficRange]);
 
-  // Dữ liệu giờ cao điểm từ API.
+  const effectiveInOutData = useMemo(() => {
+    const hasParkingData = parkingSessionTrafficData.some(
+      (x) => x.inCount > 0 || x.outCount > 0,
+    );
+    return hasParkingData ? parkingSessionTrafficData : trafficData;
+  }, [parkingSessionTrafficData, trafficData]);
+
+  // Dữ liệu giờ cao điểm – tính từ dữ liệu thực tế trên biểu đồ.
   const peakTrafficData = useMemo(() => {
-    const rows = Array.isArray(peakHours?.hourlyData)
-      ? peakHours.hourlyData
-      : [];
-    if (rows.length === 0) return [];
-    return rows
-      .slice()
-      .sort((a, b) => Number(a.hour ?? 0) - Number(b.hour ?? 0))
-      .map((item) => {
-        const hour = Number(item.hour ?? 0);
-        return {
-          hour,
-          label: `${String(hour).padStart(2, "0")}:00`,
-          sessionCount: Number(item.sessionCount ?? 0),
-        };
-      });
-  }, [peakHours]);
+    return effectiveInOutData.map((item) => {
+      const hour = Number(item.hour ?? 0);
+      return {
+        hour,
+        label: item.label ?? `${String(hour).padStart(2, "0")}:00`,
+        sessionCount: Number(item.inCount ?? 0) + Number(item.outCount ?? 0),
+      };
+    });
+  }, [effectiveInOutData]);
+
+  // Tính giờ cao điểm từ dữ liệu thực tế thay vì lấy từ API (tránh lệch).
+  const effectivePeakMeta = useMemo(() => {
+    let maxCount = 0;
+    let peakHour = null;
+    for (const bucket of peakTrafficData) {
+      if (bucket.sessionCount > maxCount) {
+        maxCount = bucket.sessionCount;
+        peakHour = bucket.hour;
+      }
+    }
+    // Nếu không có dữ liệu local thì fallback về API.
+    if (maxCount === 0 && peakHours) return peakHours;
+    return {
+      peakHour,
+      busiestDays: peakHours?.busiestDays ?? [],
+    };
+  }, [peakTrafficData, peakHours]);
 
   const recentRecognition = useMemo(
     () =>
@@ -1281,7 +1355,7 @@ export default function Dashboard() {
       color: "bg-green-500",
       bgTint: "green",
       iconColor: "text-green-600",
-      infoTooltip: `Số tiền giao dịch: ${formatCurrency(todayCashSummary.transactionAmount)} VNĐ\n\nTổng tiền hoàn: -${formatCurrency(todayCashSummary.refundAmount)} VNĐ\n\nSố tiền rút: -${formatCurrency(todayCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu hôm nay: ${formatCurrency(todayNetAmount)} VNĐ`,
+      infoTooltip: `Số tiền giao dịch: ${formatCurrency(todayCashSummary.transactionAmount)} VNĐ\n\nSố tiền rút: -${formatCurrency(todayCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu hôm nay: ${formatCurrency(todayNetAmount)} VNĐ`,
     },
     {
       title: "Doanh thu ròng",
@@ -1291,7 +1365,7 @@ export default function Dashboard() {
       color: "bg-indigo-500",
       bgTint: "indigo",
       iconColor: "text-indigo-600",
-      infoTooltip: `Tổng tiền giao dịch: ${formatCurrency(systemCashSummary.transactionAmount)} VNĐ\n\nTổng tiền hoàn: -${formatCurrency(systemCashSummary.refundAmount)} VNĐ\n\nTổng tiền rút: -${formatCurrency(systemCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu ròng: ${formatCurrency(systemCashSummary.netAmount)} VNĐ`,
+      infoTooltip: `Tổng tiền giao dịch: ${formatCurrency(systemCashSummary.transactionAmount)} VNĐ\n\nTổng tiền rút: -${formatCurrency(systemCashSummary.withdrawAmount)} VNĐ\n\nDoanh thu ròng: ${formatCurrency(systemCashSummary.netAmount)} VNĐ`,
     },
   ];
 
@@ -1314,14 +1388,8 @@ export default function Dashboard() {
         <div className="xl:col-span-2">
           <TrafficTrendChart
             peakData={peakTrafficData}
-            inOutData={
-              parkingSessionTrafficData.some(
-                (x) => x.inCount > 0 || x.outCount > 0,
-              )
-                ? parkingSessionTrafficData
-                : trafficData
-            }
-            peakMeta={peakHours}
+            inOutData={effectiveInOutData}
+            peakMeta={effectivePeakMeta}
             loading={loadingSnapshots}
             dateFrom={trafficFrom}
             dateTo={trafficTo}

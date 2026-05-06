@@ -113,6 +113,7 @@ function normalizePagingParams(params) {
   delete reqParams.Page;
   delete reqParams.pageSize;
   delete reqParams.PageSize;
+  reqParams.page = page;
   reqParams.pageNumber = page;
   reqParams.pageSize = size;
   return reqParams;
@@ -228,6 +229,75 @@ const deviceEventService = {
   createIot: async (payload) => {
     const res = await apiClient.post(`${BASE}/iot`, payload);
     return res?.data?.data ?? res?.data;
+  },
+
+  /**
+   * GET /api/v1/device-events/dashboard
+   * Lấy thống kê tổng quan cho màn hình Nhật Ký Thiết Bị
+   */
+  getDashboardStats: async (params = {}) => {
+    const res = await apiClient.get(`${BASE}/dashboard`, { params });
+    const data = res?.data?.data ?? res?.data;
+
+    // Normalize format to { totalEvents: number, statusCounts: { [status]: count } }
+    let totalEvents = 0;
+    const statusCounts = {};
+    const mapStatusKey = (keyLower) => {
+      if (keyLower.includes("success") || keyLower.includes("succeed"))
+        return "success";
+      if (keyLower.includes("fail")) return "failed";
+      if (keyLower.includes("trigger")) return "triggered";
+      if (keyLower.includes("active")) return "active";
+      if (keyLower.includes("process")) return "processing";
+      if (keyLower.includes("pend")) return "pending";
+      if (keyLower.includes("resolv")) return "resolved";
+      if (keyLower.includes("ignor")) return "ignored";
+      if (keyLower.includes("acknowledg")) return "acknowledged";
+      return keyLower;
+    };
+    const setStatusCount = (statusKey, value) => {
+      if (statusCounts[statusKey] == null) {
+        statusCounts[statusKey] = Number(value) || 0;
+      }
+    };
+
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const hasExplicitTotal =
+        typeof data.totalEvents === "number" || typeof data.total === "number";
+      if (hasExplicitTotal) {
+        totalEvents = data.totalEvents ?? data.total ?? 0;
+      }
+      if (data.statusCounts && typeof data.statusCounts === "object") {
+        Object.entries(data.statusCounts).forEach(([k, v]) => {
+          const statusKey = mapStatusKey(String(k).toLowerCase());
+          setStatusCount(statusKey, v);
+        });
+      }
+      // Support flat keys like successEvents/failedEvents/triggeredEvents
+      Object.entries(data).forEach(([k, v]) => {
+        if (typeof v !== "number") return;
+        const keyLower = k.toLowerCase();
+        if (keyLower.includes("total")) {
+          if (!hasExplicitTotal) totalEvents = v;
+          return;
+        }
+        const statusKey = mapStatusKey(keyLower);
+        setStatusCount(statusKey, v);
+        if (!hasExplicitTotal) totalEvents += Number(v) || 0;
+      });
+    } else if (Array.isArray(data)) {
+      data.forEach((item) => {
+        const s = item.status ?? item.eventStatus;
+        const c = item.count ?? item.total;
+        if (s != null) {
+          const statusKey = mapStatusKey(String(s).toLowerCase());
+          setStatusCount(statusKey, c);
+          totalEvents += Number(c) || 0;
+        }
+      });
+    }
+
+    return { totalEvents, statusCounts };
   },
 };
 

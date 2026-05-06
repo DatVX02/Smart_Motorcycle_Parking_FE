@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -18,6 +18,8 @@ function CreateMonthlyPassModal({
   parkingLots,
   editingPkg,
 }) {
+  const currencySuffix = " VNĐ";
+  const priceInputRef = useRef(null);
   const isEdit = !!editingPkg;
   const [lotId, setLotId] = useState(
     editingPkg?.lotId ?? editingPkg?._lotId ?? "",
@@ -134,12 +136,52 @@ function CreateMonthlyPassModal({
   const formatPriceInput = (val) => {
     const num = String(val).replace(/\D/g, "");
     if (!num) return "";
-    return `${parseInt(num, 10).toLocaleString("vi-VN")} VNĐ`;
+    return `${parseInt(num, 10).toLocaleString("vi-VN")}${currencySuffix}`;
+  };
+
+  const getNumberEnd = (value) => {
+    const idx = value.indexOf(currencySuffix);
+    return idx === -1 ? value.length : idx;
+  };
+
+  const moveCaretBeforeSuffix = (inputEl, value) => {
+    const currentValue = value ?? inputEl.value;
+    const numberEnd = getNumberEnd(currentValue);
+    const start = inputEl.selectionStart ?? numberEnd;
+    const end = inputEl.selectionEnd ?? numberEnd;
+    if (start > numberEnd || end > numberEnd) {
+      inputEl.setSelectionRange(numberEnd, numberEnd);
+    }
   };
 
   const handlePriceChange = (e) => {
     const raw = e.target.value.replace(/\D/g, "");
     setPrice(raw ? formatPriceInput(raw) : "");
+  };
+
+  const handlePriceKeyDown = (e) => {
+    if (e.key !== "Backspace" && e.key !== "Delete") return;
+    const inputEl = e.currentTarget;
+    const value = inputEl.value;
+    const numberEnd = getNumberEnd(value);
+    const start = inputEl.selectionStart ?? numberEnd;
+    const end = inputEl.selectionEnd ?? numberEnd;
+
+    if (start >= numberEnd && end >= numberEnd) {
+      e.preventDefault();
+      const raw = String(value).replace(/\D/g, "");
+      const nextRaw = raw.slice(0, -1);
+      const nextValue = nextRaw ? formatPriceInput(nextRaw) : "";
+      setPrice(nextValue);
+      requestAnimationFrame(() => {
+        const pos = nextValue ? getNumberEnd(nextValue) : 0;
+        inputEl.setSelectionRange(pos, pos);
+      });
+    }
+  };
+
+  const handlePriceCaretGuard = (e) => {
+    moveCaretBeforeSuffix(e.currentTarget);
   };
 
   return createPortal(
@@ -244,8 +286,13 @@ function CreateMonthlyPassModal({
               <input
                 type="text"
                 inputMode="numeric"
+                ref={priceInputRef}
                 value={price}
                 onChange={handlePriceChange}
+                onKeyDown={handlePriceKeyDown}
+                onKeyUp={handlePriceCaretGuard}
+                onClick={handlePriceCaretGuard}
+                onFocus={handlePriceCaretGuard}
                 placeholder="Ví dụ: 600.000 VNĐ"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder:text-gray-400"
               />

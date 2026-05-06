@@ -125,7 +125,11 @@ export function formatHours(value) {
     const mins = Math.round(amount * 60);
     return `${mins} phút`;
   }
-  return `${amount.toFixed(2)} giờ`;
+  const totalMinutes = Math.round(amount * 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (mins === 0) return `${hours} giờ`;
+  return `${hours} giờ ${mins} phút`;
 }
 
 /** Trạng thái phiên tương ứng nhãn "Hoàn thành" — không còn thanh toán thêm */

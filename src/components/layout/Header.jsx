@@ -1,11 +1,22 @@
-import { LogOut, Settings, Menu } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  LogOut,
+  Settings,
+  Menu,
+  Bell,
+  WifiOff,
+  CheckCircle,
+  AlertTriangle,
+  Check,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 import authService from "../../services/authService";
+import notificationService from "../../services/notificationService";
 
 const AVATAR_KEY = "motoguard_profile_avatar";
 const PROFILE_UPDATED_EVENT = "motoguard:user-updated";
+const READ_NOTIFICATIONS_KEY = "motoguard:device-notifications-read";
 
 const PAGE_TITLES = {
   "/dashboard": { title: "Dashboard" },
@@ -29,6 +40,95 @@ const PAGE_TITLES = {
   "/device-maintenance": { title: "Bảo Trì Thiết Bị" },
   "/incident-reports": { title: "Báo Cáo Sự Cố" },
 };
+
+const NOTIFICATION_PAGE_SIZE = 20;
+
+function formatNotificationTime(value) {
+  if (value == null || value === "") return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${min} ${dd}/${mm}/${yyyy}`;
+}
+
+function stripTimestampFromMessage(value) {
+  if (value == null) return "";
+  let msg = String(value).trim();
+  if (!msg) return "";
+  msg = msg.replace(/\s+lúc\s+.*$/i, "");
+  msg = msg.replace(/^Thiết bị\s+/i, "Cụm thiết bị ");
+  msg = msg.replace(/\s+\.$/, ".");
+  if (!msg.endsWith(".")) msg += ".";
+  return msg;
+}
+
+function loadReadNotificationIds() {
+  try {
+    const raw = localStorage.getItem(READ_NOTIFICATIONS_KEY);
+    const parsed = JSON.parse(raw ?? "[]");
+    if (Array.isArray(parsed)) return new Set(parsed);
+  } catch {
+    // ignore storage errors
+  }
+  return new Set();
+}
+
+function saveReadNotificationIds(readSet) {
+  try {
+    localStorage.setItem(
+      READ_NOTIFICATIONS_KEY,
+      JSON.stringify(Array.from(readSet)),
+    );
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function normalizeDeviceStatusNotification(item, index) {
+  if (!item || typeof item !== "object") return null;
+  const title = String(item.title ?? "").trim();
+  const message = String(item.message ?? "").trim();
+  const statusSource = `${title} ${message}`.toLowerCase();
+  const status = statusSource.includes("offline")
+    ? "offline"
+    : statusSource.includes("online")
+      ? "online"
+      : "";
+  const deviceName =
+    item.deviceName ??
+    item.deviceCode ??
+    item.deviceId ??
+    `Thiết bị ${index + 1}`;
+  const time = formatNotificationTime(
+    item.createdAt ?? item.timestamp ?? item.time,
+  );
+
+  let fallbackMessage = `Cụm thiết bị ${deviceName}`;
+  if (status === "offline") {
+    fallbackMessage = `Cụm thiết bị ${deviceName} mất kết nối`;
+  } else if (status === "online") {
+    fallbackMessage = `Cụm thiết bị ${deviceName} hoạt động trở lại`;
+  } else if (status) {
+    fallbackMessage = `Cụm thiết bị ${deviceName}: ${status}`;
+  }
+
+  return {
+    id:
+      item.id ??
+      item.notificationId ??
+      item.deviceId ??
+      `${deviceName}-${index}`,
+    status,
+    title: title || "Thông báo thiết bị",
+    message: stripTimestampFromMessage(message) || `${fallbackMessage}.`,
+    time,
+    isRead: Boolean(item.isRead),
+  };
+}
 
 function Header({ onMenuClick }) {
   const navigate = useNavigate();
@@ -59,8 +159,11 @@ function Header({ onMenuClick }) {
   const pageInfo = PAGE_TITLES[pathMatch || "/dashboard"] || {
     title: "Dashboard",
   };
-  // const [showNotifications, setShowNotifications] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState("");
 
   const [profileVersion, setProfileVersion] = useState(0);
   const currentUser = authService.getCurrentUser();
@@ -84,6 +187,33 @@ function Header({ onMenuClick }) {
     currentUser?.faceImageUrl ??
     "";
 
+  const loadNotifications = useCallback(async () => {
+    setNotificationLoading(true);
+    setNotificationError("");
+    try {
+      const { items } = await notificationService.getAdminDeviceStatus({
+        pageNumber: 1,
+        pageSize: NOTIFICATION_PAGE_SIZE,
+        isRead: false,
+      });
+      const readSet = loadReadNotificationIds();
+      const normalized = (items ?? [])
+        .map((item, index) => normalizeDeviceStatusNotification(item, index))
+        .filter(Boolean)
+        .map((item) => ({
+          ...item,
+          isRead: item.isRead || readSet.has(item.id),
+        }));
+      setNotifications(normalized);
+    } catch (error) {
+      console.error("Failed to load notifications", error);
+      setNotifications([]);
+      setNotificationError("Không thể tải thông báo thiết bị");
+    } finally {
+      setNotificationLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const refreshProfile = () => setProfileVersion((v) => v + 1);
     window.addEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
@@ -93,6 +223,12 @@ function Header({ onMenuClick }) {
       window.removeEventListener("storage", refreshProfile);
     };
   }, []);
+
+  useEffect(() => {
+    if (showNotifications) {
+      loadNotifications();
+    }
+  }, [showNotifications, loadNotifications]);
 
   const handleLogout = async () => {
     setShowUserMenu(false);
@@ -107,26 +243,27 @@ function Header({ onMenuClick }) {
     }
   };
 
-  // const notifications = [
-  //   {
-  //     id: 1,
-  //     message: "Có phương tiện mới vào bãi gửi",
-  //     time: "2 phút trước",
-  //     unread: true,
-  //   },
-  //   {
-  //     id: 2,
-  //     message: "Thanh toán thành công #TX-1234",
-  //     time: "15 phút trước",
-  //     unread: true,
-  //   },
-  //   {
-  //     id: 3,
-  //     message: "Phát hiện bất thường tại cổng A",
-  //     time: "1 giờ trước",
-  //     unread: false,
-  //   },
-  // ];
+  const unreadCount = notifications.filter((item) => !item.isRead).length;
+  const hasNotifications = unreadCount > 0;
+  const markAllAsRead = useCallback(() => {
+    setNotifications((prev) => {
+      const readSet = loadReadNotificationIds();
+      prev.forEach((item) => readSet.add(item.id));
+      saveReadNotificationIds(readSet);
+      return prev.map((item) => ({ ...item, isRead: true }));
+    });
+  }, []);
+
+  const markAsRead = useCallback((id) => {
+    setNotifications((prev) => {
+      const readSet = loadReadNotificationIds();
+      readSet.add(id);
+      saveReadNotificationIds(readSet);
+      return prev.map((item) =>
+        item.id === id ? { ...item, isRead: true } : item,
+      );
+    });
+  }, []);
 
   return (
     <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-4 md:py-5">
@@ -169,16 +306,19 @@ function Header({ onMenuClick }) {
         {/* Right Section */}
         <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
           {/* Notifications */}
-          {/* <div className="relative">
+          <div className="relative">
             <button
               onClick={() => {
                 setShowNotifications(!showNotifications);
                 setShowUserMenu(false);
               }}
               className="relative p-2.5 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              title="Thông báo thiết bị"
             >
               <Bell className="w-5 h-5 md:w-6 md:h-6" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              {hasNotifications && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              )}
             </button>
 
             {showNotifications && (
@@ -187,39 +327,120 @@ function Header({ onMenuClick }) {
                   className="fixed inset-0 z-40"
                   onClick={() => setShowNotifications(false)}
                 />
-                <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
                   <div className="p-4 border-b border-gray-200">
-                    <h3 className="font-semibold text-gray-900">Thông báo</h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-gray-900">
+                        Thông báo thiết bị
+                      </h3>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={markAllAsRead}
+                          className={`text-xs font-medium transition-colors ${
+                            hasNotifications
+                              ? "text-emerald-600 hover:text-emerald-700"
+                              : "text-gray-300 cursor-not-allowed"
+                          }`}
+                          type="button"
+                          disabled={!hasNotifications}
+                        >
+                          Đánh dấu tất cả đã đọc
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Hiển thị thông báo chưa đọc
+                    </p>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${notif.unread ? "bg-blue-50" : ""}`}
-                      >
-                        <p className="text-sm text-gray-900">{notif.message}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {notif.time}
-                        </p>
+                    {notificationLoading ? (
+                      <div className="p-4 text-sm text-gray-500">
+                        Đang tải thông báo...
                       </div>
-                    ))}
-                  </div>
-                  <div className="p-3 text-center border-t border-gray-200">
-                    <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                      Xem tất cả
-                    </button>
+                    ) : notificationError ? (
+                      <div className="p-4 text-sm text-red-600">
+                        {notificationError}
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="p-4 text-sm text-gray-500">
+                        Chưa có thông báo mới.
+                      </div>
+                    ) : (
+                      notifications.map((notif) => {
+                        const StatusIcon =
+                          notif.status === "offline"
+                            ? WifiOff
+                            : notif.status === "online"
+                              ? CheckCircle
+                              : AlertTriangle;
+                        const statusColor =
+                          notif.status === "offline"
+                            ? "text-red-500"
+                            : notif.status === "online"
+                              ? "text-emerald-500"
+                              : "text-amber-500";
+
+                        return (
+                          <div
+                            key={notif.id}
+                            className={`group flex items-start gap-3 p-4 border-b border-gray-100 hover:bg-gray-50 ${
+                              notif.isRead ? "" : "bg-blue-50/60"
+                            }`}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => markAsRead(notif.id)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                markAsRead(notif.id);
+                              }
+                            }}
+                          >
+                            <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
+                              <StatusIcon
+                                className={`h-4 w-4 ${statusColor}`}
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {notif.title}
+                              </p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {notif.message}
+                              </p>
+                            </div>
+                            <div className="ml-3 flex flex-col items-end gap-2">
+                              <span className="text-xs text-gray-400 whitespace-nowrap">
+                                {notif.time}
+                              </span>
+                              <button
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  markAsRead(notif.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-emerald-600 transition"
+                                title="Đánh dấu đã đọc"
+                                type="button"
+                              >
+                                <Check className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </>
             )}
-          </div> */}
+          </div>
 
           {/* User Menu */}
           <div className="relative">
             <button
               onClick={() => {
                 setShowUserMenu(!showUserMenu);
-                // setShowNotifications(false);
+                setShowNotifications(false);
               }}
               className="flex items-center gap-2 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             >

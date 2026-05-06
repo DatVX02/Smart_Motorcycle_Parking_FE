@@ -130,20 +130,30 @@ function DateInputDDMMYYYY({ label, value, min, onChange, placeholder }) {
   );
 }
 
-/** Chuyển "HH:mm" thành số phút từ 0h */
+/**
+ * Chuyển đổi chuỗi giờ "HH:mm" thành tổng số phút tính từ 00:00.
+ * Ví dụ: "06:30" -> 6 * 60 + 30 = 390 phút.
+ */
 function timeToMinutes(t) {
   if (!t || typeof t !== "string") return 0;
   const [h, m] = t.substring(0, 5).split(":").map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
+/**
+ * Chuyển đổi tổng số phút thành chuỗi giờ "HH:mm".
+ * Tự động xử lý vòng lặp ngày (ví dụ: phút vượt quá 1440 - tức 24h - sẽ quay lại từ 0).
+ */
 function minutesToTime(min) {
   const h = Math.floor(Math.max(0, min) / 60) % 24;
   const m = Math.floor(Math.max(0, min) % 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** * Hàm xê dịch giờ (Hỗ trợ đọc từ chuỗi ISO như "2026-04-21T23:00:00Z")
+/**
+ * Hàm xê dịch giờ (cộng/trừ một số giờ nhất định).
+ * Dùng chủ yếu để chuyển đổi giữa giờ Local (VN là UTC+7) và giờ UTC của Server.
+ * Hỗ trợ nhận vào chuỗi giờ thường "HH:mm" hoặc chuỗi ngày giờ ISO "2026-04-21T23:00:00Z".
  */
 function shiftTimeByHours(value, deltaHours, withSeconds = false) {
   const raw = String(value ?? "").trim();
@@ -170,8 +180,11 @@ function shiftTimeByHours(value, deltaHours, withSeconds = false) {
 }
 
 /**
- * Trả về YYYY-MM-DD theo giờ local (UTC+7) từ dữ liệu shift.
- * DB lưu ngày UTC, khi startTime UTC >= 17h thì local date = UTC date + 1.
+ * Trả về chuỗi ngày hiển thị theo giờ Local (UTC+7) từ dữ liệu ca làm việc (Shift) lấy từ backend.
+ * Tại sao cần hàm này?
+ * - Backend lưu ngày và giờ ở chuẩn UTC.
+ * - Nếu giờ bắt đầu (startTime) ở UTC >= 17:00, khi dịch sang giờ Việt Nam (+7h) sẽ vượt quá nửa đêm (>= 24:00).
+ * - Do đó, ngày làm việc thực tế ở Local phải được cộng thêm 1 ngày so với ngày lưu trên DB.
  */
 function getLocalDateFromShift(shift) {
   const raw =
@@ -199,8 +212,9 @@ function getLocalDateFromShift(shift) {
 }
 
 /**
- * Kiểm tra 2 khoảng giờ (HH:mm) có trùng nhau không.
- * Hỗ trợ ca qua đêm (end <= start → cộng thêm 24h).
+ * Kiểm tra xem 2 khoảng thời gian (HH:mm) có bị trùng/chồng lấn lên nhau hay không.
+ * Xử lý đặc biệt cho ca qua đêm: Nếu giờ kết thúc <= giờ bắt đầu (VD: 22:00 -> 06:00),
+ * hiểu là ca làm việc kéo dài sang ngày hôm sau nên giờ kết thúc được cộng thêm 24h.
  */
 function hasTimeOverlap(s1, e1, s2, e2) {
   let start1 = timeToMinutes(s1);
@@ -383,10 +397,12 @@ function CreateShiftModal({
   const isEdit = !!editingShift;
   const shiftId =
     editingShift?.shiftId ?? editingShift?.ShiftId ?? editingShift?.id;
+  // Trạng thái tab đang mở: "single" (Tạo 1 ca duy nhất) hoặc "bulk" (Tạo nhiều ca lặp lại theo tuần)
   const [tab, setTab] = useState(isEdit ? "single" : (initialTab ?? "single"));
 
-  // Khi sửa ca: nếu giờ UTC >= 17:00 (cộng 7h sẽ vượt qua nửa đêm sang ngày hôm sau),
-  // cần cộng thêm 1 ngày để hiển thị đúng ngày local
+  // Khởi tạo ngày làm việc.
+  // Khi chỉnh sửa ca: API trả về giờ chuẩn UTC. Nếu giờ UTC >= 17:00 (tức là >= 00:00 sáng hôm sau giờ VN),
+  // ta cần chủ động cộng thêm 1 ngày để hiển thị đúng ngày làm việc trên giao diện (Local Date).
   const [editDate, setEditDate] = useState(() => {
     if (!isEdit) return date;
     const rawStart = String(editingShift?.startTime ?? "").trim();
@@ -414,7 +430,8 @@ function CreateShiftModal({
       : "Morning",
   );
 
-  // FETCH: CỘNG THÊM 7 TIẾNG NẾU LÀ SỬA CA ĐỂ HIỂN THỊ GIỜ LOCAL
+  // KHỞI TẠO GIỜ BẮT ĐẦU VÀ KẾT THÚC
+  // Nếu là sửa ca (isEdit), dữ liệu từ API là UTC -> CẦN CỘNG THÊM 7 TIẾNG để hiển thị đúng giờ VN.
   const [startTime, setStartTime] = useState(
     isEdit ? shiftTimeByHours(editingShift?.startTime ?? "23:00", 7) : "06:00",
   );
@@ -648,7 +665,8 @@ function CreateShiftModal({
       }
     }
 
-    // KIỂM TRA TRÙNG CA: nhân viên đã có ca trong cùng ngày & giờ chưa?
+    // --- KIỂM TRA TRÙNG CA LÀM VIỆC ---
+    // Kiểm tra xem nhân viên này đã được phân công ca nào bị trùng khung giờ trong cùng 1 ngày chưa?
     try {
       const existingShifts = await workShiftService.getByStaff(staffId);
       const shiftsArr = Array.isArray(existingShifts)
@@ -687,16 +705,20 @@ function CreateShiftModal({
       console.warn("Không thể kiểm tra trùng ca:", checkErr);
     }
 
-    // SAVE: LUÔN TRỪ ĐI 7 TIẾNG ĐỂ LƯU VÀO DB VỚI CHUẨN UTC
+    // --- CHUẨN BỊ DỮ LIỆU ĐỂ GỬI LÊN BACKEND ---
+    // Người dùng đang nhập giờ theo Local (VN), nên phải TRỪ ĐI 7 TIẾNG để chuẩn hoá về giờ UTC trước khi lưu.
     const apiStartTime = shiftTimeByHours(startTime, -7, true);
     const apiEndTime = shiftTimeByHours(endTime, -7, true);
 
-    // Khi trừ 7h, nếu giờ local < 07:00 thì giờ UTC sẽ lùi sang ngày hôm trước
-    // Ví dụ: 06:00 local → 23:00 UTC ngày hôm trước
+    // Xử lý điều chỉnh ngày khi quy đổi giờ Local sang giờ UTC:
+    // Nếu giờ Local bắt đầu < 07:00 (VD: 06:00 sáng VN), khi trừ đi 7 tiếng sẽ lùi về 23:00 của NGÀY HÔM TRƯỚC theo chuẩn UTC.
     const startMinutes = timeToMinutes(startTime);
     const needsDateAdjust = startMinutes < 7 * 60;
 
-    /** Lùi ngày đi 1 nếu giờ UTC vượt qua nửa đêm */
+    /** 
+     * Hàm tính toán lùi lại 1 ngày nếu giờ UTC rơi vào ngày hôm trước 
+     * Đảm bảo lưu thông tin Ngày Làm Việc trên DB đúng với khung giờ UTC thực tế.
+     */
     const adjustDate = (dateStr) => {
       if (!needsDateAdjust) return dateStr;
       const d = new Date(dateStr + "T00:00:00");
@@ -777,6 +799,10 @@ function CreateShiftModal({
           .filter(Boolean);
         if (parts.length > 0) msg = parts.join(". ");
       }
+      // Chuyển giờ UTC trong thông báo lỗi backend sang giờ local (+7h)
+      msg = msg.replace(/\b(\d{1,2}:\d{2})\b/g, (_, utcTime) =>
+        shiftTimeByHours(utcTime, 7),
+      );
       toast.error(msg);
     } finally {
       setLoading(false);
