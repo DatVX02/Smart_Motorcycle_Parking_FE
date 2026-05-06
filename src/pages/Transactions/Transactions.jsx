@@ -426,6 +426,11 @@ function isFailedPaymentStatus(value) {
   return normalizeStatus(value) === "failed";
 }
 
+function isExcludedPaymentStatus(value) {
+  const normalized = normalizeStatus(value);
+  return normalized === "failed" || normalized === "cancelled";
+}
+
 function getPaymentStatusValue(item) {
   if (!item || typeof item !== "object") return "";
   return normalizeStatus(
@@ -622,6 +627,19 @@ function getSignedComponentCashAmount(component, targetType) {
   return 0;
 }
 
+function getSignedComponentCashAmountSuccessful(component, targetType) {
+  if (!component || typeof component !== "object") return 0;
+
+  const status = getPaymentStatusValue(component);
+  if (!isSuccessfulPaymentStatus(status)) return 0;
+
+  const amount = Math.abs(getCashAmount(component));
+  const direction = getCashflowDirection(targetType);
+  if (direction === "out") return -amount;
+  if (direction === "in") return amount;
+  return 0;
+}
+
 function getComponentAmountMeta(component, targetType) {
   if (!component || typeof component !== "object") {
     return { text: "", cls: "" };
@@ -630,11 +648,20 @@ function getComponentAmountMeta(component, targetType) {
   const amount = Math.abs(getCashAmount(component));
   const status = getPaymentStatusValue(component);
 
+  // Xác định có phải tiền mặt không
+  const method = normalizePaymentMethodKey(
+    component.paymentMethod || component.method || component.channel,
+  );
+  const isCash = method === "cash";
+
   if (isFailedPaymentStatus(status)) {
-    return getSignedAmountMeta(-amount);
+    return { text: formatCurrency(amount), cls: "text-slate-600" };
   }
 
   if (isSuccessfulPaymentStatus(status)) {
+    if (isCash) {
+      return { text: formatCurrency(amount), cls: "text-gray-900" };
+    }
     return getSignedAmountMeta(
       getSignedComponentCashAmount(component, targetType),
     );
@@ -675,16 +702,87 @@ function getNetCashAmountWithFailed(item, fallbackTargetType) {
   return 0;
 }
 
+function getDisplayTransactionAmount(item, fallbackTargetType) {
+  if (!item || typeof item !== "object") return 0;
+
+  const resolvedTargetType =
+    getTargetTypeValue(item) ?? normalizeTargetTypeParam(fallbackTargetType);
+
+  if (Array.isArray(item.components) && item.components.length) {
+    return item.components.reduce(
+      (sum, component) =>
+        sum +
+        getSignedComponentCashAmountSuccessful(component, resolvedTargetType),
+      0,
+    );
+  }
+
+  const status = getPaymentStatusValue(item);
+  if (!isSuccessfulPaymentStatus(status)) return 0;
+
+  const amount = Math.abs(getCashAmount(item));
+  const direction = getCashflowDirection(resolvedTargetType);
+  if (direction === "out") return -amount;
+  if (direction === "in") return amount;
+  return 0;
+}
+
+function getTableCashflowAmountMeta(tx, targetTypeValue) {
+  const netCashAmount = getDisplayTransactionAmount(tx, targetTypeValue);
+  let cashflowAmountMeta = getSignedAmountMeta(netCashAmount);
+  let hasSign =
+    cashflowAmountMeta.text.startsWith("+") ||
+    cashflowAmountMeta.text.startsWith("-");
+
+  if (
+    isCashTransaction(tx) &&
+    isSuccessfulPaymentStatus(getLatestStatusValue(tx))
+  ) {
+    cashflowAmountMeta = {
+      text: formatCurrency(Math.abs(netCashAmount)),
+      cls: "text-gray-900",
+    };
+    hasSign = false;
+  }
+
+  return { netCashAmount, cashflowAmountMeta, hasSign };
+}
+
 function getCashflowDirection(targetType) {
   const normalized = normalizeTargetTypeParam(targetType);
   if (normalized === "wallet-withdraw") return "out";
-  if (normalized === "work-shift") return "out";
   if (
-    ["parking-session", "monthly-pass", "wallet-deposit"].includes(normalized)
+    [
+      "parking-session",
+      "monthly-pass",
+      "wallet-deposit",
+      "work-shift",
+    ].includes(normalized)
   ) {
-    return "in";
+    return "in"; // work-shift is now 'in' (deposit to system)
   }
   return "neutral";
+}
+
+function isCashTransaction(tx) {
+  if (!tx || typeof tx !== "object") return false;
+
+  const methods = [];
+  if (Array.isArray(tx.paymentMethods)) methods.push(...tx.paymentMethods);
+  methods.push(tx.paymentMethod, tx.method, tx.channel);
+
+  if (Array.isArray(tx.components) && tx.components.length) {
+    tx.components.forEach((c) => {
+      methods.push(c?.method, c?.paymentMethod);
+    });
+  }
+
+  return methods.filter(Boolean).some((m) => {
+    const s = String(m)
+      .toLowerCase()
+      .replace(/[\s_-]+/g, "");
+    return s === "cash" || s.includes("tiềnmặt");
+  });
 }
 
 function getPointsUsed(item) {
@@ -753,6 +851,27 @@ function getLatestStatusSource(detail, components) {
   return latest?.source ?? detail;
 }
 
+function getLatestStatusTimeValue(detail, components) {
+  if (!Array.isArray(components) || components.length === 0) {
+    return pickFirst(
+      detail?.completedAt,
+      detail?.updatedAt,
+      detail?.createdAt,
+      detail?.paymentTime,
+      detail?.timestamp,
+    );
+  }
+
+  const source = getLatestStatusSource(detail, components);
+  return pickFirst(
+    source?.completedAt,
+    source?.updatedAt,
+    source?.createdAt,
+    source?.paymentTime,
+    source?.timestamp,
+  );
+}
+
 function getLatestStatusValue(tx) {
   const components = Array.isArray(tx?.components) ? tx.components : [];
   const source = getLatestStatusSource(tx, components);
@@ -815,10 +934,10 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
     };
   }, [targetType, targetId]);
 
-  const detailNetCashAmount = detail
-    ? getNetCashAmountWithFailed(detail, detail.targetType ?? targetType)
+  const detailDisplayAmount = detail
+    ? getDisplayTransactionAmount(detail, detail.targetType ?? targetType)
     : 0;
-  const detailNetCashAmountMeta = getSignedAmountMeta(detailNetCashAmount);
+  const detailDisplayAmountText = formatCurrency(detailDisplayAmount);
 
   const components = Array.isArray(detail?.components) ? detail.components : [];
   const statusSource = getLatestStatusSource(detail, components);
@@ -842,13 +961,16 @@ function DetailModal({ targetType, targetId, userFullNameById, onClose }) {
         //   formatCompositionLabel(detail.paymentComposition, ""),
         // ],
         ["Phương thức", formatPaymentMethods(detail.paymentMethods, detail)],
-        ["Tổng tiền giao dịch", detailNetCashAmountMeta.text],
+        ["Tổng tiền giao dịch", detailDisplayAmountText],
         [
           "Điểm sử dụng / tích lũy",
           getPointsUsed(detail).toLocaleString("vi-VN"),
         ],
         ["Thời gian tạo", formatCreatedDateTime(detail.createdAt)],
-        ["Hoàn tất cuối lúc", formatCompletedDateTime(detail.completedAt)],
+        [
+          "Hoàn tất cuối lúc",
+          formatCompletedDateTime(getLatestStatusTimeValue(detail, components)),
+        ],
         ["Người dùng", getUserDisplay(detail, userFullNameById)],
         [
           "Bãi gửi xe",
@@ -1298,7 +1420,12 @@ export default function Transactions() {
 
       // Doanh thu: cộng toàn bộ khoản đã thanh toán thành công ở từng breakdown/component.
       const totalRevenue = items.reduce((s, tx) => {
-        return s + getNetCashAmountWithFailed(tx, getTargetTypeValue(tx));
+        const targetTypeValue = getTargetTypeValue(tx);
+        const { netCashAmount, hasSign } = getTableCashflowAmountMeta(
+          tx,
+          targetTypeValue,
+        );
+        return hasSign ? s + netCashAmount : s;
       }, 0);
 
       setStatistics({
@@ -1709,11 +1836,11 @@ export default function Transactions() {
                   );
                   const targetId = getTargetIdValue(tx);
                   const targetTypeValue = getTargetTypeValue(tx);
-                  const netCashAmount = getNetCashAmountWithFailed(
+                  const { cashflowAmountMeta } = getTableCashflowAmountMeta(
                     tx,
                     targetTypeValue,
                   );
-                  const cashflowAmountMeta = getSignedAmountMeta(netCashAmount);
+
                   const txKey = `${targetTypeValue || "unknown"}-${targetId || idx}`;
                   const isLast = idx === transactions.length - 1;
                   return (
@@ -1745,7 +1872,9 @@ export default function Transactions() {
                       </td>
                       {/* Thời gian ra */}
                       <td className="p-3 text-center text-gray-500 whitespace-nowrap">
-                        {formatCompletedDateTime(tx.completedAt)}
+                        {formatCompletedDateTime(
+                          getLatestStatusTimeValue(tx, rowComponents),
+                        )}
                       </td>
                       {/* Số tiền */}
                       <td className="p-3 text-center font-semibold text-gray-900">

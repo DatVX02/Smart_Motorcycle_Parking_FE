@@ -5,8 +5,6 @@ import {
   Eye,
   CheckCircle2,
   XCircle,
-  Ticket,
-  UserRound,
   Motorbike,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -15,7 +13,7 @@ import "dayjs/locale/vi";
 import vehicleService from "../../services/vehicleService";
 import userService from "../../services/userService";
 import { API_BASE_URL } from "../../config/api";
-import { Button } from "../../components/ui/button";
+// import { Button } from "../../components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -122,13 +120,13 @@ function resolveImageUrl(url) {
 
 function statusBadgeClass(isActive) {
   return isActive
-    ? "inline-flex min-w-[120px] justify-center rounded-full border border-blue-200 bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700"
-    : "inline-flex min-w-[120px] justify-center rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700";
+    ? "inline-flex min-w-[120px] justify-center rounded-full border border-green-200 bg-green-100 px-3 py-1 text-xs font-semibold text-green-700"
+    : "inline-flex min-w-[120px] justify-center rounded-full border border-red-200 bg-red-100 px-3 py-1 text-xs font-semibold text-red-700";
 }
 
 function monthlyPassBadgeClass(isMonthlyPassVehicle) {
   return isMonthlyPassVehicle
-    ? "inline-flex min-w-[100px] justify-center rounded-full border border-green-200 bg-green-100 px-3 py-1 text-xs font-semibold text-green-700"
+    ? "inline-flex min-w-[100px] justify-center rounded-full border border-blue-200 bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700"
     : "inline-flex min-w-[100px] justify-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700";
 }
 
@@ -346,12 +344,12 @@ export default function ParkingVehicles() {
     loadVehicles("");
   };
 
-  const handleReload = () => {
-    const nextUserId = userIdInput.trim();
-    setApiUserId(nextUserId);
-    setPageNumber(1);
-    loadVehicles(nextUserId);
-  };
+  // const handleReload = () => {
+  //   const nextUserId = userIdInput.trim();
+  //   setApiUserId(nextUserId);
+  //   setPageNumber(1);
+  //   loadVehicles(nextUserId);
+  // };
 
   return (
     <div className="space-y-5">
@@ -380,11 +378,11 @@ export default function ParkingVehicles() {
             />
             <StatCard
               icon={CheckCircle2}
-              iconColor="text-blue-700"
+              iconColor="text-green-700"
               label="Đang hoạt động"
               value={statistics.active}
               valueSuffix="Xe"
-              bgTint="bg-blue-500/30"
+              bgTint="bg-green-500/30"
             />
             <StatCard
               icon={XCircle}
@@ -394,7 +392,7 @@ export default function ParkingVehicles() {
               valueSuffix="Xe"
               bgTint="bg-red-500/30"
             />
-            <StatCard
+            {/* <StatCard
               icon={Ticket}
               iconColor="text-green-700"
               label="Xe vé tháng"
@@ -417,7 +415,7 @@ export default function ParkingVehicles() {
               value={statistics.guest}
               valueSuffix="Xe"
               bgTint="bg-amber-500/30"
-            />
+            /> */}
           </>
         )}
       </div>
@@ -516,7 +514,7 @@ export default function ParkingVehicles() {
                   "Biển số",
                   "Người dùng",
                   "Màu xe",
-                  "Vé tháng",
+                  "Loại xe",
                   "Trạng thái",
 
                   "",
@@ -688,17 +686,22 @@ export default function ParkingVehicles() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
                     {[
                       ["Biển số", plateOf(detailVehicle)],
-                      ["Người dùng", userDisplay(detailVehicle, userFullNameById)],
+                      [
+                        "Người dùng",
+                        userDisplay(detailVehicle, userFullNameById),
+                      ],
                       ["Màu xe", formatValue(detailVehicle.color)],
                       [
-                        "Loại phương tiện",
+                        "Loại xe",
                         detailVehicle.isMonthlyPassVehicle
                           ? "Xe vé tháng"
                           : "Xe thường",
                       ],
                       [
                         "Trạng thái",
-                        detailVehicle.isActive ? "Đang hoạt động" : "Ngừng hoạt động",
+                        detailVehicle.isActive
+                          ? "Đang hoạt động"
+                          : "Ngừng hoạt động",
                       ],
                       ["Tạo lúc", formatDateTime(detailVehicle.createdAt)],
                       ["Cập nhật", formatDateTime(detailVehicle.updatedAt)],

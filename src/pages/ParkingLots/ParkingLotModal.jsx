@@ -380,6 +380,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
   const [testingGate, setTestingGate] = useState(null); // gate _id đang test MQTT
   const [togglingGate, setTogglingGate] = useState(null); // gate _id đang chuyển trạng thái
   const [currentStep, setCurrentStep] = useState(1);
+  const [pendingUnassign, setPendingUnassign] = useState([]); // [{ id, label }]
   const aiConfigIdRef = useRef(null); // lưu configId để update sau
   const hasConfiguredCamera = formData.gates.some((g) =>
     g.devices.some((d) => isConfiguredCameraDevice(d)),
@@ -648,6 +649,30 @@ function ParkingLotModal({ lot, onClose, onSave }) {
     setField(field, normalized === "0" ? "" : normalized);
   };
 
+  const addPendingUnassign = (entry) => {
+    if (!entry?.id) return;
+    const key = String(entry.id);
+    setPendingUnassign((prev) => {
+      if (prev.some((p) => String(p.id) === key)) return prev;
+      return [...prev, { id: key, label: entry.label || key }];
+    });
+  };
+
+  const removePendingUnassign = (id) => {
+    if (!id) return;
+    const key = String(id);
+    setPendingUnassign((prev) => prev.filter((p) => String(p.id) !== key));
+  };
+
+  const ensureAvailableDevice = (device) => {
+    if (!device?.id) return;
+    const key = String(device.id);
+    setAvailableDevices((prev) => {
+      if (prev.some((d) => String(d.id) === key)) return prev;
+      return [...prev, device];
+    });
+  };
+
   const addGate = () =>
     setFormData((prev) => ({ ...prev, gates: [...prev.gates, newGate()] }));
 
@@ -820,9 +845,7 @@ function ParkingLotModal({ lot, onClose, onSave }) {
 
     const allDevices = Array.isArray(gate.devices) ? gate.devices : [];
     /* Chỉ test các thiết bị đã được chọn từ "Danh sách các thiết bị" (có existingDeviceId) */
-    const devices = allDevices.filter((d) =>
-      (d.existingDeviceId || "").trim(),
-    );
+    const devices = allDevices.filter((d) => (d.existingDeviceId || "").trim());
     if (devices.length === 0) {
       toast.error(
         "Vui lòng chọn thiết bị từ danh sách trước khi test kết nối.",
@@ -983,25 +1006,29 @@ function ParkingLotModal({ lot, onClose, onSave }) {
         return;
       }
 
-      setDeletingDevice(dId);
-      try {
-        try {
-          await iotDeviceService.unassign(deviceBackendId);
-        } catch (err) {
-          const msg =
-            err?.response?.data?.message ||
-            err?.response?.data?.title ||
-            "Không thể gỡ thiết bị khỏi bãi. Vui lòng thử lại.";
-          toast.error(msg, { duration: 5000 });
-          return;
-        }
-
-        toast.success(
-          `Đã gỡ thiết bị "${device.deviceName || device.deviceCode || deviceBackendId}" khỏi bãi.`,
-        );
-      } finally {
-        setDeletingDevice(null);
-      }
+      addPendingUnassign({
+        id: deviceBackendId,
+        label: device.deviceName || device.deviceCode || deviceBackendId,
+      });
+      ensureAvailableDevice({
+        id: deviceBackendId,
+        deviceCode: device.deviceCode || "",
+        deviceName: device.deviceName || "",
+        deviceType: device.deviceType || "",
+        gateType: gate?.gateType || "",
+        model: device.model || "",
+        ipAddress: device.ipAddress || "",
+        macAddress: device.macAddress || "",
+        firmwareVersion: device.firmwareVersion || "",
+        connectionStatus: device.connectionStatus || "ONLINE",
+        label:
+          device.deviceCode || device.deviceName
+            ? `${device.deviceCode || "NO-CODE"} - ${device.deviceName || "Chưa có tên"}`
+            : `Thiết bị ${deviceBackendId}`,
+      });
+      toast.success(
+        `Đã đánh dấu gỡ thiết bị "${device.deviceName || device.deviceCode || deviceBackendId}". Thay đổi sẽ áp dụng khi lưu.`,
+      );
     }
 
     setFormData((prev) => ({
@@ -1128,6 +1155,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
       delete n[`dev_${dId}_macAddress`];
       return n;
     });
+
+    if (existingDeviceId) removePendingUnassign(existingDeviceId);
   };
 
   const buildValidationErrors = () => {
@@ -1591,6 +1620,56 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           }
         }
 
+        // 2.5. Áp dụng danh sách gỡ thiết bị (chỉ khi lưu)
+        const uniquePending = [];
+        const seenPending = new Set();
+        for (const entry of pendingUnassign) {
+          const id = String(entry?.id ?? "");
+          if (!id || seenPending.has(id)) continue;
+          seenPending.add(id);
+          uniquePending.push({
+            id,
+            label: entry?.label || id,
+          });
+        }
+
+        if (uniquePending.length > 0) {
+          const failedIds = new Set();
+          let successCount = 0;
+
+          for (const entry of uniquePending) {
+            try {
+              await iotDeviceService.unassign(entry.id);
+              successCount += 1;
+            } catch (err) {
+              const msg =
+                err?.response?.data?.message ||
+                err?.response?.data?.title ||
+                "Không thể gỡ thiết bị khỏi bãi.";
+              console.warn("Gỡ thiết bị thất bại:", entry.id, msg);
+              failedIds.add(entry.id);
+            }
+          }
+
+          if (successCount > 0) {
+            toast.success(`Đã gỡ ${successCount} thiết bị khỏi bãi.`);
+          }
+
+          if (failedIds.size > 0) {
+            const failedLabels = uniquePending
+              .filter((entry) => failedIds.has(entry.id))
+              .map((entry) => entry.label);
+            toast.error(
+              `Không thể gỡ thiết bị: ${failedLabels.join(", ")}. Vui lòng thử lại.`,
+              { duration: 6000 },
+            );
+          }
+
+          setPendingUnassign(
+            uniquePending.filter((entry) => failedIds.has(entry.id)),
+          );
+        }
+
         // 3. Cập nhật thông tin bãi + đóng modal
         if (
           lotInfo.hourlyRate != null &&
@@ -1989,8 +2068,8 @@ function ParkingLotModal({ lot, onClose, onSave }) {
                               )}
                             </button>
                             <div className="flex items-center gap-1">
-                              {gate.devices.some(
-                                (d) => (d.existingDeviceId || "").trim(),
+                              {gate.devices.some((d) =>
+                                (d.existingDeviceId || "").trim(),
                               ) && (
                                 <button
                                   type="button"

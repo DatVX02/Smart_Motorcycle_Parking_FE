@@ -16,7 +16,9 @@ import {
 function RecognitionLogs() {
   const [parkingLots, setParkingLots] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [allLogs, setAllLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState({
     totalItems: 0,
@@ -88,46 +90,100 @@ function RecognitionLogs() {
     loadLogs();
   }, [loadLogs]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAllLogs = async () => {
+      setLoadingStats(true);
+      try {
+        const params = {
+          page: 1,
+          pageSize: PAGE_SIZE,
+        };
+        if (recognitionTypeFilter)
+          params.recognitionType = recognitionTypeFilter;
+        if (lotFilter) params.lotId = lotFilter;
+
+        const first = await recognitionLogService.getAll(params);
+        const collected = Array.isArray(first.items) ? [...first.items] : [];
+        const totalPages = Number(first.meta?.totalPages ?? 1);
+
+        for (let p = 2; p <= totalPages; p += 1) {
+          const next = await recognitionLogService.getAll({
+            ...params,
+            page: p,
+          });
+          if (Array.isArray(next.items)) collected.push(...next.items);
+        }
+
+        if (!cancelled) setAllLogs(collected);
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) setAllLogs([]);
+      } finally {
+        if (!cancelled) setLoadingStats(false);
+      }
+    };
+
+    loadAllLogs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recognitionTypeFilter, lotFilter]);
+
   const lotOptions = useMemo(() => {
-    return buildLotOptions(parkingLots, logs);
-  }, [parkingLots, logs]);
+    return buildLotOptions(parkingLots, allLogs.length ? allLogs : logs);
+  }, [parkingLots, allLogs, logs]);
+
+  const filterLogs = useCallback(
+    (items) => {
+      const needle = normalizeText(searchTerm);
+      const recognitionTypeNeedle = normalizeText(recognitionTypeFilter);
+      const lotNeedle = normalizeText(lotFilter);
+
+      return items.filter((item) => {
+        const itemRecognitionType = normalizeText(item?.recognitionType);
+        const itemLotId = normalizeText(item?.lotId);
+
+        if (
+          recognitionTypeNeedle &&
+          itemRecognitionType !== recognitionTypeNeedle
+        ) {
+          return false;
+        }
+
+        if (lotNeedle && itemLotId !== lotNeedle) {
+          return false;
+        }
+
+        if (!needle) return true;
+
+        const searchable = [
+          item?.logId,
+          item?.sessionId,
+          item?.licensePlate,
+          item?.recognitionType,
+          item?.lotName,
+          item?.lotId,
+        ]
+          .map((v) => normalizeText(v))
+          .join(" ");
+
+        return searchable.includes(needle);
+      });
+    },
+    [searchTerm, recognitionTypeFilter, lotFilter],
+  );
 
   const filteredLogs = useMemo(() => {
-    const needle = normalizeText(searchTerm);
-    const recognitionTypeNeedle = normalizeText(recognitionTypeFilter);
-    const lotNeedle = normalizeText(lotFilter);
+    return filterLogs(logs);
+  }, [logs, filterLogs]);
 
-    return logs.filter((item) => {
-      const itemRecognitionType = normalizeText(item?.recognitionType);
-      const itemLotId = normalizeText(item?.lotId);
-
-      if (
-        recognitionTypeNeedle &&
-        itemRecognitionType !== recognitionTypeNeedle
-      ) {
-        return false;
-      }
-
-      if (lotNeedle && itemLotId !== lotNeedle) {
-        return false;
-      }
-
-      if (!needle) return true;
-
-      const searchable = [
-        item?.logId,
-        item?.sessionId,
-        item?.licensePlate,
-        item?.recognitionType,
-        item?.lotName,
-        item?.lotId,
-      ]
-        .map((v) => normalizeText(v))
-        .join(" ");
-
-      return searchable.includes(needle);
-    });
-  }, [logs, searchTerm, recognitionTypeFilter, lotFilter]);
+  const statsSource = useMemo(() => {
+    if (allLogs.length === 0) return filteredLogs;
+    return filterLogs(allLogs);
+  }, [allLogs, filteredLogs, filterLogs]);
 
   const totalItems = Number(meta.totalItems ?? 0);
   const hasActiveFilters =
@@ -138,10 +194,10 @@ function RecognitionLogs() {
   const stats = useMemo(
     () =>
       calculateRecognitionStats(
-        filteredLogs,
-        hasActiveFilters ? filteredLogs.length : totalItems,
+        statsSource,
+        hasActiveFilters ? statsSource.length : totalItems,
       ),
-    [filteredLogs, totalItems, hasActiveFilters],
+    [statsSource, totalItems, hasActiveFilters],
   );
 
   const handleResetFilters = () => {
@@ -152,10 +208,11 @@ function RecognitionLogs() {
   };
 
   const totalPages = Math.max(1, Number(meta.totalPages) || 1);
+  const statsLoadingState = loading || loadingStats;
 
   return (
     <div className="space-y-5">
-      <RecognitionLogsStats loading={loading} stats={stats} />
+      <RecognitionLogsStats loading={statsLoadingState} stats={stats} />
 
       <RecognitionLogsFilters
         searchTerm={searchTerm}

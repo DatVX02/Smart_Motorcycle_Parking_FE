@@ -3,13 +3,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatVnd } from "./payByPlateUtils";
 
 export default function PayByPlateResultCard({
@@ -78,7 +72,6 @@ export default function PayByPlateResultCard({
                 <span className="font-medium text-slate-800">PayOS</span>
               </div>
             </div>{" "}
-
             <div className="flex justify-end">
               <div className="flex flex-wrap justify-end gap-2">
                 {onNewPayment && (

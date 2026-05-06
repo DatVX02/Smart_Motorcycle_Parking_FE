@@ -1,8 +1,5 @@
-import { Search, Filter, RefreshCw } from "lucide-react";
-import {
-  DEVICE_EVENT_TYPE_OPTIONS,
-  DEVICE_EVENT_STATUS_OPTIONS,
-} from "./deviceEventsConstants";
+import { Search, RefreshCw } from "lucide-react";
+import { DEVICE_EVENT_STATUS_OPTIONS } from "./deviceEventsConstants";
 
 export default function DeviceEventsFilters({
   searchTerm,
@@ -15,11 +12,13 @@ export default function DeviceEventsFilters({
   lots,
   lotId,
   onLotChange,
-  filterEventType,
-  onEventTypeChange,
   filterEventStatus,
   onEventStatusChange,
+  statusOptions = DEVICE_EVENT_STATUS_OPTIONS,
 }) {
+  const options = statusOptions.length
+    ? statusOptions
+    : DEVICE_EVENT_STATUS_OPTIONS;
   return (
     <div
       lang="vi"
@@ -48,7 +47,7 @@ export default function DeviceEventsFilters({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="flex flex-col gap-1 min-w-0">
           <label className="text-xs font-medium text-gray-500">Bãi xe</label>
           <select
@@ -70,23 +69,6 @@ export default function DeviceEventsFilters({
         </div>
         <div className="flex flex-col gap-1 min-w-0">
           <label className="text-xs font-medium text-gray-500">
-            Loại sự kiện
-          </label>
-          <select
-            value={filterEventType}
-            onChange={(e) => onEventTypeChange(e.target.value)}
-            className="input w-full text-sm"
-          >
-            <option value="">Tất cả loại</option>
-            {DEVICE_EVENT_TYPE_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1 min-w-0">
-          <label className="text-xs font-medium text-gray-500">
             Trạng thái
           </label>
           <select
@@ -95,7 +77,7 @@ export default function DeviceEventsFilters({
             className="input w-full text-sm"
           >
             <option value="">Tất cả trạng thái</option>
-            {DEVICE_EVENT_STATUS_OPTIONS.map(([value, label]) => (
+            {options.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>

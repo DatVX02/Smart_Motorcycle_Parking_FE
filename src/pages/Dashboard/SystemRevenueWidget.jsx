@@ -49,6 +49,9 @@ function normalizeStatus(value) {
 function normalizeTargetTypeParam(value) {
   if (!value) return "";
   const normalized = String(value).trim().toLowerCase();
+  if (["workshift", "work-shift", "work_shift"].includes(normalized)) {
+    return "work-shift";
+  }
   if (["parking", "parking_session", "parkingsession"].includes(normalized)) {
     return "parking-session";
   }
@@ -119,6 +122,7 @@ function getTargetTypeValue(item) {
 
 function getCashflowDirection(targetType) {
   const normalized = normalizeTargetTypeParam(targetType);
+  if (normalized === "work-shift") return "in"; // Deposit to system -> revenue (+)
   if (normalized === "wallet-withdraw") return "out";
   if (
     ["parking-session", "monthly-pass", "wallet-deposit"].includes(normalized)
@@ -126,6 +130,32 @@ function getCashflowDirection(targetType) {
     return "in";
   }
   return "neutral";
+}
+
+function isCashTransaction(tx) {
+  if (!tx || typeof tx !== "object") return false;
+
+  const methods = [];
+  if (Array.isArray(tx.paymentMethods)) methods.push(...tx.paymentMethods);
+  methods.push(tx.paymentMethod, tx.method, tx.channel);
+
+  if (Array.isArray(tx.components) && tx.components.length) {
+    tx.components.forEach((c) => {
+      methods.push(c?.method, c?.paymentMethod);
+    });
+  }
+
+  return methods.filter(Boolean).some((m) => {
+    const s = String(m)
+      .toLowerCase()
+      .replace(/[\s_-]+/g, "");
+    return s === "cash" || s.includes("tiềnmặt");
+  });
+}
+
+function isCashMethod(value) {
+  if (!value) return false;
+  return isCashTransaction({ paymentMethod: value });
 }
 
 function getSignedComponentCashAmount(component, targetType) {
@@ -142,6 +172,43 @@ function getSignedComponentCashAmount(component, targetType) {
     if (direction === "in") return amount;
   }
 
+  return 0;
+}
+
+function getSignedComponentCashAmountSuccessful(component, targetType) {
+  if (!component || typeof component !== "object") return 0;
+
+  const status = getPaymentStatusValue(component);
+  if (!isSuccessfulPaymentStatus(status)) return 0;
+
+  const amount = Math.abs(getCashAmount(component));
+  const direction = getCashflowDirection(targetType);
+  if (direction === "out") return -amount;
+  if (direction === "in") return amount;
+  return 0;
+}
+
+function getSignedSuccessfulAmount(tx, fallbackTargetType) {
+  if (!tx || typeof tx !== "object") return 0;
+
+  const targetType =
+    getTargetTypeValue(tx) ?? normalizeTargetTypeParam(fallbackTargetType);
+  const components = Array.isArray(tx.components) ? tx.components : [];
+  if (components.length > 0) {
+    return components.reduce(
+      (sum, component) =>
+        sum + getSignedComponentCashAmountSuccessful(component, targetType),
+      0,
+    );
+  }
+
+  const status = getPaymentStatusValue(tx);
+  if (!isSuccessfulPaymentStatus(status)) return 0;
+
+  const amount = Math.abs(getCashAmount(tx));
+  const direction = getCashflowDirection(targetType);
+  if (direction === "out") return -amount;
+  if (direction === "in") return amount;
   return 0;
 }
 
@@ -214,7 +281,10 @@ function parseBackendDateToMs(value) {
 
 function getTransactionDate(transaction) {
   const raw =
-    transaction.createdAt ?? transaction.paymentTime ?? transaction.updatedAt;
+    transaction.completedAt ??
+    transaction.paymentTime ??
+    transaction.updatedAt ??
+    transaction.createdAt;
   if (!raw) return null;
   const ms = parseBackendDateToMs(raw);
   if (!Number.isFinite(ms)) return null;
@@ -243,6 +313,42 @@ function modeLabel(mode) {
   return "Theo năm";
 }
 
+function looksLikePlate(value) {
+  if (!value || typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  // UUID pattern (e.g. "550e8400-e29b-41d4-a716-446655440000")
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      trimmed,
+    )
+  ) {
+    return "";
+  }
+
+  // Pure numeric IDs or very long hex strings
+  if (/^\d{6,}$/.test(trimmed) || /^[0-9a-f]{16,}$/i.test(trimmed)) return "";
+
+  // Vietnamese plate pattern: digits followed by letters and more digits
+  // e.g. "59P1-12345", "43A-123.45", "92B5-01234"
+  if (/^\d{2}[A-Za-z]\d?[-.\s]?\d{3,5}[.\s]?\d{0,2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Loose check: has at least one digit and one letter, length between 5-12
+  if (
+    trimmed.length >= 5 &&
+    trimmed.length <= 15 &&
+    /\d/.test(trimmed) &&
+    /[A-Za-z]/.test(trimmed)
+  ) {
+    return trimmed;
+  }
+
+  return "";
+}
+
 function normalizeLotLabel(value) {
   return String(value ?? "")
     .trim()
@@ -253,6 +359,9 @@ function normalizeLotLabel(value) {
 function formatTargetTypeLabel(type, empty = "") {
   if (!type) return empty;
   const normalized = String(type).trim().toLowerCase();
+  if (["workshift", "work-shift", "work_shift"].includes(normalized)) {
+    return "Hoàn tiền";
+  }
   if (["parking-session", "parkingsession"].includes(normalized)) {
     return "Phí gửi xe";
   }
@@ -388,13 +497,6 @@ function SystemRevenueWidget({
     };
 
     for (const tx of sourceItems) {
-      const txDate = getTransactionDate(tx);
-      if (
-        !matchesPeriod(txDate, mode, selectedDate, selectedMonth, selectedYear)
-      ) {
-        continue;
-      }
-
       const txLotId = String(tx.lotId ?? tx.parkingLotId ?? "unknown");
       const txLotNameRaw =
         tx.lotName ?? tx.parkingLotName ?? lotNameMap.get(txLotId) ?? "";
@@ -408,83 +510,120 @@ function SystemRevenueWidget({
         if (!sameId && !sameName) continue;
       }
 
-      const latestStatus = getPaymentStatusValue(tx);
-      if (!isSuccessfulPaymentStatus(latestStatus)) continue;
-
-      const statusBucket = getStatusBucket(latestStatus);
-      statusCounts[statusBucket] += 1;
-
       const txTargetType = getTargetTypeValue(tx);
       const normalizedTargetType = normalizeTargetTypeParam(txTargetType);
-      if (!["parking-session", "monthly-pass"].includes(normalizedTargetType)) {
-        continue;
-      }
+      const isParkingRevenueType = [
+        "parking-session",
+        "monthly-pass",
+        "work-shift",
+      ].includes(normalizedTargetType);
+      if (!isParkingRevenueType) continue;
+      const components = Array.isArray(tx.components) ? tx.components : [];
+      const entries = components.length > 0 ? components : [tx];
 
-      transactionCount += 1;
+      for (const entry of entries) {
+        const entryDate = getTransactionDate(entry) || getTransactionDate(tx);
+        if (
+          !matchesPeriod(
+            entryDate,
+            mode,
+            selectedDate,
+            selectedMonth,
+            selectedYear,
+          )
+        ) {
+          continue;
+        }
 
-      const netRevenue = getNetCashAmountWithFailed(tx, txTargetType);
-      if (!Number.isFinite(netRevenue) || netRevenue === 0) continue;
+        const entryStatus = getPaymentStatusValue(entry);
+        if (!isSuccessfulPaymentStatus(entryStatus)) continue;
 
-      const sourceGroup = getRevenueSourceGroup(txTargetType);
-      sourceRevenue[sourceGroup] += netRevenue;
+        const statusBucket = getStatusBucket(entryStatus);
+        statusCounts[statusBucket] += 1;
 
-      const lotId = txLotId;
-      const lotName =
-        txLotNameRaw ??
-        lotNameMap.get(lotId) ??
-        (lotId === "unknown" ? "Không rõ bãi" : `Bãi ${lotId}`);
+        const netRevenue = components.length
+          ? getSignedComponentCashAmountSuccessful(entry, txTargetType)
+          : getSignedSuccessfulAmount(tx, txTargetType);
+        if (!Number.isFinite(netRevenue) || netRevenue <= 0) continue;
 
-      const lotKey = normalizeLotLabel(lotName) || lotId;
+        transactionCount += 1;
 
-      const current = revenueByLot.get(lotKey) ?? {
-        lotKey,
-        lotName,
-        revenue: 0,
-        transactions: 0,
-        details: [],
-      };
+        const isCash = components.length
+          ? isCashMethod(entry.paymentMethod ?? entry.method ?? entry.channel)
+          : isCashTransaction(tx);
+        const revenueContribution = isCash ? 0 : netRevenue;
 
-      current.revenue += netRevenue;
-      current.transactions += 1;
-      current.details.push({
-        id: String(
-          pickFirst(
-            tx.transactionId,
-            tx.id,
-            tx.referenceId,
-            tx.targetId,
-            `${lotKey}-${current.transactions}`,
+        totalRevenue += revenueContribution;
+
+        const sourceGroup = getRevenueSourceGroup(txTargetType);
+        sourceRevenue[sourceGroup] += revenueContribution;
+
+        const lotId = txLotId;
+        const lotName =
+          txLotNameRaw ??
+          lotNameMap.get(lotId) ??
+          (lotId === "unknown" ? "Không rõ bãi" : `Bãi ${lotId}`);
+
+        const lotKey = normalizeLotLabel(lotName) || lotId;
+
+        const current = revenueByLot.get(lotKey) ?? {
+          lotKey,
+          lotName,
+          revenue: 0,
+          transactions: 0,
+          details: [],
+        };
+
+        current.revenue += revenueContribution;
+        current.transactions += 1;
+        current.details.push({
+          id: String(
+            pickFirst(
+              tx.transactionId,
+              tx.id,
+              tx.referenceId,
+              tx.targetId,
+              `${lotKey}-${current.transactions}`,
+            ),
           ),
-        ),
-        plate: pickFirst(
-          tx.licensePlate,
-          tx.vehicleLicensePlate,
-          tx.vehiclePlate,
-          tx.plate,
-          tx.targetLabel,
-          "",
-        ),
-        targetTypeLabel: formatTargetTypeLabel(txTargetType),
-        statusLabel: formatStatusLabel(latestStatus),
-        amount: netRevenue,
-        createdAt: tx.createdAt ?? tx.paymentTime ?? tx.updatedAt,
-      });
-      revenueByLot.set(lotKey, current);
+          plate: looksLikePlate(
+            pickFirst(
+              tx.licensePlate,
+              tx.vehicleLicensePlate,
+              tx.vehiclePlate,
+              tx.plate,
+              tx.targetLabel,
+              "",
+            ),
+          ),
+          targetTypeLabel: formatTargetTypeLabel(txTargetType),
+          statusLabel: formatStatusLabel(entryStatus),
+          amount: netRevenue, // Vẫn giữ số tiền để hiển thị trong chi tiết
+          isCash, // Pass cờ cash
+          createdAt: entryDate ?? entry.createdAt ?? tx.createdAt,
+        });
+        revenueByLot.set(lotKey, current);
 
-      totalRevenue += netRevenue;
-
-      if (mode === "month") {
-        const day = dayjs(txDate).date();
-        revenueByDay.set(day, (revenueByDay.get(day) ?? 0) + netRevenue);
-      } else if (mode === "day") {
-        const hour = txDate.getHours();
-        revenueByHour.set(hour, (revenueByHour.get(hour) ?? 0) + netRevenue);
-      } else if (mode === "year") {
-        const month = dayjs(txDate).month() + 1; // 1-12
-        revenueByMonth.set(
-          month,
-          (revenueByMonth.get(month) ?? 0) + netRevenue,
-        );
+        if (!entryDate) continue;
+        if (mode === "month") {
+          const day = dayjs(entryDate).date();
+          revenueByDay.set(
+            day,
+            (revenueByDay.get(day) ?? 0) + revenueContribution,
+          );
+        } else if (mode === "day") {
+          const hour = entryDate.getHours();
+          revenueByHour.set(
+            hour,
+            (revenueByHour.get(hour) ?? 0) + revenueContribution,
+          );
+        } else if (mode === "year") {
+          const month = dayjs(entryDate).month() + 1; // 1-12
+          revenueByMonth.set(
+            month,
+            (revenueByMonth.get(month) ?? 0) + revenueContribution,
+          );
+        }
       }
     }
 
@@ -756,7 +895,7 @@ function SystemRevenueWidget({
                   : "text-slate-600 hover:text-slate-800"
               }`}
             >
-              Doanh thu giữ xe
+              Doanh thu gửi xe
             </button>
             <button
               type="button"
@@ -853,7 +992,7 @@ function SystemRevenueWidget({
         {tab === "parking" ? (
           <>
             <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-              <p className="text-xs text-green-700">Tổng doanh thu giữ xe</p>
+              <p className="text-xs text-green-700">Tổng doanh thu gửi xe</p>
               <p className="mt-1 flex items-center gap-2 text-xl font-bold text-green-800">
                 <CircleDollarSign className="h-5 w-5" />
                 {formatCurrency(parkingStats.totalRevenue)}
@@ -911,7 +1050,7 @@ function SystemRevenueWidget({
       ) : tab === "parking" ? (
         parkingStats.rows.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-            Chưa có dữ liệu doanh thu giữ xe cho bộ lọc này.
+            Chưa có dữ liệu doanh thu gửi xe cho bộ lọc này.
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

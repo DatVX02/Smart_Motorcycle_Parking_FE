@@ -71,11 +71,34 @@ export function useAdminHub() {
       }));
     });
 
+    const pushDeviceEvent = (payload, overrides = {}) => {
+      const entry = {
+        ...payload,
+        ...overrides,
+        timestamp:
+          payload?.timestamp ??
+          payload?.createdAt ??
+          payload?.time ??
+          new Date().toISOString(),
+      };
+      setDeviceEvents((prev) => [entry, ...prev].slice(0, 50));
+    };
+
     // device alert
     connection.on("DeviceStatusUpdate", (data) => {
       console.log("DeviceStatusUpdate:", data);
+      pushDeviceEvent(data);
+    });
 
-      setDeviceEvents((prev) => [data, ...prev].slice(0, 50));
+    // device offline/online (admin group)
+    connection.on("DeviceOffline", (data) => {
+      console.log("DeviceOffline:", data);
+      pushDeviceEvent(data, { status: "offline" });
+    });
+
+    connection.on("DeviceOnline", (data) => {
+      console.log("DeviceOnline:", data);
+      pushDeviceEvent(data, { status: "online" });
     });
 
     // custom admin event from DeviceEventController
@@ -128,6 +151,8 @@ export function useAdminHub() {
       connection.off("SessionUpdate");
       connection.off("OccupancyRateUpdate");
       connection.off("DeviceStatusUpdate");
+      connection.off("DeviceOffline");
+      connection.off("DeviceOnline");
       connection.off("DeviceEventRaised");
 
       connection.stop();

@@ -15,6 +15,7 @@ import { DatePicker, ConfigProvider } from "antd";
 import dayjs from "dayjs";
 import viVN from "antd/es/locale/vi_VN";
 import "dayjs/locale/vi";
+import toast from "react-hot-toast";
 
 dayjs.locale("vi");
 import LoyaltyConfigModal from "./LoyaltyConfigModal";
@@ -65,20 +66,6 @@ function RewardPoints() {
   });
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [toast, setToast] = useState({
-    show: false,
-    message: "",
-    type: "success",
-  });
-
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(
-      () => setToast({ show: false, message: "", type: "success" }),
-      3000,
-    );
-  };
-
   const fetchLots = useCallback(async () => {
     try {
       const data = await parkingLotService.getAllParkingLots();
@@ -96,11 +83,10 @@ function RewardPoints() {
       const data = await loyaltyConfigService.getAll(params);
       setConfigs(data);
     } catch (err) {
-      showToast(
+      toast.error(
         err?.response?.data?.message ||
           err?.message ||
           "Không thể tải danh sách cấu hình điểm thưởng. Vui lòng thử lại.",
-        "error",
       );
     } finally {
       setLoading(false);
@@ -139,10 +125,10 @@ function RewardPoints() {
         selectedConfig.id || selectedConfig.configId,
         payload,
       );
-      showToast("Cập nhật cấu hình thành công.");
+      toast.success("Cập nhật cấu hình thành công.");
     } else {
       await loyaltyConfigService.create(payload);
-      showToast("Thêm cấu hình điểm thưởng thành công.");
+      toast.success("Thêm cấu hình điểm thưởng thành công.");
     }
     setShowModal(false);
     fetchConfigs();
@@ -157,15 +143,15 @@ function RewardPoints() {
     setDeleteLoading(true);
     try {
       await loyaltyConfigService.delete(config.id || config.configId);
-      showToast("Đã xóa cấu hình điểm thưởng.");
+      toast.success("Đã xóa cấu hình điểm thưởng.");
       setConfirmDelete({ open: false, config: null });
       fetchConfigs();
     } catch (err) {
-      showToast(
+      toast.error(
         err?.response?.data?.message ||
           err?.message ||
           "Không thể xóa cấu hình điểm thưởng. Vui lòng thử lại.",
-        "error",
+        { duration: 5000 },
       );
     } finally {
       setDeleteLoading(false);
@@ -219,17 +205,6 @@ function RewardPoints() {
 
   return (
     <div className="space-y-6">
-      {/* Toast */}
-      {toast.show && (
-        <div
-          className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all ${
-            toast.type === "success" ? "bg-green-600" : "bg-red-600"
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
-
       {/* Statistics — Tiêu đề trên, số + đơn vị dưới, icon & text gần nhau */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         <div className="bg-white rounded-3xl p-6 shadow border">
@@ -462,7 +437,6 @@ function RewardPoints() {
                       </td>
                       <td className="p-3 text-right text-gray-700">
                         <div className="flex items-center justify-end gap-1">
-                          <Award className="w-4 h-4 text-yellow-500 flex-shrink-0" />
                           <span>{formatNumber(config.pointsPer1000vnd)}</span>
                         </div>
                       </td>
@@ -490,15 +464,13 @@ function RewardPoints() {
                       </td>
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          {isCurrentlyActive && (
-                            <button
-                              onClick={() => handleEdit(config)}
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Chỉnh sửa"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleEdit(config)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Chỉnh sửa"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => handleDeleteClick(config)}
                             className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"

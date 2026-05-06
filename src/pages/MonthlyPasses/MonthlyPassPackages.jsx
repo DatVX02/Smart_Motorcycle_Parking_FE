@@ -131,16 +131,16 @@ function MonthlyPassPackages() {
     const newActive = !currentActive;
 
     /* Chặn DỪNG gói khi còn người đang sử dụng (cho phép kích hoạt lại bình thường) */
-    if (currentActive && !newActive) {
-      const activeUsers = getPkgActiveUsers(pkg);
-      if (activeUsers > 0) {
-        toast.error(
-          `Không thể tạm dừng gói vì còn ${activeUsers} người đang sử dụng. Vui lòng đợi hết hạn hoặc hủy vé trước.`,
-          { duration: 4000 },
-        );
-        return;
-      }
-    }
+    // if (currentActive && !newActive) {
+    //   const activeUsers = getPkgActiveUsers(pkg);
+    //   if (activeUsers > 0) {
+    //     toast.error(
+    //       `Không thể tạm dừng gói vì còn ${activeUsers} người đang sử dụng. Vui lòng đợi hết hạn hoặc hủy vé trước.`,
+    //       { duration: 4000 },
+    //     );
+    //     return;
+    //   }
+    // }
 
     setTogglingId(pkgId);
     try {
@@ -341,123 +341,120 @@ function MonthlyPassPackages() {
                               const activeUsers = getPkgActiveUsers(pkg);
                               const hasActiveUsers = activeUsers > 0;
                               const isCurrentlyActive = pkg.isActive !== false;
-                              const disableDeactivate =
-                                isCurrentlyActive && hasActiveUsers;
+                              // const disableDeactivate =
+                              //   isCurrentlyActive && hasActiveUsers;
                               const disableDelete = hasActiveUsers;
                               return (
-                              <div
-                                key={
-                                  pkg.id ??
-                                  pkg.packageId ??
-                                  `pkg-${lotId}-${index}`
-                                }
-                                className="group bg-white rounded-xl border border-gray-200 p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-blue-200"
-                              >
-                                <div className="flex items-start justify-between mb-4">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span
-                                      className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-semibold ${
-                                        isCurrentlyActive
-                                          ? "bg-green-100 text-green-800"
-                                          : "bg-gray-200 text-gray-600"
-                                      }`}
-                                    >
-                                      {isCurrentlyActive
-                                        ? "Đang bán"
-                                        : "Tạm dừng"}
-                                    </span>
-                                    {hasActiveUsers && (
+                                <div
+                                  key={
+                                    pkg.id ??
+                                    pkg.packageId ??
+                                    `pkg-${lotId}-${index}`
+                                  }
+                                  className="group bg-white rounded-xl border border-gray-200 p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-blue-200"
+                                >
+                                  <div className="flex items-start justify-between mb-4">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       <span
-                                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-100 text-blue-700"
-                                        title={`Có ${activeUsers} người đang dùng gói này`}
+                                        className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-semibold ${
+                                          isCurrentlyActive
+                                            ? "bg-green-100 text-green-800"
+                                            : "bg-gray-200 text-gray-600"
+                                        }`}
                                       >
-                                        {activeUsers} đang dùng
+                                        {isCurrentlyActive
+                                          ? "Đang bán"
+                                          : "Tạm dừng"}
                                       </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                      onClick={() => handleToggleActive(pkg)}
-                                      disabled={
-                                        togglingId ===
-                                          (pkg?.id ?? pkg?.packageId) ||
-                                        disableDeactivate
-                                      }
-                                      className={`p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                                        isCurrentlyActive
-                                          ? "text-amber-600 hover:bg-amber-50"
-                                          : "text-green-600 hover:bg-green-50"
-                                      }`}
-                                      title={
-                                        disableDeactivate
-                                          ? `Không thể tạm dừng — còn ${activeUsers} người đang dùng`
-                                          : isCurrentlyActive
+                                      {hasActiveUsers && (
+                                        <span
+                                          className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-100 text-blue-700"
+                                          title={`Có ${activeUsers} người đang dùng gói này`}
+                                        >
+                                          {activeUsers} đang dùng
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={() => handleToggleActive(pkg)}
+                                        disabled={
+                                          togglingId ===
+                                          (pkg?.id ?? pkg?.packageId)
+                                        }
+                                        className={`p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                                          isCurrentlyActive
+                                            ? "text-amber-600 hover:bg-amber-50"
+                                            : "text-green-600 hover:bg-green-50"
+                                        }`}
+                                        title={
+                                          isCurrentlyActive
                                             ? "Tạm dừng gói"
                                             : "Kích hoạt gói"
-                                      }
-                                    >
-                                      {togglingId ===
-                                      (pkg?.id ?? pkg?.packageId) ? (
-                                        <RefreshCw className="w-5 h-5 animate-spin" />
-                                      ) : isCurrentlyActive ? (
-                                        <PowerOff className="w-5 h-5" />
-                                      ) : (
-                                        <Power className="w-5 h-5" />
-                                      )}
-                                    </button>
-                                    <button
-                                      onClick={() => setEditingPkg(pkg)}
-                                      disabled={hasActiveUsers}
-                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      title={
-                                        hasActiveUsers
-                                          ? `Không thể sửa — còn ${activeUsers} người đang dùng`
-                                          : "Sửa"
-                                      }
-                                    >
-                                      <Edit className="w-5 h-5" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDelete(pkg)}
-                                      disabled={disableDelete}
-                                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      title={
-                                        disableDelete
-                                          ? `Không thể xóa — còn ${activeUsers} người đang dùng`
-                                          : "Xóa"
-                                      }
-                                    >
-                                      <Trash2 className="w-5 h-5" />
-                                    </button>
+                                        }
+                                      >
+                                        {togglingId ===
+                                        (pkg?.id ?? pkg?.packageId) ? (
+                                          <RefreshCw className="w-5 h-5 animate-spin" />
+                                        ) : isCurrentlyActive ? (
+                                          <PowerOff className="w-5 h-5" />
+                                        ) : (
+                                          <Power className="w-5 h-5" />
+                                        )}
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingPkg(pkg)}
+                                        // disabled={hasActiveUsers}
+                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        title={
+                                          hasActiveUsers
+                                            ? `Không thể sửa — còn ${activeUsers} người đang dùng`
+                                            : "Sửa"
+                                        }
+                                      >
+                                        <Edit className="w-5 h-5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(pkg)}
+                                        disabled={disableDelete}
+                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        title={
+                                          disableDelete
+                                            ? `Không thể xóa — còn ${activeUsers} người đang dùng`
+                                            : "Xóa"
+                                        }
+                                      >
+                                        <Trash2 className="w-5 h-5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                    {pkg.packageName ??
+                                      pkg.name ??
+                                      "Gói vé tháng"}
+                                  </h3>
+                                  {pkg.description && (
+                                    <p className="text-base text-gray-600 mb-4 line-clamp-2">
+                                      {pkg.description}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5 text-gray-600">
+                                      <Calendar className="w-5 h-5 text-gray-500" />
+                                      <span className="text-base font-semibold">
+                                        {pkg.monthCount ?? 1} tháng
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-2xl font-bold text-green-600">
+                                        {formatPrice(pkg.price)}
+                                      </p>
+                                      <p className="text-sm text-gray-500">
+                                        / gói
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
-                                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                                  {pkg.packageName ??
-                                    pkg.name ??
-                                    "Gói vé tháng"}
-                                </h3>
-                                {pkg.description && (
-                                  <p className="text-base text-gray-600 mb-4 line-clamp-2">
-                                    {pkg.description}
-                                  </p>
-                                )}
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2.5 text-gray-600">
-                                    <Calendar className="w-5 h-5 text-gray-500" />
-                                    <span className="text-base font-semibold">
-                                      {pkg.monthCount ?? 1} tháng
-                                    </span>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-2xl font-bold text-green-600">
-                                      {formatPrice(pkg.price)}
-                                    </p>
-                                    <p className="text-sm text-gray-500">
-                                      / gói
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
                               );
                             })}
                           </div>

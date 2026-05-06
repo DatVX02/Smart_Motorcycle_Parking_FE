@@ -27,11 +27,7 @@ export default function DeviceEventCard({ log }) {
     log.eventSource,
     log.eventSource,
   );
-  const typeVi = labelFromMap(
-    EVENT_TYPE_LABELS,
-    log.eventType,
-    log.eventType,
-  );
+  const typeVi = labelFromMap(EVENT_TYPE_LABELS, log.eventType, log.eventType);
   const statusBadgeClasses =
     EVENT_STATUS_BADGE_CLASSES[normStatus(log.eventStatus)] ??
     "text-gray-600 bg-slate-50 border-slate-200";
@@ -103,12 +99,12 @@ export default function DeviceEventCard({ log }) {
                     <span className="text-gray-400 text-xs block">Xảy ra</span>
                     {log.occurredAtFriendly}
                   </div>
-                  <div>
+                  {/* <div>
                     <span className="text-gray-400 text-xs block">
                       Ghi nhận
                     </span>
                     {log.createdAtFriendly}
-                  </div>
+                  </div> */}
                 </>
               )}
             </div>

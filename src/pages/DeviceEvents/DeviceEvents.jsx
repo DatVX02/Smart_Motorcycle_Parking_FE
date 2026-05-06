@@ -1,63 +1,104 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import deviceEventService from "../../services/deviceEventService";
 import parkingLotService from "../../services/parkingLotService";
-import DeviceEventsPagination from "./DeviceEventsPagination";
-import { PAGE_SIZE } from "./deviceEventsConstants";
 import { normalizeDeviceEvent } from "./deviceEventUtils";
+import {
+  DEVICE_EVENT_STATUS_OPTIONS,
+  PAGE_SIZE,
+} from "./deviceEventsConstants";
 import DeviceEventsStats from "./DeviceEventsStats";
 import DeviceEventsFilters from "./DeviceEventsFilters";
 import DeviceEventsList from "./DeviceEventsList";
+import DeviceEventsPagination from "./DeviceEventsPagination";
 
-function normalizeEventToken(value) {
-  return String(value ?? "")
+function normalizeStatusKey(value) {
+  const raw = String(value ?? "")
     .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, "");
+    .toLowerCase();
+  if (!raw) return "";
+  const ascii = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const token = ascii.replace(/[\s_-]+/g, "");
+
+  if (
+    token.includes("thanhcong") ||
+    token.includes("success") ||
+    token.includes("succeed") ||
+    token.includes("successful")
+  )
+    return "success";
+  if (token.includes("hoanthanh") || token.includes("completed")) {
+    return "completed";
+  }
+  if (token.includes("thatbai") || token.includes("fail")) return "failed";
+  if (token.includes("dackichhoat") || token.includes("trigger")) {
+    return "triggered";
+  }
+  if (token.includes("danghoatdong") || token.includes("active")) {
+    return "active";
+  }
+  if (token.includes("dangxuly") || token.includes("processing")) {
+    return "processing";
+  }
+  if (token.includes("dangcho") || token.includes("pending")) return "pending";
+  if (token.includes("daxuly") || token.includes("resolved")) return "resolved";
+  if (token.includes("daboqua") || token.includes("ignored")) return "ignored";
+  if (token.includes("daxacnhan") || token.includes("acknowledged")) {
+    return "acknowledged";
+  }
+
+  return token;
 }
 
-function applyEventClientFilters(items, { lotId, eventType, eventStatus }) {
+function applyEventClientFilters(items, { lotId, eventStatus }) {
   const lotNeedle = String(lotId ?? "").trim();
-  const typeNeedle = normalizeEventToken(eventType);
-  const statusNeedle = normalizeEventToken(eventStatus);
+  const statusNeedle = normalizeStatusKey(eventStatus);
 
   return items.filter((log) => {
     if (lotNeedle && String(log.lotId ?? "") !== lotNeedle) return false;
-    if (typeNeedle && normalizeEventToken(log.eventType) !== typeNeedle) {
-      return false;
-    }
-    if (statusNeedle && normalizeEventToken(log.eventStatus) !== statusNeedle) {
+    if (statusNeedle && normalizeStatusKey(log.eventStatus) !== statusNeedle) {
       return false;
     }
     return true;
   });
 }
 
-function normKey(value) {
-  return String(value ?? "")
+function matchesSearch(log, needle) {
+  const q = String(needle ?? "")
     .trim()
     .toLowerCase();
+  if (!q) return true;
+  return (
+    log.eventId.toLowerCase().includes(q) ||
+    log.deviceId.toLowerCase().includes(q) ||
+    log.deviceName.toLowerCase().includes(q) ||
+    log.lotId.toLowerCase().includes(q) ||
+    log.lotName.toLowerCase().includes(q) ||
+    log.eventType.toLowerCase().includes(q) ||
+    log.eventSource.toLowerCase().includes(q) ||
+    log.eventStatus.toLowerCase().includes(q) ||
+    log.eventDataSummary.toLowerCase().includes(q) ||
+    (log.eventDataPretty && log.eventDataPretty.toLowerCase().includes(q))
+  );
 }
 
 function DeviceEvents() {
-  /** Cache dữ liệu theo từng trang (backend phân trang). */
-  const [pageCache, setPageCache] = useState(() => ({}));
-  const [pageSizeByPage, setPageSizeByPage] = useState(() => ({}));
-  const [page, setPage] = useState(1);
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  /** Thống kê 5 ô phía trên: toàn bộ bản ghi khớp bộ lọc (không đổi khi đổi trang). */
-  const [summaryStats, setSummaryStats] = useState(null);
-  const [statsLoading, setStatsLoading] = useState(true);
   const [lots, setLots] = useState([]);
   const [lotId, setLotId] = useState("");
-  const [filterEventType, setFilterEventType] = useState("");
   const [filterEventStatus, setFilterEventStatus] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const currentPageLogs = useMemo(
-    () => pageCache[page] ?? [],
-    [pageCache, page],
-  );
-  const lastPageSize = pageSizeByPage[page] ?? 0;
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [cachedResults, setCachedResults] = useState(null);
+  const [cachedKey, setCachedKey] = useState("");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(null);
+  const [canGoNext, setCanGoNext] = useState(false);
+  const pendingSearch = searchTerm.trim() !== debouncedSearchTerm;
 
   useEffect(() => {
     let cancelled = false;
@@ -74,155 +115,175 @@ function DeviceEvents() {
     };
   }, []);
 
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Backend thực tế có phân trang (pageNumber/pageSize) nhưng không trả totalPages.
-      const params = { pageNumber: page, pageSize: PAGE_SIZE };
-      if (lotId) params.lotId = lotId;
-      const et = filterEventType.trim();
-      const es = filterEventStatus.trim();
-      if (et) params.eventType = et;
-      if (es) params.eventStatus = es;
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [searchTerm]);
 
-      const { items } = await deviceEventService.getAll(params);
-      const rawPageSize = Array.isArray(items) ? items.length : 0;
-      const normalized = (items ?? []).map((raw, i) =>
-        normalizeDeviceEvent(raw, i),
-      );
-      const filtered = applyEventClientFilters(normalized, {
-        lotId,
-        eventType: et,
-        eventStatus: es,
-      });
-      setPageCache((prev) => ({ ...prev, [page]: filtered }));
-      setPageSizeByPage((prev) => ({ ...prev, [page]: rawPageSize }));
-    } catch (e) {
-      console.error(e);
-      toast.error("Không thể tải nhật ký thiết bị");
-      setPageCache((prev) => ({ ...prev, [page]: [] }));
-      setPageSizeByPage((prev) => ({ ...prev, [page]: 0 }));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, lotId, filterEventType, filterEventStatus]);
+  const loadLogs = useCallback(
+    async (pageNumber) => {
+      setLoading(true);
+      try {
+        const params = {};
+        if (lotId) params.lotId = lotId;
+        const es = filterEventStatus.trim();
+        if (es) params.eventStatus = es;
+        const searchValue = debouncedSearchTerm.trim();
+        if (searchValue.length > 0) {
+          params.keyword = searchValue;
+          params.search = searchValue;
+        }
+
+        const statsParams = { ...params };
+        delete statsParams.eventStatus;
+
+        deviceEventService
+          .getDashboardStats(statsParams)
+          .then((res) => {
+            setDashboardStats(res);
+          })
+          .catch((e) => {
+            console.error("Failed to load dashboard stats", e);
+            setDashboardStats(null);
+          })
+          .finally(() => {
+            setStatsLoading(false);
+          });
+
+        const page =
+          Number.isFinite(pageNumber) && pageNumber > 0 ? pageNumber : 1;
+
+        const requiresClientFiltering = Boolean(searchValue || lotId || es);
+        if (requiresClientFiltering) {
+          const nextKey = `${lotId}|${es}|${searchValue.toLowerCase()}`;
+          const statusToken = normalizeStatusKey(es);
+          let filtered = null;
+
+          if (cachedResults && cachedKey === nextKey) {
+            filtered = cachedResults;
+          } else {
+            const flattenedParams = { ...params };
+            if (statusToken) delete flattenedParams.eventStatus;
+
+            const { items } =
+              await deviceEventService.getAllFlattened(flattenedParams);
+            const normalized = (items ?? []).map((raw, i) =>
+              normalizeDeviceEvent(raw, i),
+            );
+            const filteredByFilters = applyEventClientFilters(normalized, {
+              lotId,
+              eventStatus: es,
+            });
+            filtered = filteredByFilters.filter((log) =>
+              matchesSearch(log, searchValue),
+            );
+            setCachedResults(filtered);
+            setCachedKey(nextKey);
+          }
+
+          const total = filtered.length > 0 ? filtered.length : 0;
+          const pages = total > 0 ? Math.ceil(total / PAGE_SIZE) : 1;
+          const start = (page - 1) * PAGE_SIZE;
+          setLogs(filtered.slice(start, start + PAGE_SIZE));
+          setTotalPages(pages);
+          setCanGoNext(page < pages);
+        } else {
+          setCachedResults(null);
+          setCachedKey("");
+          const { items, totalPages: tp } = await deviceEventService.getAll({
+            ...params,
+            pageNumber: page,
+            pageSize: PAGE_SIZE,
+          });
+          const normalized = (items ?? []).map((raw, i) =>
+            normalizeDeviceEvent(raw, i),
+          );
+          setLogs(normalized);
+          setTotalPages(tp);
+          setCanGoNext(
+            typeof tp === "number" && Number.isFinite(tp)
+              ? page < tp
+              : (items ?? []).length >= PAGE_SIZE,
+          );
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error("Không thể tải nhật ký thiết bị");
+        setLogs([]);
+        setTotalPages(null);
+        setCanGoNext(false);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [lotId, filterEventStatus, debouncedSearchTerm, cachedResults, cachedKey],
+  );
 
   useEffect(() => {
-    if (!pageCache[page]) loadLogs();
-  }, [pageCache, page, loadLogs]);
+    setCurrentPage(1);
+  }, [lotId, filterEventStatus, searchTerm]);
 
-  // Thống kê tăng dần theo trang: trang 1 = 10, trang 2 = 20, ...
-  // (danh sách vẫn hiển thị theo trang hiện tại)
   useEffect(() => {
-    setStatsLoading(true);
-    const pagesToCount = Array.from(
-      { length: Math.max(0, page) },
-      (_, i) => i + 1,
-    );
-    const data = pagesToCount.flatMap((p) => pageCache[p] ?? []);
-    const statusCounts = data.reduce((acc, item) => {
-      const k = normKey(item?.eventStatus);
-      if (!k) return acc;
-      acc[k] = (acc[k] ?? 0) + 1;
-      return acc;
-    }, {});
-    setSummaryStats({
-      total: data.length,
-      statusCounts,
-    });
-    setStatsLoading(false);
-  }, [pageCache, page]);
+    if (pendingSearch) return;
+    loadLogs(currentPage);
+  }, [loadLogs, currentPage, debouncedSearchTerm, pendingSearch]);
 
-  const filteredLogs = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    // Search áp dụng trên trang hiện tại.
-    return currentPageLogs.filter((log) => {
-      const matchesSearch =
-        !q ||
-        log.eventId.toLowerCase().includes(q) ||
-        log.deviceId.toLowerCase().includes(q) ||
-        log.deviceName.toLowerCase().includes(q) ||
-        log.lotId.toLowerCase().includes(q) ||
-        log.lotName.toLowerCase().includes(q) ||
-        log.eventType.toLowerCase().includes(q) ||
-        log.eventSource.toLowerCase().includes(q) ||
-        log.eventStatus.toLowerCase().includes(q) ||
-        log.eventDataSummary.toLowerCase().includes(q) ||
-        (log.eventDataPretty && log.eventDataPretty.toLowerCase().includes(q));
-      return matchesSearch;
-    });
-  }, [currentPageLogs, searchTerm]);
+  const visibleLogs = logs;
 
-  const statTotalEvents = summaryStats?.total ?? 0;
-  const statusCounts = summaryStats?.statusCounts ?? {};
+  const paginationTotalPages = totalPages;
+  const paginationCanGoNext = canGoNext;
 
-  // API không trả tổng trang: cho phép qua trang sau nếu trang hiện tại trả đủ PAGE_SIZE bản ghi.
-  const totalPages = null;
-  const canGoNext = lastPageSize >= PAGE_SIZE;
+  const statTotalEvents = dashboardStats?.totalEvents ?? 0;
+  const statusCounts = dashboardStats?.statusCounts ?? {};
+  const statusKeys = new Set(Object.keys(statusCounts));
+  const statusOptions = statusKeys.size
+    ? DEVICE_EVENT_STATUS_OPTIONS.filter(([value]) =>
+        statusKeys.has(String(value).toLowerCase()),
+      )
+    : DEVICE_EVENT_STATUS_OPTIONS;
 
   const handleResetFilters = () => {
     setSearchTerm("");
-    setFilterEventType("");
     setFilterEventStatus("");
     setLotId("");
-    setPage(1);
-    setPageCache({});
-    setPageSizeByPage({});
+    setCurrentPage(1);
   };
 
   return (
     <div className="space-y-5">
       <DeviceEventsStats
-        loading={statsLoading}
+        loading={loading || statsLoading}
         statTotalEvents={statTotalEvents}
         statusCounts={statusCounts}
       />
 
       <DeviceEventsFilters
         searchTerm={searchTerm}
-        onSearchChange={(v) => {
-          setSearchTerm(v);
-          setPage(1);
-        }}
+        onSearchChange={setSearchTerm}
         loading={loading}
-        recordCount={currentPageLogs.length}
+        recordCount={visibleLogs.length}
         pageSize={PAGE_SIZE}
         onReload={loadLogs}
         onResetFilters={handleResetFilters}
         lots={lots}
         lotId={lotId}
-        onLotChange={(v) => {
-          setLotId(v);
-          setPage(1);
-          setPageCache({});
-          setPageSizeByPage({});
-        }}
-        filterEventType={filterEventType}
-        onEventTypeChange={(v) => {
-          setFilterEventType(v);
-          setPage(1);
-          setPageCache({});
-          setPageSizeByPage({});
-        }}
+        onLotChange={setLotId}
         filterEventStatus={filterEventStatus}
-        onEventStatusChange={(v) => {
-          setFilterEventStatus(v);
-          setPage(1);
-          setPageCache({});
-          setPageSizeByPage({});
-        }}
+        onEventStatusChange={setFilterEventStatus}
+        statusOptions={statusOptions}
       />
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <DeviceEventsList loading={loading} filteredLogs={filteredLogs} />
-
-        {!loading && currentPageLogs.length > 0 && (
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+        <DeviceEventsList loading={loading} filteredLogs={visibleLogs} />
+        {(!loading || visibleLogs.length > 0) && (
           <DeviceEventsPagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
+            currentPage={currentPage}
+            totalPages={paginationTotalPages}
+            onPageChange={setCurrentPage}
             loading={loading}
-            canGoNext={canGoNext}
+            canGoNext={paginationCanGoNext}
           />
         )}
       </div>
