@@ -225,6 +225,19 @@ function Header({ onMenuClick }) {
   }, []);
 
   useEffect(() => {
+    // Tải thông báo ngay lập tức khi mount để hiển thị số badge
+    loadNotifications();
+
+    // Tự động làm mới sau mỗi 60 giây để cập nhật số lượng thông báo mới
+    const interval = setInterval(() => {
+      loadNotifications();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    // Luôn làm mới khi người dùng click mở danh sách để đảm bảo dữ liệu mới nhất
     if (showNotifications) {
       loadNotifications();
     }

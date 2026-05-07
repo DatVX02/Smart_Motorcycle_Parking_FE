@@ -167,6 +167,13 @@ export default function PayByPlateDetailCard({
               </div>
             )}
 
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <span className="text-slate-500">Tổng cộng</span>
+              <span className="font-medium text-slate-900">
+                {formatVnd(detailView.totalAmount)}
+              </span>
+            </div>
+
             {detailView.prepaidAmount > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-slate-500">Đã thanh toán trước</span>
@@ -175,13 +182,6 @@ export default function PayByPlateDetailCard({
                 </span>
               </div>
             )}
-
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <span className="text-slate-500">Tổng cộng</span>
-              <span className="font-medium text-slate-900">
-                {formatVnd(detailView.totalAmount)}
-              </span>
-            </div>
 
             <div className="flex items-center justify-between gap-3 pt-4 mt-2 border-t border-slate-200">
               <span className="text-slate-900 font-bold text-base">
