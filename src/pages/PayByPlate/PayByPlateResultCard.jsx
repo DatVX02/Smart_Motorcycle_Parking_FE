@@ -82,7 +82,7 @@ export default function PayByPlateResultCard({
                     Giao dịch mới
                   </Button>
                 )} */}
-                {hasPayosUrl && (
+                {/* {hasPayosUrl && (
                   <Button
                     type="button"
                     onClick={() =>
@@ -91,7 +91,7 @@ export default function PayByPlateResultCard({
                   >
                     Xác nhận thanh toán
                   </Button>
-                )}
+                )} */}
                 <Button
                   type="button"
                   variant="outline"
