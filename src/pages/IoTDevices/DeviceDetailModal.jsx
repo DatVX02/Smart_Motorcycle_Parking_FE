@@ -136,7 +136,7 @@ function DeviceDetailModal({ device, onClose }) {
   const [gateInfo, setGateInfo] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const deviceId = device?.id ?? device?.deviceId;
+  const deviceId = device?.deviceId ?? device?.id;
 
   useEffect(() => {
     if (!deviceId) return;

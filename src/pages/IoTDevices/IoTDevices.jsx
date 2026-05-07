@@ -323,7 +323,7 @@ function IoTDevices() {
       const resolvedLotId =
         payload?.parkingLotId ??
         payload?.lotId ??
-        (filterLot !== "all" ? filterLot : "");
+        (filterLot !== "all" ? filterLot : (selected?.parkingLotId ?? selected?.lotId ?? ""));
       const hasLot = Boolean(resolvedLotId);
       const finalPayload = { ...payload };
 
@@ -454,7 +454,7 @@ function IoTDevices() {
       }
 
       if (type === "startMaintenance") {
-        const deviceId = device.id ?? device.deviceId;
+        const deviceId = device.deviceId ?? device.id;
         await iotDeviceService.update(deviceId, {
           connectionStatus: "MAINTENANCE",
         });
@@ -779,7 +779,7 @@ function IoTDevices() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
             {paginatedOperational.map((device) => (
               <div
-                key={device.id ?? device.deviceId}
+                key={device.deviceId ?? device.id}
                 className="w-full max-w-[360px] h-full"
               >
                 <DeviceCard
@@ -794,6 +794,10 @@ function IoTDevices() {
                   onDetail={() => {
                     setSelected(device);
                     setShowDetailModal(true);
+                  }}
+                  onEdit={() => {
+                    setSelected(device);
+                    setShowModal(true);
                   }}
                   onUnassign={handleUnassign}
                   onMaintenance={handleMaintenance}
@@ -857,7 +861,7 @@ function IoTDevices() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
             {paginatedNeedsAction.map((device) => (
               <div
-                key={device.id ?? device.deviceId}
+                key={device.deviceId ?? device.id}
                 className="w-full max-w-[360px] h-full"
               >
                 <DeviceCard
@@ -872,6 +876,10 @@ function IoTDevices() {
                   onDetail={() => {
                     setSelected(device);
                     setShowDetailModal(true);
+                  }}
+                  onEdit={() => {
+                    setSelected(device);
+                    setShowModal(true);
                   }}
                   onUnassign={handleUnassign}
                   onMaintenance={handleMaintenance}
@@ -991,6 +999,7 @@ function DeviceCard({
   getDeviceType,
   maintenanceDueSoon = false,
   onDetail,
+  onEdit,
   onUnassign,
   onMaintenance,
 }) {
@@ -1054,9 +1063,15 @@ function DeviceCard({
       </div>
       <div className="space-y-1 text-sm mb-4 flex-1">
         {device.gateName && <Row label="Cổng" value={device.gateName} />}
-        {device.ipAddress && <Row label="IP" value={device.ipAddress} />}
-        {device.model && <Row label="Model" value={device.model} />}
-        {device.macAddress && <Row label="MAC" value={device.macAddress} />}
+        {(device.ipAddress || device.ip || device.ip_address) && (
+          <Row label="IP" value={device.ipAddress || device.ip || device.ip_address} />
+        )}
+        {(device.model || device.deviceModel) && (
+          <Row label="Model" value={device.model || device.deviceModel} />
+        )}
+        {(device.macAddress || device.mac_address) && (
+          <Row label="MAC" value={device.macAddress || device.mac_address} />
+        )}
       </div>
       <div className="flex gap-2 pt-3 border-t mt-auto">
         <button
@@ -1065,6 +1080,15 @@ function DeviceCard({
           className="flex-1 btn btn-secondary text-sm bg-white border border-white-200 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
         >
           <EyeTwoTone twoToneColor="#2563eb" /> Xem chi tiết
+        </button>
+        <button
+          type="button"
+          onClick={onEdit}
+          title="Chỉnh sửa"
+          aria-label="Chỉnh sửa"
+          className="p-2 rounded-lg transition-colors bg-white-100 text-blue-600 hover:bg-blue-100 active:bg-blue-200"
+        >
+          <Edit3 className="w-4 h-4" />
         </button>
         <button
           type="button"

@@ -367,6 +367,11 @@ function getCashflowDirection(targetType) {
   return "neutral";
 }
 
+function isDashboardRevenueTargetType(targetType) {
+  const normalized = normalizeTargetTypeParam(targetType);
+  return ["parking-session", "monthly-pass"].includes(normalized);
+}
+
 function getSignedComponentCashAmount(component, targetType) {
   if (!component || typeof component !== "object") return 0;
 
@@ -505,39 +510,81 @@ function parseBackendDateToMs(value) {
 
 function getTransactionDate(transaction) {
   const raw =
-    transaction?.completedAt ??
+    transaction?.createdAt ??
     transaction?.paymentTime ??
     transaction?.updatedAt ??
-    transaction?.createdAt;
+    transaction?.completedAt;
   if (!raw) return null;
   const ms = parseBackendDateToMs(raw);
   if (!Number.isFinite(ms)) return null;
   return new Date(ms);
 }
 
+function getComponentDate(component, fallbackDate) {
+  const raw =
+    component?.createdAt ??
+    component?.paymentTime ??
+    component?.updatedAt ??
+    component?.completedAt ??
+    fallbackDate ??
+    null;
+  if (!raw) return null;
+  const ms = parseBackendDateToMs(raw);
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms);
+}
+
+function isSameCalendarDay(date, reference = new Date()) {
+  if (!date || !reference) return false;
+  return (
+    date.getFullYear() === reference.getFullYear() &&
+    date.getMonth() === reference.getMonth() &&
+    date.getDate() === reference.getDate()
+  );
+}
+
 function sumTodayRevenueFromTransactions(transactions) {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const d = now.getDate();
 
   let sum = 0;
   let hasTodayTransaction = false;
 
   for (const tx of transactions) {
-    const txDate = getTransactionDate(tx);
-    if (!txDate) continue;
+    const targetType = getTargetTypeValue(tx);
+    const normalizedTargetType = normalizeTargetTypeParam(targetType);
 
-    if (
-      txDate.getFullYear() !== y ||
-      txDate.getMonth() !== m ||
-      txDate.getDate() !== d
-    ) {
+    if (!isDashboardRevenueTargetType(normalizedTargetType)) {
       continue;
     }
 
+    const components = Array.isArray(tx.components) ? tx.components : [];
+
+    if (components.length > 0) {
+      for (const component of components) {
+        const componentDate = getComponentDate(component, tx.createdAt);
+        if (!componentDate || !isSameCalendarDay(componentDate, now)) continue;
+
+        const componentAmount = getSignedComponentCashAmountSuccessful(
+          component,
+          targetType,
+        );
+        if (!Number.isFinite(componentAmount) || componentAmount === 0)
+          continue;
+        if (isCashTransaction(component)) continue;
+
+        sum += componentAmount;
+        hasTodayTransaction = true;
+      }
+      continue;
+    }
+
+    const txDate = getTransactionDate(tx);
+    if (!txDate || !isSameCalendarDay(txDate, now)) continue;
+
     const netAmount = getSignedSuccessfulAmount(tx);
     const revenueContribution = isCashTransaction(tx) ? 0 : netAmount;
+    if (!Number.isFinite(revenueContribution) || revenueContribution === 0)
+      continue;
 
     sum += revenueContribution;
     hasTodayTransaction = true;
@@ -1154,9 +1201,6 @@ export default function Dashboard() {
   // Tính toán tóm tắt doanh thu trong ngày hiện tại
   const todayCashSummary = useMemo(() => {
     const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    const d = now.getDate();
 
     let transactionAmount = 0; // Tổng tiền các giao dịch thu vào (PayOS, ví)
     let withdrawAmount = 0; // Tổng tiền rút ra khỏi hệ thống
@@ -1164,27 +1208,47 @@ export default function Dashboard() {
     for (const tx of Array.isArray(revenueTransactions)
       ? revenueTransactions
       : []) {
-      const txDate = getTransactionDate(tx);
-      if (!txDate) continue;
+      const targetType = getTargetTypeValue(tx);
+      const normalizedTargetType = normalizeTargetTypeParam(targetType);
 
-      // Chỉ lấy các giao dịch phát sinh trong ngày hôm nay
-      if (
-        txDate.getFullYear() !== y ||
-        txDate.getMonth() !== m ||
-        txDate.getDate() !== d
-      ) {
+      if (!isDashboardRevenueTargetType(normalizedTargetType)) {
         continue;
       }
 
-      const targetType = getTargetTypeValue(tx);
-      const normalizedTargetType = normalizeTargetTypeParam(targetType);
+      const components = Array.isArray(tx.components) ? tx.components : [];
+
+      if (components.length > 0) {
+        for (const component of components) {
+          const componentDate = getComponentDate(component, tx.createdAt);
+          if (!componentDate || !isSameCalendarDay(componentDate, now))
+            continue;
+
+          const componentAmount = getSignedComponentCashAmountSuccessful(
+            component,
+            targetType,
+          );
+          if (!Number.isFinite(componentAmount) || componentAmount === 0)
+            continue;
+          if (isCashTransaction(component)) continue;
+
+          if (componentAmount < 0) {
+            withdrawAmount += Math.abs(Number(componentAmount || 0));
+          } else {
+            transactionAmount += Math.abs(Number(componentAmount || 0));
+          }
+        }
+        continue;
+      }
+
+      const txDate = getTransactionDate(tx);
+      if (!txDate || !isSameCalendarDay(txDate, now)) continue;
 
       const netAmount = getSignedSuccessfulAmount(tx);
       const revenueContribution = isCashTransaction(tx) ? 0 : netAmount;
 
       if (revenueContribution < 0) {
         withdrawAmount += Math.abs(Number(revenueContribution || 0));
-      } else {
+      } else if (revenueContribution > 0) {
         transactionAmount += Math.abs(Number(revenueContribution || 0));
       }
     }
@@ -1384,88 +1448,6 @@ export default function Dashboard() {
         loading={loadingSnapshots}
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
-          <TrafficTrendChart
-            peakData={peakTrafficData}
-            inOutData={effectiveInOutData}
-            peakMeta={effectivePeakMeta}
-            loading={loadingSnapshots}
-            dateFrom={trafficFrom}
-            dateTo={trafficTo}
-            onDateFromChange={handleTrafficFromChange}
-            onDateToChange={handleTrafficToChange}
-            onResetDate={handleTrafficReset}
-          />
-        </div>
-        <RecentRecognitionActivity
-          data={recentRecognition.map((item) => ({
-            ...item,
-            timeLabel: formatTime(item.time),
-          }))}
-          loading={loadingSnapshots}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <SecurityMonitoringWidget
-          alerts={securityAlerts.map((alert) => ({
-            ...alert,
-            timeLabel: formatTime(alert.time),
-          }))}
-          loading={loadingSnapshots}
-        />
-
-        <div className="bg-white p-6 rounded-2xl shadow border border-gray-100">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <WifiOff className="w-5 h-5 text-red-600" />
-            Cảnh báo thiết bị
-          </h2>
-
-          {deviceAlerts.length === 0 ? (
-            <p className="text-green-600">
-              Tất cả thiết bị hoạt động bình thường
-            </p>
-          ) : (
-            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-              {deviceAlerts.map((event) => (
-                <div
-                  key={event.id}
-                  className={`rounded-xl border p-3 ${event.variant.containerClass}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className={`font-semibold ${event.variant.textClass}`}>
-                        {event.deviceName}
-                      </p>
-                      <p className="text-xs text-slate-500">{event.lotName}</p>
-                    </div>
-                    <span
-                      className={`text-[11px] px-2 py-1 rounded-full font-semibold ${event.variant.badgeClass}`}
-                    >
-                      {event.variant.label}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <div className="min-w-0 flex-1">
-                      {event.status?.toLowerCase() !== "offline" && (
-                        <span className="font-medium text-slate-700">
-                          {event.status}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-slate-500">
-                      {formatTime(event.time)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
       {lots.length > 0 && (
         <div className="bg-white p-6 rounded-2xl shadow border border-gray-100">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
@@ -1559,6 +1541,89 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2">
+          <TrafficTrendChart
+            peakData={peakTrafficData}
+            inOutData={effectiveInOutData}
+            peakMeta={effectivePeakMeta}
+            loading={loadingSnapshots}
+            dateFrom={trafficFrom}
+            dateTo={trafficTo}
+            onDateFromChange={handleTrafficFromChange}
+            onDateToChange={handleTrafficToChange}
+            onResetDate={handleTrafficReset}
+          />
+        </div>
+        <RecentRecognitionActivity
+          data={recentRecognition.map((item) => ({
+            ...item,
+            timeLabel: formatTime(item.time),
+          }))}
+          loading={loadingSnapshots}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <SecurityMonitoringWidget
+          alerts={securityAlerts.map((alert) => ({
+            ...alert,
+            timeLabel: formatTime(alert.time),
+          }))}
+          loading={loadingSnapshots}
+        />
+
+        <div className="bg-white p-6 rounded-2xl shadow border border-gray-100">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <WifiOff className="w-5 h-5 text-red-600" />
+            Cảnh báo thiết bị
+          </h2>
+
+          {deviceAlerts.length === 0 ? (
+            <p className="text-green-600">
+              Tất cả thiết bị hoạt động bình thường
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+              {deviceAlerts.map((event) => (
+                <div
+                  key={event.id}
+                  className={`rounded-xl border p-3 ${event.variant.containerClass}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className={`font-semibold ${event.variant.textClass}`}>
+                        {event.deviceName}
+                      </p>
+                      <p className="text-xs text-slate-500">{event.lotName}</p>
+                    </div>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full font-semibold ${event.variant.badgeClass}`}
+                    >
+                      {event.variant.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <div className="min-w-0 flex-1">
+                      {event.status?.toLowerCase() !== "offline" && (
+                        <span className="font-medium text-slate-700">
+                          {event.status}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-slate-500">
+                      {formatTime(event.time)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
 
       {securityAlerts.length === 0 && recognitionLogs.length > 0 && (
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-center gap-2 text-green-700">

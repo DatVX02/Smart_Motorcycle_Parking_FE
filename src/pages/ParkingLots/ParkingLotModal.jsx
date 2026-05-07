@@ -223,8 +223,10 @@ const isDeviceCompatibleWithGateType = (device, gateType) => {
   if (!normalizedGateType || normalizedGateType === "two_way") return true;
 
   const deviceGateType = normalizeGateType(device?.gateType);
-  if (!deviceGateType)
-    return normalizeDeviceType(device?.deviceType) === "CAMERA";
+
+  if (!deviceGateType) {
+    return true;
+  }
   if (deviceGateType === "two_way") return true;
   return deviceGateType === normalizedGateType;
 };
@@ -405,13 +407,34 @@ function ParkingLotModal({ lot, onClose, onSave }) {
           pickDeviceId(d),
         );
         const unassignedOnly = allWithId.filter(isUnassignedDevice);
-        const source = unassignedOnly.length > 0 ? unassignedOnly : allWithId;
+
+        let source = unassignedOnly;
+        if (lot?.id) {
+          const lotDevices = await iotDeviceService
+            .getByLot(lot.id)
+            .catch(() => []);
+          const lotDevicesNotInUnassigned = (
+            Array.isArray(lotDevices) ? lotDevices : []
+          ).filter(
+            (d) =>
+              pickDeviceId(d) &&
+              !unassignedOnly.find((u) => pickDeviceId(u) === pickDeviceId(d)),
+          );
+          source = [...unassignedOnly, ...lotDevicesNotInUnassigned];
+        }
+
         setDeviceSelectorFallback(
           allWithId.length > 0 && unassignedOnly.length === 0,
         );
 
+        const seenIds = new Set();
         const options = source
-          .filter((d) => pickDeviceId(d))
+          .filter((d) => {
+            const id = pickDeviceId(d);
+            if (!id || seenIds.has(id)) return false;
+            seenIds.add(id);
+            return true;
+          })
           .map((d) => {
             const id = pickDeviceId(d);
             const deviceCode = d.deviceCode || "";

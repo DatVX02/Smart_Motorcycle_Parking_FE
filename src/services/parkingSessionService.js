@@ -35,6 +35,14 @@ const parkingSessionService = {
   },
 
   /**
+   * POST /api/v1/parking-sessions/{sessionId}/cancel
+   */
+  cancel: async (sessionId) => {
+    const res = await apiClient.post(`${BASE}/${sessionId}/cancel`);
+    return res.data;
+  },
+
+  /**
    * POST /api/v1/parking-sessions/pay-by-plate
    * @param {Object} payload - { LicensePlate, PaymentMethod, ExpectedCheckoutTime?, UserId? }
    */

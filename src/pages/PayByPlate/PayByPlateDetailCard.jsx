@@ -33,13 +33,14 @@ export default function PayByPlateDetailCard({
   const sessionStatusText = sessionStatusLabel(detailView.sessionStatus);
   const sessionStatusKey = normalizeKey(detailView.sessionStatus);
   const paymentStatusKey = normalizeKey(detailView.paymentStatus);
-  const isInLot = sessionStatusKey === "active" || sessionStatusKey === "inprogress";
+  const isInLot =
+    sessionStatusKey === "active" || sessionStatusKey === "inprogress";
   const isPrepayment =
     sessionStatusText === "Thanh toán trước" ||
     sessionStatusKey === "prepaid" ||
     sessionStatusKey === "parkingprepayment";
   const hasPendingPayment = paymentStatusKey === "pending";
-  
+
   const isAlreadyPaid =
     !hasPendingPayment &&
     !isInLot &&
@@ -140,7 +141,7 @@ export default function PayByPlateDetailCard({
                 {formatVnd(detailView.hourlyRate)}
               </span>
             </div>
-            
+
             {detailView.overtimeAmount > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 text-orange-600">
@@ -188,7 +189,9 @@ export default function PayByPlateDetailCard({
                 Số tiền cần thanh toán
               </span>
               <span className="text-2xl font-black text-indigo-700 tracking-tight">
-                {formatVnd(detailView.remainingAmount ?? detailView.totalAmount)}
+                {formatVnd(
+                  detailView.remainingAmount ?? detailView.totalAmount,
+                )}
               </span>
             </div>
           </div>
