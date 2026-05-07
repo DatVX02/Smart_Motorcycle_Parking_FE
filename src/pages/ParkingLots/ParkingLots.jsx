@@ -394,18 +394,10 @@ function ParkingLots() {
     setShowCamerasModal(true);
   };
 
-  const handleToggleStatus = async (lot, occupiedSpotsCount) => {
+  const handleToggleStatus = async (lot) => {
     const isCurrentlyActive =
       (lot.status ?? "active").toLowerCase() !== "inactive";
     const newStatus = isCurrentlyActive ? "inactive" : "active";
-
-    if (newStatus === "inactive" && occupiedSpotsCount > 0) {
-      toast.error(
-        "Không thể ngừng hoạt động khi còn xe đang gửi. Vui lòng đợi tất cả xe ra hết.",
-        { duration: 5000 },
-      );
-      return;
-    }
 
     setTogglingLotId(lot.id);
     try {
@@ -800,25 +792,17 @@ function ParkingLots() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleToggleStatus(lot, occupiedSpots)}
-                    disabled={
-                      togglingLotId === lot.id ||
-                      (occupiedSpots > 0 &&
-                        (lot.status ?? "active").toLowerCase() !== "inactive")
-                    }
+                    onClick={() => handleToggleStatus(lot)}
+                    disabled={togglingLotId === lot.id}
                     title={
                       (lot.status ?? "active").toLowerCase() === "inactive"
                         ? "Bật hoạt động"
-                        : occupiedSpots > 0
-                          ? "Không thể ngừng khi còn xe đang gửi"
-                          : "Ngừng hoạt động"
+                        : "Ngừng hoạt động"
                     }
                     className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       (lot.status ?? "active").toLowerCase() === "inactive"
                         ? "text-gray-400 hover:bg-green-50 hover:text-green-600"
-                        : occupiedSpots > 0
-                          ? "text-amber-500 cursor-not-allowed"
-                          : "text-green-600 hover:bg-green-50 hover:text-green-700"
+                        : "text-green-600 hover:bg-green-50 hover:text-green-700"
                     }`}
                   >
                     {togglingLotId === lot.id ? (

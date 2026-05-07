@@ -15,10 +15,11 @@ const getDefault = (device) => ({
   deviceType: device?.deviceType || "CAMERA",
   gateId: device?.gateId ?? device?.gate_id ?? "",
   gateName: device?.gateName || device?.gate_name || "",
-  model: device?.model || "",
-  ipAddress: device?.ipAddress || device?.ip || "",
-  macAddress: device?.macAddress || "",
-  firmwareVersion: device?.firmwareVersion || "",
+  model: device?.model || device?.deviceModel || "",
+  ipAddress: device?.ipAddress || device?.ip || device?.ip_address || "",
+  macAddress: device?.macAddress || device?.mac_address || "",
+  firmwareVersion: device?.firmwareVersion || device?.firmware_version || "",
+  connectionStatus: device?.connectionStatus || "ONLINE",
 });
 
 function DeviceModal({ device, onClose, onSave }) {
@@ -63,23 +64,23 @@ function DeviceModal({ device, onClose, onSave }) {
     setSubmitting(true);
     try {
       const payload = {
-        deviceCode: formData.deviceCode.trim() || undefined,
+        deviceCode: formData.deviceCode.trim(),
         deviceName: formData.deviceName.trim(),
         deviceType: formData.deviceType,
         gateId: formData.gateId || undefined,
         gateName: formData.gateName.trim() || undefined,
-        model: formData.model.trim() || undefined,
-        ipAddress: formData.ipAddress.trim() || undefined,
-        macAddress: formData.macAddress.trim().toUpperCase() || undefined,
-        firmwareVersion: formData.firmwareVersion.trim() || undefined,
-        connectionStatus: "ONLINE",
+        model: formData.model.trim(),
+        ipAddress: formData.ipAddress.trim(),
+        macAddress: formData.macAddress.trim().toUpperCase(),
+        firmwareVersion: formData.firmwareVersion.trim(),
+        connectionStatus: formData.connectionStatus || "ONLINE",
       };
       // Remove undefined keys
       Object.keys(payload).forEach(
         (k) => payload[k] === undefined && delete payload[k],
       );
 
-      await onSave(payload, device?.id ?? device?.deviceId);
+      await onSave(payload, device?.deviceId ?? device?.id);
     } catch {
       // Error already handled in parent
     } finally {

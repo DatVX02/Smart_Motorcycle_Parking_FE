@@ -71,16 +71,25 @@ function normalizeStatus(value) {
   if (["expired", "inactive", "ended", "done"].includes(raw)) {
     return "expired";
   }
+  if (["cancelled", "canceled", "deleted", "revoked"].includes(raw)) {
+    return "cancelled";
+  }
+  if (["pending", "waiting", "payment_pending", "processing"].includes(raw)) {
+    return "pending";
+  }
   return "active";
 }
 
 function resolveStatusByDate(rawStatus, endDate) {
+  const norm = normalizeStatus(rawStatus);
+  if (norm === "cancelled" || norm === "pending") return norm;
+
   const end = endDate ? new Date(endDate) : null;
   if (end && !Number.isNaN(end.getTime())) {
     return Date.now() > end.getTime() ? "expired" : "active";
   }
 
-  return normalizeStatus(rawStatus) === "expired" ? "expired" : "active";
+  return norm === "expired" ? "expired" : "active";
 }
 
 function statusStyle(status) {
@@ -94,6 +103,18 @@ function statusStyle(status) {
     return {
       label: "Đã hết hạn",
       className: "bg-red-100 text-red-700 border border-red-200",
+    };
+  }
+  if (status === "cancelled") {
+    return {
+      label: "Đã hủy",
+      className: "bg-gray-100 text-gray-700 border border-gray-200",
+    };
+  }
+  if (status === "pending") {
+    return {
+      label: "Chờ xử lý",
+      className: "bg-amber-100 text-amber-700 border border-amber-200",
     };
   }
   return {
@@ -351,7 +372,13 @@ function UserMonthlyPasses() {
     const expired = filteredPasses.filter(
       (item) => item.statusKey === "expired",
     ).length;
-    return { total, active, expired };
+    const pending = filteredPasses.filter(
+      (item) => item.statusKey === "pending",
+    ).length;
+    const cancelled = filteredPasses.filter(
+      (item) => item.statusKey === "cancelled",
+    ).length;
+    return { total, active, expired, pending, cancelled };
   }, [filteredPasses]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPasses.length / pageSize));
@@ -431,7 +458,7 @@ function UserMonthlyPasses() {
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-6">
         <div className="rounded-3xl p-6 shadow border bg-white">
           <div className="flex items-start gap-3">
             <Ticket className="w-8 h-8 flex-shrink-0 text-blue-600" />
@@ -462,6 +489,21 @@ function UserMonthlyPasses() {
           </div>
         </div>
 
+        <div className="rounded-3xl p-6 shadow border bg-amber-500/30">
+          <div className="flex items-start gap-3">
+            <RefreshCw className="w-8 h-8 flex-shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">
+                Chờ xử lý
+              </p>
+              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                {stats.pending}
+                <span className="text-base font-medium text-gray-600">Vé</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="rounded-3xl p-6 shadow border bg-rose-500/30">
           <div className="flex items-start gap-3">
             <MapPin className="w-8 h-8 flex-shrink-0 text-rose-600" />
@@ -471,6 +513,21 @@ function UserMonthlyPasses() {
               </p>
               <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
                 {stats.expired}
+                <span className="text-base font-medium text-gray-600">Vé</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl p-6 shadow border bg-gray-500/30">
+          <div className="flex items-start gap-3">
+            <Ticket className="w-8 h-8 flex-shrink-0 text-gray-600" />
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">
+                Đã hủy
+              </p>
+              <p className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight flex flex-wrap items-baseline gap-x-1">
+                {stats.cancelled}
                 <span className="text-base font-medium text-gray-600">Vé</span>
               </p>
             </div>
@@ -528,7 +585,9 @@ function UserMonthlyPasses() {
             >
               <option value="">Tất cả trạng thái</option>
               <option value="active">Đang hoạt động</option>
+              <option value="pending">Chờ xử lý</option>
               <option value="expired">Đã hết hạn</option>
+              <option value="cancelled">Đã hủy</option>
             </select>
           </div>
           <div>

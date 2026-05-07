@@ -9,6 +9,7 @@ import {
   XCircle,
   ClockAlert,
   Eye,
+  Ban,
   CircleDollarSign,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -19,13 +20,13 @@ import "dayjs/locale/vi";
 import parkingSessionService from "../../services/parkingSessionService";
 import parkingLotService from "../../services/parkingLotService";
 import { API_BASE_URL } from "../../config/api";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 dayjs.locale("vi");
 
@@ -53,7 +54,11 @@ function formatSessionTimes(s) {
 }
 
 function plateOf(s) {
-  return s.licensePlate ?? s.vehiclePlate ?? s.plateNumber ?? "";
+  return s?.licensePlate ?? s?.vehiclePlate ?? s?.plateNumber ?? "";
+}
+
+function sessionIdOf(s) {
+  return s?.sessionId ?? s?.id ?? "";
 }
 
 function sessionKind(s) {
@@ -273,6 +278,11 @@ export default function ParkingSessions() {
   const [pageSize] = useState(10);
   const [detailSession, setDetailSession] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
+  const [cancelDialog, setCancelDialog] = useState({
+    open: false,
+    session: null,
+  });
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   useEffect(() => {
     setLotFilter(lotIdFromUrl);
@@ -420,6 +430,43 @@ export default function ParkingSessions() {
     setPageNumber(1);
   };
 
+  const openCancelDialog = (session) => {
+    setCancelDialog({ open: true, session });
+  };
+
+  const closeCancelDialog = () => {
+    setCancelDialog({ open: false, session: null });
+  };
+
+  const handleCancelSession = useCallback(async () => {
+    const session = cancelDialog.session;
+    const sessionId = sessionIdOf(session);
+    if (!sessionId) {
+      toast.error("Không tìm thấy mã phiên để hủy.");
+      return;
+    }
+
+    setCancelLoading(true);
+    try {
+      await parkingSessionService.cancel(sessionId);
+      toast.success("Đã hủy phiên gửi xe.");
+      closeCancelDialog();
+      if (detailSession && sessionIdOf(detailSession) === sessionId) {
+        setDetailSession(null);
+        setPreviewImage(null);
+      }
+      await loadSessions();
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error?.response?.data?.message ||
+          "Không thể hủy phiên gửi xe. Vui lòng thử lại.",
+      );
+    } finally {
+      setCancelLoading(false);
+    }
+  }, [cancelDialog.session, detailSession, loadSessions]);
+
   return (
     <div className="space-y-5">
       {/* Thống kê */}
@@ -442,16 +489,16 @@ export default function ParkingSessions() {
             <StatCard
               icon={Motorbike}
               iconColor="text-blue-600"
-              label="Tổng phiên"
+              label="Tổng phiên gửi xe"
               value={statistics.total}
-              valueSuffix="Phiên"
+              valueSuffix="Phiên gửi xe"
             />
             <StatCard
               icon={LogIn}
               iconColor="text-blue-700"
               label="Đang trong bãi"
               value={statistics.active}
-              valueSuffix="Phiên"
+              valueSuffix="Phiên gửi xe"
               bgTint="bg-blue-500/30"
             />
             <StatCard
@@ -459,7 +506,7 @@ export default function ParkingSessions() {
               iconColor="text-cyan-700"
               label="Thanh toán trước"
               value={statistics.prepaid}
-              valueSuffix="Phiên"
+              valueSuffix="Phiên gửi xe"
               bgTint="bg-cyan-500/30"
             />
             <StatCard
@@ -467,7 +514,7 @@ export default function ParkingSessions() {
               iconColor="text-green-700"
               label="Đã ra bãi"
               value={statistics.completed}
-              valueSuffix="Phiên"
+              valueSuffix="Phiên gửi xe"
               bgTint="bg-green-500/30"
             />
             <StatCard
@@ -475,7 +522,7 @@ export default function ParkingSessions() {
               iconColor="text-amber-700"
               label="Thanh toán quá giờ"
               value={statistics.overtimepaid}
-              valueSuffix="Phiên"
+              valueSuffix="Phiên gửi xe"
               bgTint="bg-amber-500/30"
             />
             <StatCard
@@ -483,7 +530,7 @@ export default function ParkingSessions() {
               iconColor="text-red-700"
               label="Hủy"
               value={statistics.cancel}
-              valueSuffix="Phiên"
+              valueSuffix="Phiên gửi xe"
               bgTint="bg-red-500/30 "
             />
           </>
@@ -685,15 +732,28 @@ export default function ParkingSessions() {
                         </span>
                       </td>
                       <td className="p-3 text-center">
-                        <button
-                          type="button"
-                          aria-label="Xem chi tiết phiên"
-                          title="Xem chi tiết phiên"
-                          onClick={() => setDetailSession(s)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-blue-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label="Xem chi tiết phiên"
+                            title="Xem chi tiết phiên"
+                            onClick={() => setDetailSession(s)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-blue-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          {(k === "active" || k === "prepaid") && (
+                            <button
+                              type="button"
+                              aria-label="Hủy phiên gửi xe"
+                              title="Hủy phiên gửi xe"
+                              onClick={() => openCancelDialog(s)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-50 hover:text-red-700"
+                            >
+                              <Ban className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1076,6 +1136,17 @@ export default function ParkingSessions() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={cancelDialog.open}
+        onClose={closeCancelDialog}
+        onConfirm={handleCancelSession}
+        title="Hủy phiên gửi xe"
+        description={`Bạn có chắc muốn hủy phiên gửi xe ${plateOf(cancelDialog.session) || "này"}?`}
+        confirmLabel={cancelLoading ? "Đang hủy..." : "Xác nhận hủy"}
+        cancelLabel="Đóng"
+        variant="destructive"
+      />
     </div>
   );
 }
