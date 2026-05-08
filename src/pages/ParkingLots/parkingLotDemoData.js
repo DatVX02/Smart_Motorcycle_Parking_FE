@@ -27,7 +27,7 @@ const newGate = (overrides = {}) => ({
 
 const DEMO_SAMPLES = [
   {
-    lotName: "Bãi xe Đại Học FPT",
+    lotName: "Bãi Xe Đại Học FPT",
     fullAddress: "7, Đường D1, Tăng Nhơn Phú, Hồ Chí Minh",
     totalCapacity: "850",
     hourlyRate: "4000",
